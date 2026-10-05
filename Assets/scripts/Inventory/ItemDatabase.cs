@@ -1,4 +1,4 @@
-// Assets/Scripts/Data/ItemDatabase.cs
+﻿// Assets/Scripts/Data/ItemDatabase.cs
 using UnityEngine;
 using TOP.Core;
 using System.Collections.Generic;
@@ -19,8 +19,11 @@ namespace TOP.Inventory
                 if (_instance == null)
                 {
                     _instance = FindAnyObjectByType<ItemDatabase>();
-                    if (_instance == null)
-                        Debug.LogError("[ItemDatabase] Nenhuma instância encontrada!");
+                    if (_instance == null && Application.isPlaying)
+                    {
+                        var go = new GameObject("ItemDatabase");
+                        _instance = go.AddComponent<ItemDatabase>();
+                    }
                 }
                 return _instance;
             }
@@ -46,6 +49,13 @@ namespace TOP.Inventory
         {
             if (isInitialized) return;
             LoadItemsFromResources();
+            foreach (var pko in TOP.Data.PkoTables.Items.Values)
+            {
+                if (pko.Id <= 0 || itemsById.ContainsKey(pko.Id)) continue;
+                var data = TOP.Data.PkoTables.ToItemData(pko);
+                itemsById.Add(pko.Id, data);
+                if (data is EquipmentData eq) equipmentById.Add(pko.Id, eq);
+            }
             isInitialized = true;
             Debug.Log($"[ItemDatabase] Inicializado com {itemsById.Count} items ({equipmentById.Count} equipamentos)");
         }

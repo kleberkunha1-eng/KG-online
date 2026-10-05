@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &9132436939488806987
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4043358758526373473}
+  - component: {fileID: 6643087839233431148}
+  m_Layer: 0
+  m_Name: fspire1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4043358758526373473
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9132436939488806987}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6643087839233431148
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9132436939488806987}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d4b35d6f9759c44c936f2a384b34be2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PKOEffectPlayer
+  json: {fileID: 4900000, guid: aa915a3bb17875a41ba0819fae6e94ea, type: 3}
+  textures:
+  - {fileID: 2800000, guid: b7efd5a16d64ae04084db62b5b1e0028, type: 3}
+  - {fileID: 2800000, guid: 8cf014283b24ba04b9fd35224da8f71b, type: 3}
+  - {fileID: 2800000, guid: ded3790bad597274793e9e69dc0dd829, type: 3}
+  - {fileID: 2800000, guid: de523c35cfa339248837c09f806a362f, type: 3}
+  effectMaterial: {fileID: 2100000, guid: 3742939108684a24fbd6440898da9dc0, type: 2}
+  modelMeshes:
+  - {fileID: -2432090755550338912, guid: 16ba02fa46011404c98ecc588e714bc7, type: 3}
+  modelMeshNames:
+  - wind01.lgo
+  loop: 1
+  destroyWhenDone: 0

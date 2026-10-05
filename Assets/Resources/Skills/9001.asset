@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf8f43dcebaf4e5409b7783e05471cc8, type: 3}
+  m_Name: 9001
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Core.SkillData
+  skillId: 9001
+  skillName: Golpe poderoso
+  description: 
+  icon: {fileID: 0}
+  skillType: 0
+  targetType: 1
+  requiredClass: 0
+  requiredLevel: 1
+  requiredSkillPoints: 1
+  prerequisiteSkills: 
+  mpCost: 8
+  spCost: 0
+  hpCost: 0
+  itemCost: 0
+  baseDamage: 25
+  damageMultiplier: 1
+  element: 0
+  elementMultiplier: 1
+  healAmount: 0
+  healMultiplier: 1
+  range: 3
+  areaRadius: 0
+  coneAngle: 0
+  maxTargets: 1
+  castTime: 0
+  cooldown: 3
+  canMoveWhileCasting: 0
+  canBeInterrupted: 1
+  animationTrigger: Skill
+  animationVariant: 0
+  animationSpeed: 1
+  castEffect: {fileID: 0}
+  executeEffect: {fileID: 0}
+  hitEffect: {fileID: 0}
+  castSound: {fileID: 0}
+  executeSound: {fileID: 0}
+  hitSound: {fileID: 0}
+  isProjectile: 0
+  projectilePrefab: {fileID: 0}
+  projectileSpeed: 10
+  projectileHoming: 0
+  appliedBuffs: []
+  appliedDebuffs: []
+  maxLevel: 10
+  damagePerLevel: 1.1
+  mpCostPerLevel: 1.05
+  cooldownPerLevel: 0.95

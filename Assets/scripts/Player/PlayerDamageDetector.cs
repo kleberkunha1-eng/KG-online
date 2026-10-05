@@ -5,6 +5,8 @@ using Mirror;
 /// Adicione este script no PLAYER para diagnosticar de onde vem a morte.
 /// Ele loga TODAS as colisões e triggers que o player entra.
 /// </summary>
+namespace TOP.Player
+{       
 public class PlayerDamageDetector : NetworkBehaviour
 {
     private Vector3 lastPosition;
@@ -64,4 +66,5 @@ public class PlayerDamageDetector : NetworkBehaviour
     {
         Debug.Log($"[DamageDetector] COLLISION: {gameObject.name} -> {collision.gameObject.name} (tag={collision.gameObject.tag})", this);
     }
+}
 }

@@ -1,8 +1,9 @@
 using UnityEngine;
-using TOP.Player;  // ✅ para PlayerMovement    
+using TOP.Player;
+using Mirror;
+
 namespace TOP.Systems
 {
-
     public class CameraController : MonoBehaviour
     {
         [Header("Target")]
@@ -34,6 +35,8 @@ namespace TOP.Systems
         private float currentRotationX;
         private float currentRotationY;
         private Vector3 currentVelocity;
+        private float _findPlayerTimer = 0f;
+        private const float FIND_PLAYER_INTERVAL = 0.5f;
 
         public Transform Target
         {
@@ -47,6 +50,14 @@ namespace TOP.Systems
             currentRotationY = 45f;
             currentRotationX = Mathf.Lerp(minAngle, maxAngle, 0.35f);
 
+            // Verifica se CameraFollow existe — se sim, desabilita este script
+            if (GetComponent<CameraFollow>() != null)
+            {
+                Debug.Log("[CameraController] CameraFollow detectado — desabilitando CameraController (usando CameraFollow).");
+                enabled = false;
+                return;
+            }
+
             if (target == null)
                 FindLocalPlayer();
         }
@@ -55,7 +66,12 @@ namespace TOP.Systems
         {
             if (target == null)
             {
-                FindLocalPlayer();
+                _findPlayerTimer += Time.deltaTime;
+                if (_findPlayerTimer >= FIND_PLAYER_INTERVAL)
+                {
+                    _findPlayerTimer = 0f;
+                    FindLocalPlayer();
+                }
                 return;
             }
 
@@ -65,14 +81,39 @@ namespace TOP.Systems
 
         private void FindLocalPlayer()
         {
-            // CORREÇÃO: Remove FindObjectsSortMode obsoleto
-            var players = UnityEngine.Object.FindObjectsByType<PlayerMovement>(FindObjectsInactive.Include);
+            // Busca por PlayerController PRIMEIRO (mais confiavel)
+            var players = UnityEngine.Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include);
             foreach (var player in players)
             {
                 if (player.isLocalPlayer)
                 {
                     target = player.transform;
-                    break;
+                    Debug.Log($"[CameraController] Player encontrado via PlayerController: {player.CharacterName}");
+                    return;
+                }
+            }
+
+            // Fallback: busca por PlayerMovement
+            var movements = UnityEngine.Object.FindObjectsByType<PlayerMovement>(FindObjectsInactive.Include);
+            foreach (var movement in movements)
+            {
+                if (movement.isLocalPlayer)
+                {
+                    target = movement.transform;
+                    Debug.Log("[CameraController] Player encontrado via PlayerMovement.");
+                    return;
+                }
+            }
+
+            // Ultimo fallback: qualquer NetworkBehaviour com isLocalPlayer
+            var netBehaviours = UnityEngine.Object.FindObjectsByType<NetworkBehaviour>(FindObjectsInactive.Include);
+            foreach (var nb in netBehaviours)
+            {
+                if (nb.isLocalPlayer)
+                {
+                    target = nb.transform;
+                    Debug.Log($"[CameraController] Player encontrado via NetworkBehaviour: {nb.GetType().Name}");
+                    return;
                 }
             }
         }
@@ -151,6 +192,24 @@ namespace TOP.Systems
             currentRotationY = 45f;
         }
 
+        /// <summary>
+        /// Aplica um preset de camera usado pela janela de configuracoes (frmGame -> Camera Top1/Top2).
+        /// Top1 (0) = visao padrao em terceira pessoa. Top2 (1) = visao mais alta/top-down.
+        /// </summary>
+        public void SetPreset(int mode)
+        {
+            if (mode == 1)
+            {
+                currentZoom = Mathf.Clamp(defaultZoom * 1.3f, minZoom, maxZoom);
+                currentRotationX = Mathf.Lerp(minAngle, maxAngle, 0.75f);
+            }
+            else
+            {
+                currentZoom = defaultZoom;
+                currentRotationX = Mathf.Lerp(minAngle, maxAngle, 0.35f);
+            }
+        }
+
         public void Shake(float duration, float magnitude)
         {
             StartCoroutine(ShakeCoroutine(duration, magnitude));
@@ -175,5 +234,4 @@ namespace TOP.Systems
             transform.localPosition = originalPosition;
         }
     }
-
 }

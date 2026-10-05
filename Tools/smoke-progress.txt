@@ -1,0 +1,24 @@
+PASS Host spawns a local network player
+PASS Database data initializes authoritative HP and HUD values
+PASS Original Garner terrain is loaded
+PASS Original item, skill and level tables load
+PASS Spawn is on baked navigation mesh
+PASS Server movement crosses the textured terrain
+PASS Running is faster than walking
+PASS Configured spawners create network monsters
+PASS Auto attack damages the selected monster
+PASS Healing skill consumes mana
+PASS Monster death grants XP
+PASS XP threshold increases level
+PASS Lethal damage kills the player
+PASS Player respawns with restored HP
+PASS Minimap camera follows local player
+PASS Player mesh has valid skinning and nonzero geometry
+PASS Generic animated character remains attached to movement root
+PASS Converted .eff effect builds visible layers at runtime
+PASS Original UI forms are built from client layouts
+PASS Inventory window opens with 48 original grid slots
+FAIL Inventory window shows item icons
+PASS Status window shows character data
+PASS Skill window lists original class skills
+PASS Status point button logic raises attribute

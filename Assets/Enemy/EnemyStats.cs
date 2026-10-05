@@ -107,16 +107,14 @@ public class EnemyStats : NetworkBehaviour, ICharacterStats
         _spawnPosition = transform.position;
         _spawnRotation = transform.rotation;
 
-        if (_animator == null)
+        if (_animator == null && GetComponentInChildren<Animation>(true) == null)
             Debug.LogError($"[EnemyStats] Animator NÃO ENCONTRADO em {gameObject.name}!");
     }
 
-    void Start()
+    public override void OnStartServer()
     {
-        if (isServer)
-        {
-            InitializeStats();
-        }
+        base.OnStartServer();
+        InitializeStats();
     }
 
     #endregion
@@ -374,6 +372,8 @@ public class EnemyStats : NetworkBehaviour, ICharacterStats
     [ClientRpc]
     private void RpcOnDamageTaken(int damage, uint attackerId)
     {
+        TOP.Systems.EffectManager.Instance?.PlayHitEffect(transform.position + Vector3.up, Vector3.up);
+        TOP.Systems.DamagePopupManager.Instance?.ShowDamage(transform.position + Vector3.up, damage, false);
         OnHealthUpdated?.Invoke();
     }
 

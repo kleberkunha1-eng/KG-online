@@ -115,18 +115,4 @@ namespace TOP.NPC
             }
         }
     }
-
-    public enum NPCType
-    {
-        Merchant,
-        QuestGiver,
-        Blacksmith,
-        Healer,
-        Banker,
-        GuildMaster,
-        SkillMaster,
-        StableMaster,
-        Teleporter,
-        Other
-    }
 }

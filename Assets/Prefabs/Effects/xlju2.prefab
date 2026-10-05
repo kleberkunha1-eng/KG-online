@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6722039865412754648
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7903508444356709663}
+  - component: {fileID: 3435197328736422708}
+  m_Layer: 0
+  m_Name: xlju2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7903508444356709663
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6722039865412754648}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3435197328736422708
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6722039865412754648}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d4b35d6f9759c44c936f2a384b34be2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PKOEffectPlayer
+  json: {fileID: 4900000, guid: 5e4355c43efe0944b85a2afecc5b708d, type: 3}
+  textures:
+  - {fileID: 2800000, guid: 88a6109431eac24419b48c70270adf8c, type: 3}
+  effectMaterial: {fileID: 2100000, guid: 3742939108684a24fbd6440898da9dc0, type: 2}
+  modelMeshes: []
+  modelMeshNames: []
+  loop: 1
+  destroyWhenDone: 0

@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using TOP.Core;
 using TOP.Inventory;
-using TOP.Gameplay;
 
-namespace TOP.Gameplay
+
+namespace TOP.Systems
 {
     public class WorldItemManager : NetworkBehaviour
     {

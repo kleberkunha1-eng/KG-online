@@ -1,0 +1,6 @@
+System.InvalidOperationException: This cannot be used during play mode, please use SceneManager.LoadScene()/SceneManager.LoadSceneAsync() instead.
+  at (wrapper managed-to-native) UnityEditor.SceneManagement.EditorSceneManager.OpenScene_Injected(UnityEngine.Bindings.ManagedSpanWrapper&,UnityEditor.SceneManagement.OpenSceneMode,UnityEngine.SceneManagement.Scene&)
+  at UnityEditor.SceneManagement.EditorSceneManager.OpenScene (System.String scenePath, UnityEditor.SceneManagement.OpenSceneMode mode) [0x0002a] in <3ff67d8140d14ba9b3a4eb94eaadf68c>:0 
+  at UnityEditor.SceneManagement.EditorSceneManager.OpenScene (System.String scenePath) [0x00000] in <3ff67d8140d14ba9b3a4eb94eaadf68c>:0 
+  at TOP.EditorTools.WorldValidation.Run () [0x00000] in C:\Users\klebe\Tales of Pirates Unity\Assets\Editor\WorldValidation.cs:18 
+  at TOP.EditorTools.WorldValidation.Poll () [0x00044] in C:\Users\klebe\Tales of Pirates Unity\Assets\Editor\WorldValidation.cs:14 

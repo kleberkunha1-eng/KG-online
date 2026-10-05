@@ -2,7 +2,6 @@ using UnityEngine;
 using Mirror;
 using TOP.Core;
 using TOP.Systems;
-using TOP.Gameplay;
 using System;
 
 namespace TOP.Player
@@ -21,18 +20,20 @@ namespace TOP.Player
         [Header("Target Selection Visual")]
         [SerializeField] private bool showSelectionCircle = true;
 
-        [SyncVar] private NetworkIdentity _currentTarget;
+        [SyncVar] private uint _currentTargetNetId;
+        public uint CurrentTargetNetId => _currentTargetNetId;
         [SyncVar] private bool _isAttacking;
 
         private float _lastAttackTime;
         private bool _attackHitPending = false;
-        private bool _attackAnimationPlaying = false;  // ✅ NOVO: evita tremedeira
+        private bool _attackAnimationPlaying = false;
         private PlayerStats _stats;
         private PlayerAnimation _animation;
         private PlayerEquipment _equipment;
         private PlayerController _controller;
         private PlayerMovement _movement;
         private EnemySelection _currentEnemySelection;
+        private NetworkIdentity _currentTarget;
 
         void Awake()
         {
@@ -46,22 +47,34 @@ namespace TOP.Player
         void Update()
         {
             if (!isServer) return;
+            if (_stats == null || _stats.IsDead) { StopAttack(); return; }
+
+            // Atualiza referência do target a partir do netId
+            if (_currentTargetNetId != 0 && (_currentTarget == null || _currentTarget.netId != _currentTargetNetId))
+            {
+                if (NetworkServer.spawned.TryGetValue(_currentTargetNetId, out NetworkIdentity identity))
+                    _currentTarget = identity;
+                else
+                    _currentTarget = null;
+            }
 
             if (_currentTarget != null && _isAttacking)
             {
                 float distance = Vector3.Distance(transform.position, _currentTarget.transform.position);
 
                 // Se o target morreu, para de atacar
-                if (_currentTarget.GetComponent<EnemyStats>()?.IsDead == true)
+                EnemyStats enemyStats = _currentTarget.GetComponent<EnemyStats>();
+                if (enemyStats != null && enemyStats.IsDead)
                 {
                     StopAttack();
                     return;
                 }
 
-                // ✅ CORRIGIDO: Só ataca se estiver em range E cooldown passou
+                // Só ataca se estiver em range E cooldown passou
+                if (distance > attackRange) { _movement?.SetDestination(_currentTarget.transform.position); return; }
                 if (distance <= attackRange)
                 {
-                    // ✅ NOVO: Só inicia nova animação se a anterior terminou
+                    _movement?.Stop();
                     if (Time.time >= _lastAttackTime + attackCooldown && !_attackAnimationPlaying)
                     {
                         StartAttackAnimation();
@@ -74,7 +87,6 @@ namespace TOP.Player
                         _attackHitPending = false;
                     }
                 }
-                // Se estiver fora de range, continua perseguindo (movimento normal)
             }
         }
 
@@ -83,15 +95,14 @@ namespace TOP.Player
         {
             _lastAttackTime = Time.time;
             _attackHitPending = true;
-            _attackAnimationPlaying = true;  // ✅ Marca que animação está rodando
+            _attackAnimationPlaying = true;
 
             // Dispara animação nos clientes
             _animation?.RpcTriggerAttack(0);
-            OnAttackStarted?.Invoke();  // ✅ Só dispara uma vez por ataque
+            OnAttackStarted?.Invoke();
 
-            Debug.Log($"[PlayerCombat] 🎬 Animação de ataque iniciada em {_currentTarget.name}");
+            Debug.Log($"[PlayerCombat] 🎬 Animação de ataque iniciada em {(_currentTarget != null ? _currentTarget.name : "NULL")}");
 
-            // ✅ NOVO: Agenda o fim da animação (evita tremedeira)
             Invoke(nameof(EndAttackAnimation), attackCooldown * 0.8f);
         }
 
@@ -124,17 +135,26 @@ namespace TOP.Player
         public void OnAnimationAttackHit()
         {
             if (!isServer) return;
-            _attackHitPending = true;
+            // Hits are scheduled once by the server, never duplicated by client animation events.
         }
 
+        /// <summary>
+        /// Define o alvo do combate pelo netId.
+        /// </summary>
         [Server]
-        public void SetTarget(NetworkIdentity target)
+        public void SetTarget(uint targetNetId)
         {
             if (_currentEnemySelection != null)
             {
                 _currentEnemySelection.SetSelected(false);
                 _currentEnemySelection = null;
             }
+
+            _currentTargetNetId = targetNetId;
+
+            NetworkIdentity target = null;
+            if (targetNetId != 0 && NetworkServer.spawned.TryGetValue(targetNetId, out NetworkIdentity identity))
+                target = identity;
 
             _currentTarget = target;
             OnTargetChanged?.Invoke(target?.transform);
@@ -156,18 +176,21 @@ namespace TOP.Player
                 }
             }
 
-            Debug.Log($"[PlayerCombat] Target setado: {(target != null ? target.name : "NULL")}");
+            Debug.Log($"[PlayerCombat] Target setado: {(target != null ? target.name : "NULL")} (netId={targetNetId})");
         }
 
+        /// <summary>
+        /// Inicia auto-attack no alvo.
+        /// </summary>
         [Server]
-        public void AttackTarget(NetworkIdentity target)
+        public void AttackTarget(uint targetNetId, int skillId = 0)
         {
-            if (target == null) return;
+            if (targetNetId == 0) return;
 
-            SetTarget(target);
+            SetTarget(targetNetId);
             _isAttacking = true;
 
-            Debug.Log($"[PlayerCombat] Auto-attack iniciado em {target.name}");
+            Debug.Log($"[PlayerCombat] Auto-attack iniciado em netId={targetNetId} (skillId={skillId})");
         }
 
         [Server]
@@ -197,10 +220,11 @@ namespace TOP.Player
             }
 
             _isAttacking = false;
+            _currentTargetNetId = 0;
             _currentTarget = null;
             _attackHitPending = false;
             _attackAnimationPlaying = false;
-            CancelInvoke(nameof(EndAttackAnimation));  // ✅ Cancela Invoke pendente
+            CancelInvoke(nameof(EndAttackAnimation));
             OnTargetChanged?.Invoke(null);
         }
 

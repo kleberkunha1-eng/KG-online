@@ -3,7 +3,6 @@ using Mirror;
 using TOP.Core;
 using TOP.Inventory;
 using TOP.Systems;
-using TOP.Gameplay; 
 
 namespace TOP.Player
 {
@@ -37,7 +36,6 @@ namespace TOP.Player
             if (consumable.restoreHP > 0)
                 _stats.Heal(consumable.restoreHP);
 
-            // Nota: Garanta que RestoreMp e RestoreSp existam no script PlayerStats.cs
             if (consumable.restoreMP > 0)
                 _stats.RestoreMp(consumable.restoreMP);
 
@@ -47,7 +45,6 @@ namespace TOP.Player
             // Sistema de Buffs
             if (consumable.buffs != null && consumable.buffs.Length > 0)
             {
-                // Trocado FindAnyObjectByType por FindObjectOfType para compatibilidade
                 BuffManager buffManager = Object.FindAnyObjectByType<BuffManager>();  
                 if (buffManager != null)
                 {
@@ -62,9 +59,7 @@ namespace TOP.Player
             PlayerController controller = GetComponent<PlayerController>();
             if (controller != null)
             {
-                // CORREÇÃO: Se PlayerMessageType der erro, verifique se ele está no namespace TOP.Core
-                // Se estiver dentro da classe PlayerController, use PlayerController.PlayerMessageType.Success
-                controller.RpcShowMessage($"Usou {itemData.itemName}", PlayerController.PlayerMessageType.Success);
+                controller.RpcShowMessage($"Usou {itemData.itemName}", PlayerMessageType.Success);
             }
         }
     }

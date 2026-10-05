@@ -51,7 +51,7 @@ public class DebugGiveItem : MonoBehaviour
     private void GiveItem()
     {
         // TROCADO: FindAnyObjectByType para FindObjectOfType para maior compatibilidade
-        PlayerInventory playerInventory = Object.FindObjectOfType<PlayerInventory>(); 
+        PlayerInventory playerInventory = Object.FindAnyObjectByType<PlayerInventory>(); 
 
         if (playerInventory == null)
         {

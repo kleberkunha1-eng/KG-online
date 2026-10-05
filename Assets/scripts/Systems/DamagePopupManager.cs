@@ -40,7 +40,7 @@ namespace TOP.Systems
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+
 
             mainCamera = Camera.main;
 
@@ -81,6 +81,7 @@ namespace TOP.Systems
             textMesh.alignment = TextAlignmentOptions.Center;
             textMesh.color = Color.white;
 
+            go.SetActive(false);
             return go;
         }
 
@@ -114,6 +115,8 @@ namespace TOP.Systems
         // 🔧 CORREÇÃO: Todos os métodos agora usam TextMeshProUGUI
         public void ShowDamage(Vector3 worldPosition, int damage, bool isCritical = false)
         {
+            if (mainCamera == null) mainCamera = Camera.main;
+            if (mainCamera == null) return;
             GameObject popup = GetPopup();
             if (popup == null) return;
 

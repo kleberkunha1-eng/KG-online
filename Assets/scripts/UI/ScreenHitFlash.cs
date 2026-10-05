@@ -23,7 +23,7 @@ public class ScreenHitFlash : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+        // Scene UI follows the lifetime of its canvas.
 
         canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;

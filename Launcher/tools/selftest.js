@@ -1,0 +1,34 @@
+// Teste ponta a ponta: publica uma build falsa, instala, atualiza, remove arquivo.
+const fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+const patcher = require('../patcher');
+const base = process.env.PATCH_URL || 'http://localhost:3000/patch/_selftest';
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lt-'));
+const build = path.join(tmp, 'build'), out = path.join(tmp, 'patch'), inst = path.join(tmp, 'install');
+const pub = () => execFileSync('node', [path.join(__dirname, 'publish.js'), build, '--out', process.env.PATCH_OUT || path.join(__dirname, '..', '..', 'API', 'patch', '_selftest')], { stdio: 'inherit' });
+const ok = (c, m) => { if (!c) { console.error('FALHOU: ' + m); process.exit(1); } console.log('ok - ' + m); };
+(async () => {
+    fs.mkdirSync(path.join(build, 'Game_Data'), { recursive: true });
+    fs.writeFileSync(path.join(build, 'Game.exe'), 'exe-v1');
+    fs.writeFileSync(path.join(build, 'Game_Data', 'a.dat'), 'A1');
+    fs.writeFileSync(path.join(build, 'Game_Data', 'b.dat'), 'B1');
+    pub();
+    let plan = await patcher.check(base, inst);
+    ok(plan.need.length === 3 && !plan.upToDate, 'instalacao nova precisa de 3 arquivos');
+    await patcher.update(base, inst, plan);
+    plan = await patcher.check(base, inst);
+    ok(plan.upToDate, 'apos instalar esta atualizado');
+    fs.writeFileSync(path.join(build, 'Game_Data', 'a.dat'), 'A2-changed');
+    fs.rmSync(path.join(build, 'Game_Data', 'b.dat'));
+    fs.writeFileSync(path.join(build, 'Game_Data', 'c.dat'), 'C1');
+    pub();
+    plan = await patcher.check(base, inst);
+    ok(plan.need.length === 2 && plan.remove.length === 1, 'update baixa so 2 arquivos e remove 1');
+    await patcher.update(base, inst, plan);
+    ok(!fs.existsSync(path.join(inst, 'Game_Data', 'b.dat')) && fs.readFileSync(path.join(inst, 'Game_Data', 'a.dat'), 'utf8') === 'A2-changed', 'arquivos aplicados');
+    fs.writeFileSync(path.join(inst, 'Game_Data', 'c.dat'), 'CORROMPIDO');
+    plan = await patcher.check(base, inst);
+    ok(plan.need.length === 1, 'arquivo corrompido detectado e reparado');
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(path.join(__dirname, '..', '..', 'API', 'patch', '_selftest'), { recursive: true, force: true });
+    console.log('TUDO OK');
+})().catch(e => { console.error(e); process.exit(1); });

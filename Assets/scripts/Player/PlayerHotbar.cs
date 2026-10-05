@@ -4,140 +4,140 @@ using TOP.Core;
 using TOP.Inventory;
 using TOP.Systems;
 using System;
-using TOP.Player;
 
 namespace TOP.Player
 {
-public class PlayerHotbar : NetworkBehaviour
-{
-    [Header("Settings")]
-    [SerializeField] private int maxSlots = 10;
-
-    public readonly SyncList<HotbarSlot> hotbarSlots = new SyncList<HotbarSlot>();
-
-    private PlayerSkills skills;
-    private PlayerInventory inventory;
-
-    public event Action<int, HotbarSlot> OnSlotChanged;
-    public event Action<int> OnSlotActivated;
-
-    void Awake()
+    public class PlayerHotbar : NetworkBehaviour
     {
-        skills = GetComponent<PlayerSkills>();
-        inventory = GetComponent<PlayerInventory>();
-    }
+        [Header("Settings")]
+        [SerializeField] private int maxSlots = 10;
 
-    void Start()
-    {
-        if (isServer)
+        public readonly SyncList<HotbarSlot> hotbarSlots = new SyncList<HotbarSlot>();
+
+        private PlayerSkills skills;
+        private PlayerInventory inventory;
+
+        public event Action<int, HotbarSlot> OnSlotChanged;
+        public event Action<int> OnSlotActivated;
+
+        void Awake()
         {
-            while (hotbarSlots.Count < maxSlots)
-            {
-                hotbarSlots.Add(new HotbarSlot { type = HotbarSlotType.Empty });
-            }
+            skills = GetComponent<PlayerSkills>();
+            inventory = GetComponent<PlayerInventory>();
         }
 
-        hotbarSlots.Callback += OnHotbarChanged;
-    }
-
-    void Update()
-    {
-        if (!isLocalPlayer) return;
-
-        HandleInput();
-    }
-
-    private void HandleInput()
-    {
-        // Teclas F1-F10
-        for (int i = 0; i < maxSlots && i < 10; i++)
+        void Start()
         {
-            if (Input.GetKeyDown(KeyCode.F1 + i))
+            if (isServer)
             {
-                ActivateSlot(i);
-            }
-        }
-
-        // Teclas 1-0
-        for (int i = 0; i < maxSlots && i < 10; i++)
-        {
-            KeyCode key = i == 9 ? KeyCode.Alpha0 : KeyCode.Alpha1 + i;
-            if (Input.GetKeyDown(key))
-            {
-                ActivateSlot(i);
-            }
-        }
-    }
-
-    private void ActivateSlot(int slotIndex)
-    {
-        if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
-
-        var slot = hotbarSlots[slotIndex];
-
-        switch (slot.type)
-        {
-            case HotbarSlotType.Skill:
-                // 🔧 CORREÇÃO: PlayerSkills.TryUseSkill() espera int (índice), não SkillData
-                // Verificamos se o ID corresponde a um índice válido
-                if (slot.id >= 0 && slot.id < 4) // Assumindo max 4 skills visíveis
+                while (hotbarSlots.Count < maxSlots)
                 {
-                    skills?.TryUseSkill(slot.id);
+                    hotbarSlots.Add(new HotbarSlot { type = HotbarSlotType.Empty });
                 }
-                else
-                {
-                    Debug.LogWarning("[PlayerHotbar] Skill ID " + slot.id + " não corresponde a um índice válido.");
-                }
-                break;
+            }
 
-            case HotbarSlotType.Item:
-                int invSlot = inventory?.FindItemSlot(slot.id) ?? -1;
-                if (invSlot >= 0)
-                    inventory?.CmdUseItem((ushort)invSlot);
-                break;
-
-            case HotbarSlotType.Emote:
-                if (TryGetComponent(out PlayerAnimation anim))
-                    anim.PlayEmote(slot.emoteId);
-                break;
+            if (isServer) { skills?.LearnSkill(9001); skills?.LearnSkill(9002); hotbarSlots[0] = new HotbarSlot { type = HotbarSlotType.Skill, id = 9001 }; hotbarSlots[1] = new HotbarSlot { type = HotbarSlotType.Skill, id = 9002 }; }
+            hotbarSlots.Callback += OnHotbarChanged;
         }
 
-        OnSlotActivated?.Invoke(slotIndex);
+        void Update()
+        {
+            if (!isLocalPlayer) return;
+
+            HandleInput();
+        }
+
+        private void HandleInput()
+        {
+            if (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject != null && UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.GetComponent<TMPro.TMP_InputField>() != null) return;
+            // Teclas F1-F10
+            for (int i = 0; i < maxSlots && i < 10; i++)
+            {
+                if (Input.GetKeyDown(KeyCode.F1 + i))
+                {
+                    ActivateSlot(i);
+                }
+            }
+
+            // Teclas 1-0
+            for (int i = 0; i < maxSlots && i < 10; i++)
+            {
+                KeyCode key = i == 9 ? KeyCode.Alpha0 : KeyCode.Alpha1 + i;
+                if (Input.GetKeyDown(key))
+                {
+                    ActivateSlot(i);
+                }
+            }
+        }
+
+        private void ActivateSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
+
+            var slot = hotbarSlots[slotIndex];
+
+            switch (slot.type)
+            {
+                case HotbarSlotType.Skill:
+                    // ✅ CORREÇÃO: PlayerSkills.TryUseSkill(int skillId) → CmdUseSkill
+                    if (slot.id >= 0)
+                    {
+                        skills?.TryUseSkill(slot.id);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[PlayerHotbar] Skill ID inválido.");
+                    }
+                    break;
+
+                case HotbarSlotType.Item:
+                    int invSlot = inventory?.FindItemSlot(slot.id) ?? -1;
+                    if (invSlot >= 0)
+                        inventory?.CmdUseItem((ushort)invSlot);
+                    break;
+
+                case HotbarSlotType.Emote:
+                    if (TryGetComponent(out PlayerAnimation anim))
+                        anim.PlayEmote(slot.emoteId);
+                    break;
+            }
+
+            OnSlotActivated?.Invoke(slotIndex);
+        }
+
+        [Command]
+        public void CmdSetSlot(int slotIndex, HotbarSlot slot)
+        {
+            if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
+            hotbarSlots[slotIndex] = slot;
+        }
+
+        [Command]
+        public void CmdClearSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
+            hotbarSlots[slotIndex] = new HotbarSlot { type = HotbarSlotType.Empty };
+        }
+
+        private void OnHotbarChanged(SyncList<HotbarSlot>.Operation op, int index,
+            HotbarSlot oldSlot, HotbarSlot newSlot)
+        {
+            OnSlotChanged?.Invoke(index, newSlot);
+        }
+
+        public HotbarSlot GetSlot(int index)
+        {
+            if (index < 0 || index >= hotbarSlots.Count)
+                return new HotbarSlot { type = HotbarSlotType.Empty };
+            return hotbarSlots[index];
+        }
     }
 
-    [Command]
-    public void CmdSetSlot(int slotIndex, HotbarSlot slot)
+    [System.Serializable]
+    public struct HotbarSlot : Mirror.NetworkMessage
     {
-        if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
-        hotbarSlots[slotIndex] = slot;
+        public HotbarSlotType type;
+        public int id;        // Skill index ou Item ID
+        public int emoteId;   // ID do emote
     }
-
-    [Command]
-    public void CmdClearSlot(int slotIndex)
-    {
-        if (slotIndex < 0 || slotIndex >= hotbarSlots.Count) return;
-        hotbarSlots[slotIndex] = new HotbarSlot { type = HotbarSlotType.Empty };
-    }
-
-    private void OnHotbarChanged(SyncList<HotbarSlot>.Operation op, int index,
-        HotbarSlot oldSlot, HotbarSlot newSlot)
-    {
-        OnSlotChanged?.Invoke(index, newSlot);
-    }
-
-    public HotbarSlot GetSlot(int index)
-    {
-        if (index < 0 || index >= hotbarSlots.Count)
-            return new HotbarSlot { type = HotbarSlotType.Empty };
-        return hotbarSlots[index];
-    }
-}
-
-[System.Serializable]
-public struct HotbarSlot : Mirror.NetworkMessage
-{
-    public HotbarSlotType type;
-    public int id;        // Skill index ou Item ID
-    public int emoteId;   // ID do emote
-}
 }

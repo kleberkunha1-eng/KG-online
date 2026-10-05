@@ -2,12 +2,10 @@ using UnityEngine;
 using Mirror;
 using TOP.Core;
 using TOP.Inventory;
-using TOP.Gameplay;
 using System.Collections;
-using System;
 using TOP.Player;
 
-namespace TOP.Gameplay
+namespace TOP.Systems
 {
     public class WorldItem : NetworkBehaviour
     {

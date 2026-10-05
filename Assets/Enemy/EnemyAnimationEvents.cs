@@ -24,16 +24,7 @@ public class EnemyAnimationEvents : MonoBehaviour
     // Chamado pelo Animation Event no frame do golpe
     public void AnimEvent_AttackHit()
     {
-        if (networkIdentity == null || !networkIdentity.isServer) return;
-        if (stats == null || stats.IsDead || enemyAI == null || enemyAI.CurrentTarget == null) return;
-
-        if (enemyAI.CurrentTarget.TryGetComponent(out NetworkIdentity targetIdentity))
-        {
-            if (targetIdentity.TryGetComponent(out ICharacterStats targetStats) && !targetStats.IsDead)
-            {
-                stats.PerformAttack(targetIdentity.gameObject);
-            }
-        }
+        // EnemyAI applies one authoritative hit per cooldown; animation events must not apply it twice.
     }
 
     // Chamado no final da animação de ataque

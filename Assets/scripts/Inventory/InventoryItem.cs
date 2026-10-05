@@ -13,6 +13,10 @@ namespace TOP.Inventory
         public int Durability;
         public int RefineLevel;
         public bool IsEquipped;
+        // Sockets: -1 = sem socket, 0 = socket vazio, >0 = id do item da gema.
+        public int[] Gems = { -1, -1, -1 };
+
+        public int SocketCount { get { int n = 0; foreach (var g in Gems) if (g >= 0) n++; return n; } }
 
         // Aliases camelCase para compatibilidade com codigo legado
         public int itemId { get => ItemId; set => ItemId = value; }

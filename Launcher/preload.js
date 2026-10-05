@@ -1,0 +1,20 @@
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('launcher', {
+    info: () => ipcRenderer.invoke('info'),
+    check: () => ipcRenderer.invoke('check'),
+    update: () => ipcRenderer.invoke('update'),
+    repair: () => ipcRenderer.invoke('repair'),
+    play: () => ipcRenderer.invoke('play'),
+    chooseDir: () => ipcRenderer.invoke('chooseDir'),
+    openDir: () => ipcRenderer.invoke('openDir'),
+    openSite: () => ipcRenderer.invoke('openSite'),
+    openDownload: () => ipcRenderer.invoke('openDownload'),
+    openLogsDir: () => ipcRenderer.invoke('openLogsDir'),
+    copyCrashLog: () => ipcRenderer.invoke('copyCrashLog'),
+    fixAntivirusBlock: () => ipcRenderer.invoke('fixAntivirusBlock'),
+    detectAntivirus: () => ipcRenderer.invoke('detectAntivirus'),
+    installRedist: () => ipcRenderer.invoke('installRedist'),
+    onProgress: cb => ipcRenderer.on('progress', (_e, p) => cb(p)),
+    onGameExit: cb => ipcRenderer.on('game-exit', (_e, result) => cb(result)),
+    onOutdated: cb => ipcRenderer.on('launcher-outdated', (_e, info) => cb(info)),
+});

@@ -1,10 +1,9 @@
-using UnityEngine;
-using TMPro;
-using TOP.Gameplay;
+﻿using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using TOP.Player;
-using System;
-using TOP.Inventory;
+using TOP.Network;
+using Mirror;
 
 namespace TOP.UI
 {
@@ -12,143 +11,247 @@ namespace TOP.UI
     {
         public static UIManager Instance { get; private set; }
 
-        [Header("Player HUD")]
-        [SerializeField] private TextMeshProUGUI playerNameText;
-        [SerializeField] private TextMeshProUGUI levelText;
+        [Header("Panels")]
+        [SerializeField] private GameObject loginPanel;
+        [SerializeField] private GameObject characterSelectPanel;
+        [SerializeField] private GameObject hudPanel;
+        [SerializeField] private GameObject chatPanel;
+        [SerializeField] private GameObject inventoryPanel;
+
+        [Header("HUD")]
         [SerializeField] private Slider hpBar;
         [SerializeField] private Slider mpBar;
-        [SerializeField] private TextMeshProUGUI hpText;
-        [SerializeField] private TextMeshProUGUI mpText;
-        [SerializeField] private TextMeshProUGUI spText;
-
-        [Header("Messages")]
-        [SerializeField] private GameObject messagePanel;
+        [SerializeField] private Slider spBar;
+        [SerializeField] private TextMeshProUGUI levelText;
+        [SerializeField] private TextMeshProUGUI nameText;
+        [SerializeField] private TextMeshProUGUI goldText;
         [SerializeField] private TextMeshProUGUI messageText;
-        [SerializeField] private float messageDuration = 3f;
 
-        [Header("Hotbar")]
-        [SerializeField] private ItemSlotUI[] hotbarSlots;
+        [Header("Chat")]
+        [SerializeField] private TMP_InputField chatInput;
+        [SerializeField] private TextMeshProUGUI chatHistory;
 
+        [SerializeField] private Slider expBar;
+        [SerializeField] private TextMeshProUGUI hpText, mpText, spText, expText;
         private PlayerController localPlayer;
-        private float _lastStatsUpdate;
 
         void Awake()
         {
-            if (Instance != null) 
-            { 
-                Destroy(gameObject); 
-                return; 
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            NetworkClient.RegisterHandler<ChatMessage>(msg => AddChatMessage(msg.Text, msg.Channel));
+
         }
 
-        public void SetupLocalPlayer(PlayerController player)
-        {
-            localPlayer = player;
-            if (playerNameText != null)
-                playerNameText.text = player.CharacterName;
-            
-            if (hotbarSlots != null)
-            {
-                for (int i = 0; i < hotbarSlots.Length; i++)
-                    hotbarSlots[i].Initialize(i, InventoryUI.Instance);
-            }
+// UIManager.cs - Método Start()
+void Start()
+{
+    if (chatInput != null) chatInput.onSubmit.AddListener(_ => OnChatSubmit());
+    // Só mostra loginPanel se ele existir (cena de login)
+    if (loginPanel != null)
+    {
+        ShowPanel(loginPanel);
+    }
+    // Se estiver na GameScene, mostra HUD
+    else if (hudPanel != null)
+    {
+        ShowPanel(hudPanel);
+    }
+}
 
-            UpdateStats();
-            Debug.Log($"[UIManager] HUD configurado para {player.CharacterName}");
-        }
-
-        // ÚNICO MÉTODO UPDATE
         void Update()
         {
-            // --- 1. Lógica da Hotbar (Teclas 1 a 9) ---
-            for (int i = 0; i < 9; i++)
+            if (localPlayer == null)
             {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i))
+                FindLocalPlayer();
+                return;
+            }
+
+            UpdateHUD();
+        }
+
+        // =================================================================================
+        // LOCAL PLAYER
+        // =================================================================================
+        void FindLocalPlayer()
+        {
+            var players = FindObjectsByType<PlayerController>(FindObjectsInactive.Include);
+            foreach (var player in players)
+            {
+                if (player.isLocalPlayer)
                 {
-                    SelectHotbarSlot(i);
+                    localPlayer = player;
+                    OnLocalPlayerFound();
+                    break;
                 }
-            }
-
-            // Tecla 0 separada (Slot index 9)
-            if (Input.GetKeyDown(KeyCode.Alpha0))
-            {
-                SelectHotbarSlot(9);
-            }
-
-            // --- 2. Atualização Otimizada de Stats ---
-            if (localPlayer != null && Time.time - _lastStatsUpdate > 0.1f)
-            {
-                UpdateStats();
-                _lastStatsUpdate = Time.time;
             }
         }
 
-        void UpdateStats()
+        void OnLocalPlayerFound()
         {
-            if (localPlayer?.Stats == null) return;
+            ShowPanel(hudPanel);
+            if (nameText != null)
+                nameText.text = localPlayer.CharacterName;
+        }
+
+        // =================================================================================
+        // HUD UPDATE
+        // =================================================================================
+        void UpdateHUD()
+        {
+            if (nameText != null) nameText.text = localPlayer.CharacterName;
+            if (expBar != null) { expBar.maxValue = localPlayer.ExperienceToNextLevel; expBar.value = localPlayer.Exp; }
+            if (hpText != null) hpText.text = $"{localPlayer.CurrentHp}/{localPlayer.MaxHp}";
+            if (mpText != null) mpText.text = $"{localPlayer.CurrentMp}/{localPlayer.MaxMp}";
+            if (spText != null) spText.text = $"{localPlayer.CurrentSp}/{localPlayer.MaxSp}";
+            if (expText != null) expText.text = $"XP {localPlayer.Exp}/{localPlayer.ExperienceToNextLevel}";
+            if (hpBar != null)
+            {
+                hpBar.maxValue = localPlayer.MaxHp;
+                hpBar.value = localPlayer.CurrentHp;
+            }
+
+            if (mpBar != null)
+            {
+                mpBar.maxValue = localPlayer.MaxMp;
+                mpBar.value = localPlayer.CurrentMp;
+            }
+
+            if (spBar != null)
+            {
+                spBar.maxValue = localPlayer.MaxSp;
+                spBar.value = localPlayer.CurrentSp;
+            }
 
             if (levelText != null)
                 levelText.text = $"Lv. {localPlayer.Level}";
 
-            if (hpBar != null)
-            {
-                hpBar.maxValue = localPlayer.Stats.MaxHp;
-                hpBar.value = localPlayer.Stats.CurrentHp;
-            }
-            if (hpText != null)
-                hpText.text = $"{localPlayer.Stats.CurrentHp}/{localPlayer.Stats.MaxHp}";
-
-            if (mpBar != null)
-            {
-                mpBar.maxValue = localPlayer.Stats.MaxMp;
-                mpBar.value = localPlayer.Stats.CurrentMp;
-            }
-            if (mpText != null)
-                mpText.text = $"{localPlayer.Stats.CurrentMp}/{localPlayer.Stats.MaxMp}";
-
-            if (spText != null)
-                spText.text = $"{localPlayer.Stats.CurrentSp}/{localPlayer.Stats.MaxSp}";
+            if (goldText != null)
+                goldText.text = $"{localPlayer.Gold} G";
         }
 
-        public void ShowMessage(string message, PlayerController.PlayerMessageType type)
-        {
-            if (messageText == null || messagePanel == null) return;
+        // =================================================================================
+        // PANELS
+        // =================================================================================
+// UIManager.cs - Método ShowPanel()
+public void ShowPanel(GameObject panel)
+{
+    if (panel == null) return; // <-- proteção essencial
+    
+    // Esconde todos os painéis conhecidos
+    if (loginPanel != null) loginPanel.SetActive(false);
+    if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+    if (hudPanel != null) hudPanel.SetActive(false);
+    
+    panel.SetActive(true);
+}
 
-            string color = type switch
+        public void ShowLogin() => ShowPanel(loginPanel);
+        public void ShowCharacterSelect() => ShowPanel(characterSelectPanel);
+        public void ShowHUD() => ShowPanel(hudPanel);
+
+        // =================================================================================
+        // MESSAGES
+        // =================================================================================
+        public void ShowMessage(string text, PlayerMessageType type = PlayerMessageType.Info)
+        {
+            if (messageText == null) return;
+
+            messageText.text = text;
+            messageText.color = type switch
             {
-                PlayerController.PlayerMessageType.Info => "#FFFFFF",
-                PlayerController.PlayerMessageType.Warning => "#FFFF00",
-                PlayerController.PlayerMessageType.Error => "#FF0000",
-                PlayerController.PlayerMessageType.Success => "#00FF00",
-                _ => "#FFFFFF"
+                PlayerMessageType.Error => Color.red,
+                PlayerMessageType.Warning => Color.yellow,
+                PlayerMessageType.LevelUp => Color.cyan,
+                PlayerMessageType.ItemAcquired => Color.green,
+                _ => Color.white
             };
 
-            messageText.text = $"<color={color}>{message}</color>";
-            messagePanel.SetActive(true);
-            CancelInvoke(nameof(HideMessage));
-            Invoke(nameof(HideMessage), messageDuration);
+            CancelInvoke(nameof(ClearMessage));
+            Invoke(nameof(ClearMessage), 3f);
         }
 
-        void HideMessage()
+        void ClearMessage()
         {
-            if (messagePanel != null)
-                messagePanel.SetActive(false);
+            if (messageText != null)
+                messageText.text = "";
         }
 
-        void SelectHotbarSlot(int index)
+        // =================================================================================
+        // CHAT
+        // =================================================================================
+        public void AddChatMessage(string text, ChatChannel channel = ChatChannel.World)
         {
-            if (hotbarSlots != null && index < hotbarSlots.Length)
+            if (chatHistory == null) return;
+
+            string prefix = channel switch
             {
-                InventoryUI.Instance?.OnSlotSelected(index);
-                Debug.Log($"[UIManager] Hotbar slot {index} selecionado");
+                ChatChannel.World => "[Mundo]",
+                ChatChannel.Party => "[Grupo]",
+                ChatChannel.Guild => "[Guilda]",
+                ChatChannel.Whisper => "[Sussurro]",
+                ChatChannel.System => "[Sistema]",
+                _ => ""
+            };
+
+            chatHistory.richText = false;
+            chatHistory.text += $"\n{prefix} {text}";
+            if (chatHistory.text.Length > 8000) chatHistory.text = chatHistory.text.Substring(chatHistory.text.Length - 6000);
+        }
+
+        public void OnChatSubmit()
+        {
+            if (chatInput == null || string.IsNullOrWhiteSpace(chatInput.text)) return;
+
+            if (NetworkClient.connection != null)
+            {
+                NetworkClient.connection.Send(new ChatMessage
+                {
+                    Channel = ChatChannel.World,
+                    Text = chatInput.text.Trim()
+                });
+            }
+
+            chatInput.text = "";
+        }
+
+        // =================================================================================
+        // LOGIN
+        // =================================================================================
+        public void OnLoginSubmit(string username, string password)
+        {
+            if (NetworkClient.connection != null)
+            {
+                NetworkClient.connection.Send(new LoginRequest
+                {
+                    Username = username,
+                    Password = password
+                });
             }
         }
 
-        public void OnPlayerStatsChanged()
+        public void OnLoginResponse(LoginResponse response)
         {
-            UpdateStats();
+            if (response.Success)
+            {
+                ShowCharacterSelect();
+            }
+            else
+            {
+                ShowMessage($"Login falhou: {response.ErrorCode}", PlayerMessageType.Error);
+            }
+        }
+
+        // =================================================================================
+        // INVENTORY
+        // =================================================================================
+        public void ToggleInventory()
+        {
+            inventoryPanel?.SetActive(!inventoryPanel.activeSelf);
         }
     }
 }

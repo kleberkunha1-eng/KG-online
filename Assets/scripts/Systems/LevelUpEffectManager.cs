@@ -20,7 +20,7 @@ namespace TOP.Systems
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            // Scene UI follows the lifetime of its canvas.
         }
 
         public void PlayEffect(Vector3 position)

@@ -1,0 +1,551 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Import full Tales of Pirates client assets",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & '.\\Tools\\ImportPKOClient.ps1'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect PKO converter process lock",
+			"type": "shell",
+			"command": "Get-CimInstance Win32_Process -Filter \"ProcessId=13140\" | Select-Object ProcessId,Name,ExecutablePath,CommandLine | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Stop obsolete PKO conversion",
+			"type": "shell",
+			"command": "$process = Get-Process -Id 13140 -ErrorAction SilentlyContinue; if ($process -and $process.Path -like '*\\BatchExporter\\PKOAssetBatchExporter.exe') { Stop-Process -Id 13140 -Force; 'Stopped obsolete PKO asset conversion.' } else { 'Obsolete conversion had already exited.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build and test corrected PKO exporter",
+			"type": "shell",
+			"command": "& 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe' 'Tools\\PKO-file-viewer\\BatchExporter\\BatchExporter.csproj' /t:Build /p:Configuration=Release '/p:FrameworkPathOverride=C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Data\\MonoBleedingEdge\\lib\\mono\\4.8-api' /v:minimal; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; & 'Tools\\PKO-file-viewer\\BatchExporter\\bin\\Release\\PKOAssetBatchExporter.exe' 'E:\\NEW SV\\Client' (Join-Path $env:TEMP 'pko-nul-probe-fixed') --file 'E:\\NEW SV\\Client\\model\\item\\02010002.lgo'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test corrected exporter in isolated output",
+			"type": "shell",
+			"command": "$outDir=(Join-Path (Resolve-Path 'Tools\\PKO-file-viewer\\BatchExporter').Path 'bin\\Release-Fixed') + '\\'; & 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe' 'Tools\\PKO-file-viewer\\BatchExporter\\BatchExporter.csproj' /t:Build /p:Configuration=Release \"/p:OutDir=$outDir\" '/p:FrameworkPathOverride=C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Data\\MonoBleedingEdge\\lib\\mono\\4.8-api' /v:minimal; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; & (Join-Path $outDir 'PKOAssetBatchExporter.exe') 'E:\\NEW SV\\Client' (Join-Path $env:TEMP 'pko-nul-probe-fixed') --file 'E:\\NEW SV\\Client\\model\\item\\02010002.lgo'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Validate resilient PKO exporter build",
+			"type": "shell",
+			"command": "$env:OutDir=(Join-Path (Resolve-Path 'Tools\\PKO-file-viewer\\BatchExporter').Path 'bin\\Release-Fixed') + '\\'; $env:FrameworkPathOverride='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Data\\MonoBleedingEdge\\lib\\mono\\4.8-api'; & 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe' 'Tools\\PKO-file-viewer\\BatchExporter\\BatchExporter.csproj' /t:Build /p:Configuration=Release /v:minimal; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; & (Join-Path $env:OutDir 'PKOAssetBatchExporter.exe') 'E:\\NEW SV\\Client' (Join-Path $env:TEMP 'pko-resilient-probe') --file 'E:\\NEW SV\\Client\\model\\item\\02010002.lgo'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Get-Item (Join-Path $env:OutDir 'FreeImage.dll') | Select-Object Name,Length",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check importer and previous run status",
+			"type": "shell",
+			"command": "$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'Tools\\ImportPKOClient.ps1'),[ref]$tokens,[ref]$errors) | Out-Null; if ($errors.Count) { $errors | Format-List; exit 1 }; 'PowerShell syntax OK'; Get-Process -Name 'PKOAssetBatchExporter' -ErrorAction SilentlyContinue | Select-Object Id,Path,StartTime,CPU",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Import client with corrected exporter",
+			"type": "shell",
+			"command": "$process = Get-Process -Id 27160 -ErrorAction SilentlyContinue; if ($process) { if ($process.Path -ne 'C:\\Users\\klebe\\Tales of Pirates Unity\\Tools\\PKO-file-viewer\\BatchExporter\\bin\\Release\\PKOAssetBatchExporter.exe') { throw 'The process ID no longer belongs to the old converter.' }; Stop-Process -Id $process.Id -Force }; $staging=Join-Path $env:TEMP 'PKOClientImport-29764'; if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }; Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & '.\\Tools\\ImportPKOClient.ps1'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Wait for current PKO import batch",
+			"type": "shell",
+			"command": "[System.Diagnostics.Process]::GetProcessesByName('PKOAssetBatchExporter') | ForEach-Object { $_.WaitForExit() }; 'Current PKO batch process has exited.'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect live PKO conversion status",
+			"type": "shell",
+			"command": "Get-CimInstance Win32_Process -Filter \"ProcessId=4784\" | Select-Object ProcessId,Name,ExecutablePath,CommandLine | Format-List; Write-Host '---'; Get-ChildItem $env:TEMP -Name | Where-Object { $_ -match 'PKOClientImport|pko' } | Sort-Object",
+			"isBackground": false
+		},
+		{
+			"label": "Wait for current PKO batch import to finish",
+			"type": "shell",
+			"command": "Write-Host 'Waiting for PKO batch exporter PID 4784 to exit...'; Wait-Process -Id 4784 -ErrorAction Stop; Write-Host 'PKO batch exporter has exited.'",
+			"isBackground": false
+		},
+		{
+			"label": "Measure current PKO conversion progress",
+			"type": "shell",
+			"command": "$root='C:\\Users\\klebe\\AppData\\Local\\Temp\\PKOClientImport-20700'; if (Test-Path $root) { Write-Host 'Models:'; (Get-ChildItem (Join-Path $root 'Models') -Recurse -File -Filter *.obj | Measure-Object).Count; Write-Host 'Textures:'; (Get-ChildItem (Join-Path $root 'Textures') -Recurse -File | Measure-Object).Count; Write-Host 'Source:'; (Get-ChildItem (Join-Path $root 'Source') -Recurse -File | Measure-Object).Count } else { Write-Host 'No staging root found' }",
+			"isBackground": false
+		},
+		{
+			"label": "Check whether export finished and staging is ready",
+			"type": "shell",
+			"command": "$pid=4784; $p=Get-Process -Id $pid -ErrorAction SilentlyContinue; if ($p) { Write-Host \"RUNNING $($p.ProcessName) PID $($p.Id)\"; $p | Select-Object Id,ProcessName,StartTime,CPU | Format-Table -AutoSize } else { Write-Host 'NOT_RUNNING' }; $root='C:\\Users\\klebe\\AppData\\Local\\Temp\\PKOClientImport-20700'; if (Test-Path $root) { Write-Host 'STAGE_EXISTS'; Get-ChildItem $root -Force | Select-Object Name | Format-Table -AutoSize } else { Write-Host 'STAGE_MISSING' }",
+			"isBackground": false
+		},
+		{
+			"label": "List active PKO exporter processes and staging counts",
+			"type": "shell",
+			"command": "Get-Process -Name PKOAssetBatchExporter -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path,StartTime,CPU | Format-Table -AutoSize; Write-Host '---'; $root='C:\\Users\\klebe\\AppData\\Local\\Temp\\PKOClientImport-20700'; if (Test-Path $root) { Write-Host 'Models:'; (Get-ChildItem (Join-Path $root 'Models') -Recurse -File -Filter *.obj | Measure-Object).Count; Write-Host 'Textures:'; (Get-ChildItem (Join-Path $root 'Textures') -Recurse -File | Measure-Object).Count } else { Write-Host 'No staging root found' }",
+			"isBackground": false
+		},
+		{
+			"label": "Wait for PKO conversion to finish before final import",
+			"type": "shell",
+			"command": "Write-Host 'Waiting for PKOAssetBatchExporter to exit...'; Wait-Process -Name PKOAssetBatchExporter -ErrorAction SilentlyContinue; Write-Host 'PKO batch exporter exited.'; $root='C:\\Users\\klebe\\AppData\\Local\\Temp\\PKOClientImport-20700'; if (Test-Path $root) { Write-Host 'FINAL_STAGE_EXISTS'; Get-ChildItem $root -Force | Select-Object Name | Sort-Object | Format-Table -AutoSize } else { Write-Host 'FINAL_STAGE_MISSING' }",
+			"isBackground": false
+		},
+		{
+			"label": "Monitor PKO exporter progress while it runs",
+			"type": "shell",
+			"command": "Get-Process -Name PKOAssetBatchExporter -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime,CPU | Format-Table -AutoSize; Write-Host '---'; $root='C:\\Users\\klebe\\AppData\\Local\\Temp\\PKOClientImport-20700'; if (Test-Path $root) { $modelCount=(Get-ChildItem (Join-Path $root 'Models') -Recurse -File -Filter *.obj | Measure-Object).Count; $textureCount=(Get-ChildItem (Join-Path $root 'Textures') -Recurse -File | Measure-Object).Count; Write-Host \"Models=$modelCount Textures=$textureCount\" } else { Write-Host 'Stage missing' }",
+			"isBackground": false
+		},
+		{
+			"label": "Import missing PKO models",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & '.\\Tools\\ImportPKOClient.ps1' -ModelsOnly -SkipUnityImport",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Stop stalled PKO model retry",
+			"type": "shell",
+			"command": "$process=Get-Process -Id 7268 -ErrorAction Stop; if ($process.ProcessName -ne 'PKOAssetBatchExporter' -or $process.Path -notlike '*\\BatchExporter\\bin\\Release-Fixed\\PKOAssetBatchExporter.exe') { throw 'PID 7268 no longer belongs to the exporter started for this import.' }; Stop-Process -Id $process.Id -Force; Write-Host \"Stopped this import exporter PID $($process.Id).\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect PKO model conversion state",
+			"type": "shell",
+			"command": "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=4272\"; if($p){$p | Select-Object ProcessId,Name,ExecutablePath,CommandLine | Format-List; Get-Process -Id 4272 | Select-Object CPU,StartTime,Responding | Format-List}; foreach($root in @('Assets\\PKO_Data\\ClientImport\\Models\\model\\scene','Assets\\PKO_Data\\ClientImport\\Models\\model\\item')){ Write-Host \"--- $root\"; Get-ChildItem $root -Recurse -File -Filter '*.obj' | Sort-Object LastWriteTime -Descending | Select-Object -First 8 Name,Length,LastWriteTime | Format-Table -AutoSize }; Write-Host 'unconverted='; (Get-ChildItem 'Assets\\PKO_Data\\ClientImport\\Source\\UnconvertedModels' -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Stop blocked PKO model dialog",
+			"type": "shell",
+			"command": "$p=Get-Process -Id 4272 -ErrorAction Stop; if($p.ProcessName -ne 'PKOAssetBatchExporter' -or $p.Path -notlike '*\\BatchExporter\\bin\\Release-Fixed\\PKOAssetBatchExporter.exe'){throw 'PID 4272 no longer belongs to this import exporter.'}; Stop-Process -Id $p.Id -Force; Write-Host \"Stopped blocked exporter PID $($p.Id).\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check model import progress",
+			"type": "shell",
+			"command": "$p=Get-Process -Name PKOAssetBatchExporter -ErrorAction SilentlyContinue | Select-Object -First 1; if($p){$p | Select-Object Id,CPU,StartTime,Responding | Format-List}; foreach($root in @('Assets\\PKO_Data\\ClientImport\\Models\\model\\scene','Assets\\PKO_Data\\ClientImport\\Models\\model\\item')){$files=Get-ChildItem $root -Recurse -File -Filter '*.obj'; Write-Host \"$root count=$($files.Count)\"; $files | Sort-Object LastWriteTime -Descending | Select-Object -First 5 Name,Length,LastWriteTime | Format-Table -AutoSize}; Write-Host \"unconverted=$((Get-ChildItem 'Assets\\PKO_Data\\ClientImport\\Source\\UnconvertedModels' -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count)\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Unity world setup result",
+			"type": "shell",
+			"command": "Write-Host \"request=$(Test-Path 'Tools\\configure-world.request')\"; Write-Host \"done=$(Test-Path 'Tools\\configure-world.done.txt')\"; Write-Host \"error=$(Test-Path 'Tools\\configure-world.error.txt')\"; if(Test-Path 'Tools\\configure-world.done.txt'){Get-Content 'Tools\\configure-world.done.txt'}; if(Test-Path 'Tools\\configure-world.error.txt'){Get-Content 'Tools\\configure-world.error.txt' -Tail 80}; Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,CPU,StartTime,Responding | Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify Unity scene configuration",
+			"type": "shell",
+			"command": "$request=Test-Path 'Tools\\configure-world.request'; $done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue; $errorFile=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue; Write-Host \"requestPending=$request\"; Write-Host \"doneTime=$($done.LastWriteTime)\"; Write-Host \"errorTime=$($errorFile.LastWriteTime)\"; if($done){Get-Content $done.FullName}; if($errorFile -and (!$done -or $errorFile.LastWriteTime -gt $done.LastWriteTime)){Get-Content $errorFile.FullName -Tail 80}; Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,CPU,StartTime,Responding | Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect Unity editor state",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Write-Host \"logTime=$((Get-Item $log).LastWriteTime)\"; Get-Content $log -Tail 100 | Select-String -Pattern 'Entering Playmode|Exiting Playmode|Compil|Reload|Asset Pipeline Refresh|error CS|Exception|PlayableWorldSetup|Configure' -Context 0,1; Write-Host '--- request'; Get-Item 'Tools\\configure-world.request' | Select-Object LastWriteTime,Length | Format-List; Write-Host '--- Editor args'; Get-CimInstance Win32_Process | Where-Object {$_.Name -eq 'Unity.exe' -and $_.ProcessId -eq 27052} | Select-Object ProcessId,CommandLine | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check world setup after Play Mode exit",
+			"type": "shell",
+			"command": "$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue; $done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue; $errorFile=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue; Write-Host \"requestPending=$([bool]$request) requestTime=$($request.LastWriteTime)\"; Write-Host \"doneTime=$($done.LastWriteTime) errorTime=$($errorFile.LastWriteTime)\"; if($done){Get-Content $done.FullName}; if($errorFile -and $errorFile.LastWriteTime -gt $done.LastWriteTime){Get-Content $errorFile.FullName -Tail 100}; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Write-Host \"editorLog=$((Get-Item $log).LastWriteTime)\"; Get-Content $log -Tail 50 | Select-String -Pattern 'error CS|Scripts have compiler errors|Asset Pipeline Refresh|Entering Playmode|Exiting Playmode|Exception' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect Unity asset import queue",
+			"type": "shell",
+			"command": "$roots=@('Assets\\ImportedClient\\Models\\model\\scene','Assets\\ImportedClient\\Textures\\scene','Assets\\ImportedClient\\Source\\Effects'); foreach($root in $roots){$files=(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue | Where-Object Extension -ne '.meta' | Measure-Object).Count; $metas=(Get-ChildItem $root -Recurse -File -Filter '*.meta' -ErrorAction SilentlyContinue | Measure-Object).Count; Write-Host \"$root files=$files metas=$metas\"}; Write-Host '--- Unity'; Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,CPU,StartTime,Responding | Format-Table -AutoSize; Write-Host '--- workers'; Get-CimInstance Win32_Process | Where-Object {$_.Name -eq 'Unity.exe' -and $_.CommandLine -match 'AssetImportWorker'} | Select-Object ProcessId,CommandLine | Format-List; Write-Host '--- editor log'; Get-Item (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') | Select-Object LastWriteTime,Length | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Wait for Unity world config",
+			"type": "shell",
+			"command": "$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue; $done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue; $errorFile=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue; Write-Host \"requestPending=$([bool]$request)\"; Write-Host \"doneTime=$($done.LastWriteTime) errorTime=$($errorFile.LastWriteTime)\"; if($done){Get-Content $done.FullName}; if($errorFile -and $errorFile.LastWriteTime -gt $done.LastWriteTime){Get-Content $errorFile.FullName -Tail 100}; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Get-Content $log -Tail 80 | Select-String -Pattern 'Asset Pipeline Refresh|Imports: total=|error CS|Scripts have compiler errors|Exception' -Context 0,1; Get-Process -Id 27052 -ErrorAction SilentlyContinue | Select-Object CPU,Responding | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect gameplay smoke result",
+			"type": "shell",
+			"command": "Write-Host \"validatePending=$(Test-Path 'Tools\\validate-world.request')\"; if(Test-Path 'Tools\\smoke-progress.txt'){Get-Content 'Tools\\smoke-progress.txt' -Tail 30}; Write-Host '--- results'; if(Test-Path 'Tools\\smoke-results.txt'){Get-Content 'Tools\\smoke-results.txt' -Tail 30}; Write-Host '--- errors'; if(Test-Path 'Tools\\smoke-errors.txt'){Get-Content 'Tools\\smoke-errors.txt' -Tail 30}; Write-Host '--- Unity'; Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,CPU,Responding | Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Wait for gameplay smoke start",
+			"type": "shell",
+			"command": "Write-Host \"requestPending=$(Test-Path 'Tools\\validate-world.request')\"; if(Test-Path 'Tools\\validation-error.txt'){Write-Host '--- validation error'; Get-Content 'Tools\\validation-error.txt' -Tail 60}; if(Test-Path 'Tools\\smoke-progress.txt'){Write-Host '--- progress'; Get-Content 'Tools\\smoke-progress.txt' -Tail 30}; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Write-Host \"editorLogTime=$((Get-Item $log).LastWriteTime)\"; Get-Content $log -Tail 60 | Select-String -Pattern 'Entering Playmode|Exiting Playmode|error CS|Scripts have compiler errors|Asset Pipeline Refresh|Exception' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Unity import worker activity",
+			"type": "shell",
+			"command": "Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,CPU,StartTime,Responding | Format-Table -AutoSize; Get-CimInstance Win32_Process | Where-Object {$_.Name -eq 'Unity.exe' -and $_.CommandLine -match 'AssetImportWorker'} | Select-Object ProcessId,CommandLine | Format-List; Write-Host \"validatePending=$(Test-Path 'Tools\\validate-world.request')\"; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Get-Item $log | Select-Object LastWriteTime,Length | Format-List; Get-Content $log -Tail 20",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check active gameplay test state",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\validate-world.request','Tools\\smoke-progress.txt','Tools\\smoke-results.txt')){if(Test-Path $path){$item=Get-Item $path;Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*'){Get-Content $path -Tail 25}}}; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Get-Content $log -Tail 150 | Select-String -Pattern 'Starting host|Host started|WorldSmokeTest|Entering Playmode|Exiting Playmode|EnemyAI:PerformAttack|Host stopped' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Find gameplay smoke exception",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Select-String -Path $log -Pattern 'NullReferenceException|WorldSmokeTest|Animated feet|Exception:|MissingReferenceException|GetBoneTransform' | Select-Object -Last 40 | ForEach-Object { $_.Line }; Write-Host '--- smoke errors'; Get-Content 'Tools\\smoke-errors.txt' -Tail 40; Write-Host '--- play mode processes'; Get-Process -Id 27052 | Select-Object Id,CPU,Responding | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and verify gameplay smoke",
+			"type": "shell",
+			"command": "Write-Host \"requestPending=$(Test-Path 'Tools\\validate-world.request')\"; foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt','Tools\\validation-error.txt')){if(Test-Path $path){$item=Get-Item $path;Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*' -or $path -like '*results*' -or $path -like '*errors*'){Get-Content $path -Tail 30}else{Get-Content $path -Tail 60}}}; Get-Process -Id 27052 -ErrorAction SilentlyContinue | Select-Object CPU,Responding | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect Unity test transition",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Write-Host \"logTime=$((Get-Item $log).LastWriteTime)\"; Get-Content $log -Tail 120 | Select-String -Pattern 'Compil|Assembly-CSharp|error CS|WorldSmokeTest|Entering Playmode|Exiting Playmode|NullReference|Exception|Asset Pipeline Refresh' -Context 0,1; Write-Host '--- request'; Get-Item 'Tools\\validate-world.request' -ErrorAction SilentlyContinue | Select-Object LastWriteTime,Length | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Unity recovered from test",
+			"type": "shell",
+			"command": "$paths=@('Tools\\configure-world.request','Tools\\validate-world.request','Tools\\configure-world.done.txt','Tools\\configure-world.error.txt');foreach($path in $paths){$item=Get-Item $path -ErrorAction SilentlyContinue;Write-Host \"$path exists=$([bool]$item) time=$($item.LastWriteTime)\"};if(Test-Path 'Tools\\configure-world.done.txt'){Get-Content 'Tools\\configure-world.done.txt'};if(Test-Path 'Tools\\configure-world.error.txt'){Get-Content 'Tools\\configure-world.error.txt' -Tail 50};if(Test-Path 'Tools\\smoke-progress.txt'){Write-Host '--- smoke';$item=Get-Item 'Tools\\smoke-progress.txt';Write-Host \"time=$($item.LastWriteTime)\";Get-Content $item.FullName -Tail 25};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"editorLog=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 50 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception|Asset Pipeline Refresh' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify refreshed world and smoke test",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\configure-world.request','Tools\\validate-world.request','Tools\\configure-world.done.txt','Tools\\configure-world.error.txt','Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;Write-Host \"$path exists=$([bool]$item) time=$($item.LastWriteTime)\";if($item -and $path -match 'done|results|errors|progress'){Get-Content $item.FullName -Tail 35}};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"editorLog=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 80 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception|Asset Pipeline Refresh|Entering Playmode|Exiting Playmode' -Context 0,1;Get-Process -Id 27052 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Track gameplay smoke progress",
+			"type": "shell",
+			"command": "$item=Get-Item 'Tools\\smoke-progress.txt'; Write-Host \"progressTime=$($item.LastWriteTime)\"; Get-Content $item.FullName -Tail 35; Write-Host '--- process'; Get-Process -Id 27052 -ErrorAction SilentlyContinue | Select-Object CPU,Responding | Format-List; Write-Host '--- failures'; if(Test-Path 'Tools\\smoke-errors.txt'){Get-Content 'Tools\\smoke-errors.txt' -Tail 35}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Finalize gameplay validation",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\smoke-results.txt','Tools\\smoke-errors.txt','Tools\\smoke-progress.txt','Tools\\runtime-visual-audit.txt','Tools\\gameplay-smoke.png')){$item=Get-Item $path -ErrorAction SilentlyContinue;Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($item -and $path -match 'results|errors|progress'){Get-Content $item.FullName -Tail 40}}; Write-Host '--- requests'; Write-Host \"configure=$(Test-Path 'Tools\\configure-world.request') validate=$(Test-Path 'Tools\\validate-world.request')\"; Write-Host '--- Unity'; Get-Process -Id 27052 -ErrorAction SilentlyContinue | Select-Object Id,CPU,Responding | Format-List; Write-Host '--- errors'; Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 120 | Select-String -Pattern 'error CS|Scripts have compiler errors|NullReferenceException|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Apply perimeter building layout",
+			"type": "shell",
+			"command": "$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue;$done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue;$errorFile=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue;Write-Host \"requestPending=$([bool]$request) doneTime=$($done.LastWriteTime) errorTime=$($errorFile.LastWriteTime)\";if($done){Get-Content $done.FullName};if($errorFile -and $errorFile.LastWriteTime -gt $done.LastWriteTime){Get-Content $errorFile.FullName -Tail 100};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"editorLog=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 40 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception|Asset Pipeline Refresh' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify perimeter layout smoke",
+			"type": "shell",
+			"command": "Write-Host \"validatePending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime)\";Get-Content $item.FullName -Tail 35}};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Get-Content $log -Tail 60 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read structure visual audit",
+			"type": "shell",
+			"command": "Write-Host \"validatePending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt')){if(Test-Path $path){$item=Get-Item $path;Write-Host \"$path time=$($item.LastWriteTime)\";if($path -like '*progress*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 30}else{Get-Content $item.FullName | Select-String -Pattern '^Structure='}}};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Get-Content $log -Tail 50 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read scene model material audit",
+			"type": "shell",
+			"command": "Write-Host \"requestPending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime)\";if($path -like '*progress*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 35}else{Get-Content $item.FullName | Select-String -Pattern '^Structure=|^SceneModel='}}};Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 40 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Reload latest Unity diagnostics",
+			"type": "shell",
+			"command": "$done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue;$err=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue;$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue;Write-Host \"done=$($done.LastWriteTime) error=$($err.LastWriteTime) pending=$([bool]$request)\";if($err -and $err.LastWriteTime -gt $done.LastWriteTime){Get-Content $err.FullName -Tail 80};Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 40 | Select-String -Pattern 'error CS|Scripts have compiler errors|Asset Pipeline Refresh|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Collect environment renderer diagnostics",
+			"type": "shell",
+			"command": "Write-Host \"pending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime)\";if($path -like '*progress*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 30}else{Get-Content $item.FullName | Select-String -Pattern '^EnvironmentRenderer=|^Structure='}}}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Compare Unity script assembly timestamps",
+			"type": "shell",
+			"command": "foreach($path in @('Assets\\scripts\\Systems\\WorldSmokeTest.cs','Library\\ScriptAssemblies\\Assembly-CSharp-Editor.dll','Library\\ScriptAssemblies\\Assembly-CSharp.dll','Tools\\runtime-visual-audit.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\"}else{Write-Host \"$path MISSING\"}};Write-Host '--- smoke audit keys';Select-String -Path 'Tools\\runtime-visual-audit.txt' -Pattern 'Structure=|SceneModel=|EnvironmentRenderer=' | Select-Object -First 20 | ForEach-Object {$_.Line}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Reload Unity with current scripts",
+			"type": "shell",
+			"command": "$process=Get-CimInstance Win32_Process -Filter 'ProcessId=27052';$expected='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe';if(-not $process -or $process.ExecutablePath -ne $expected -or $process.CommandLine -notmatch 'Tales of Pirates Unity'){throw 'The active process no longer matches this project editor; refusing to stop it.'};Stop-Process -Id 27052 -Force;Wait-Process -Id 27052 -ErrorAction SilentlyContinue;$args=@('-projectPath','\"C:\\Users\\klebe\\Tales of Pirates Unity\"');$new=Start-Process -FilePath $expected -ArgumentList $args -PassThru;Write-Host \"Restarted Unity for this project as PID $($new.Id).\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify Unity recompilation",
+			"type": "shell",
+			"command": "$unity='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe';Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -eq $unity -and $_.CommandLine -match 'Tales of Pirates Unity'} | Select-Object ProcessId,CommandLine | Format-List;foreach($path in @('Assets\\Editor\\PlayableWorldSetup.cs','Assets\\scripts\\Systems\\WorldSmokeTest.cs','Library\\ScriptAssemblies\\Assembly-CSharp-Editor.dll','Library\\ScriptAssemblies\\Assembly-CSharp.dll')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime)\"}};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';if(Test-Path $log){Write-Host \"logTime=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 60 | Select-String -Pattern 'error CS|Scripts have compiler errors|Assembly-CSharp|Refresh|Exception:' -Context 0,1}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Unity relaunch process",
+			"type": "shell",
+			"command": "Get-Process -Id 16676 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path,StartTime,CPU,Responding | Format-List; Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -like '*\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe'} | Select-Object ProcessId,CommandLine | Format-List; Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime,CPU | Format-Table -AutoSize; Write-Host '--- log';Get-Item (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') | Select-Object LastWriteTime,Length | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read Unity startup log",
+			"type": "shell",
+			"command": "Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 100",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Launch Unity with quoted project path",
+			"type": "shell",
+			"command": "$expected='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe';$project='C:\\Users\\klebe\\Tales of Pirates Unity';$p=Start-Process -FilePath $expected -ArgumentList ('-projectPath \"'+$project+'\"') -PassThru;Write-Host \"Launched Unity PID $($p.Id) with project path quoted as one argument.\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify Unity project reopened",
+			"type": "shell",
+			"command": "Get-CimInstance Win32_Process | Where-Object {$_.ProcessId -eq 30012} | Select-Object ProcessId,ExecutablePath,CommandLine | Format-List; Get-Process -Id 30012 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime,CPU,Responding | Format-List; $log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Get-Item $log | Select-Object LastWriteTime,Length | Format-List; Get-Content $log -Tail 35",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Resolve Unity project short path",
+			"type": "shell",
+			"command": "cmd /c dir /x \"C:\\Users\\klebe\" | findstr /I \"Tales of Pirates Unity\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Get Unity project short path",
+			"type": "shell",
+			"command": "Get-ChildItem 'C:\\Users\\klebe' | Where-Object { $_.Name -eq 'Tales of Pirates Unity' } | Select-Object Name,FullName,ShortName | Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Launch Unity using ProcessStartInfo",
+			"type": "shell",
+			"command": "$info=New-Object System.Diagnostics.ProcessStartInfo;$info.FileName='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe';$info.Arguments='-projectPath \"C:\\Users\\klebe\\Tales of Pirates Unity\"';$info.WorkingDirectory='C:\\Users\\klebe\\Tales of Pirates Unity';$info.UseShellExecute=$false;$process=[System.Diagnostics.Process]::Start($info);Write-Host \"Unity launched PID $($process.Id)\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify Unity process and script compile",
+			"type": "shell",
+			"command": "Get-CimInstance Win32_Process | Where-Object {$_.ProcessId -eq 25844} | Select-Object ProcessId,ExecutablePath,CommandLine | Format-List;Get-Process -Id 25844 -ErrorAction SilentlyContinue|Select-Object Id,ProcessName,StartTime,CPU,Responding|Format-List;$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Get-Item $log|Select-Object LastWriteTime,Length|Format-List;Get-Content $log -Tail 50",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Reopen Unity from project directory",
+			"type": "shell",
+			"command": "$info=New-Object System.Diagnostics.ProcessStartInfo;$info.FileName='C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.4f1\\Editor\\Unity.exe';$info.Arguments='-projectPath .';$info.WorkingDirectory='C:\\Users\\klebe\\Tales of Pirates Unity';$info.UseShellExecute=$false;$process=[System.Diagnostics.Process]::Start($info);Write-Host \"Unity launched from this project directory as PID $($process.Id).\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check project-relative Unity launch",
+			"type": "shell",
+			"command": "Get-CimInstance Win32_Process | Where-Object {$_.ProcessId -eq 25496} | Select-Object ProcessId,ExecutablePath,CommandLine | Format-List;Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object Id,ProcessName,StartTime,CPU,Responding|Format-List;Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 28",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Monitor Unity asset import",
+			"type": "shell",
+			"command": "Get-Process -Id 25496 -ErrorAction SilentlyContinue | Select-Object Id,CPU,Responding,StartTime | Format-List;$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Get-Item $log | Select-Object LastWriteTime,Length | Format-List;Get-Content $log -Tail 100 | Select-String -Pattern 'Asset Pipeline Refresh|Imports: total=|Import Error|Error importing|error CS|Scripts have compiler errors' -Context 0,1;Write-Host \"sceneObjMetas=$((Get-ChildItem 'Assets\\ImportedClient\\Models\\model\\scene' -Filter '*.obj.meta' -File | Measure-Object).Count)\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Unity compile and importer idle",
+			"type": "shell",
+			"command": "foreach($path in @('Assets\\scripts\\Systems\\WorldSmokeTest.cs','Library\\ScriptAssemblies\\Assembly-CSharp.dll','Library\\ScriptAssemblies\\Assembly-CSharp-Editor.dll')){$item=Get-Item $path -ErrorAction SilentlyContinue;Write-Host \"$path time=$($item.LastWriteTime)\"};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"logTime=$((Get-Item $log).LastWriteTime) length=$((Get-Item $log).Length)\";Get-Content $log -Tail 35;Write-Host '--- worker status';Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Wait for Unity import and queued setup",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"logTime=$((Get-Item $log).LastWriteTime) size=$((Get-Item $log).Length)\";Get-Content $log -Tail 35 | Select-String -Pattern 'Asset Pipeline Refresh|Imports: total=|Import Error|Error importing|error CS|Scripts have compiler errors' -Context 0,1;Write-Host \"configPending=$(Test-Path 'Tools\\configure-world.request') validatePending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\configure-world.done.txt','Tools\\configure-world.error.txt','Tools\\validation-error.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\"}};Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect queued Unity requests",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\configure-world.request','Tools\\validate-world.request','Tools\\configure-world.done.txt','Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*' -or $path -like '*results*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 25}}};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"log=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 90 | Select-String -Pattern 'Entering Playmode|Exiting Playmode|error CS|Scripts have compiler errors|Exception|Asset Pipeline Refresh|Loaded scene' -Context 0,1;Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check current Unity test cycle",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\configure-world.request','Tools\\validate-world.request','Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*' -or $path -like '*results*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 30};if($path -like '*audit*'){Get-Content $item.FullName | Select-String -Pattern '^EnvironmentRenderer=|^Structure='}}};Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect host startup during smoke",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"logTime=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 120 | Select-String -Pattern 'WorldSmokeTest|NetworkManager|Host started|spawn|exception|Exception|error|NullReference|Address already in use|Could not' -Context 0,1;Write-Host '--- progress';Get-Item 'Tools\\smoke-progress.txt'|Select-Object LastWriteTime,Length|Format-List;Get-Content 'Tools\\smoke-progress.txt' -Tail 20;Write-Host '--- configure';Test-Path 'Tools\\configure-world.request'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Diagnose smoke host connection",
+			"type": "shell",
+			"command": "Write-Host '--- port 17891';Get-NetTCPConnection -LocalPort 17891 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,RemoteAddress,State,OwningProcess | Format-Table -AutoSize;Write-Host '--- matching processes';$connections=Get-NetTCPConnection -LocalPort 17891 -ErrorAction SilentlyContinue;foreach($connection in $connections){Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue|Select-Object Id,ProcessName,StartTime|Format-List};Write-Host '--- editor log';Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 100 | Select-String -Pattern 'Kcp|KCP|Network|connection|server|Host|error|Exception|Warning|SpawnManager' -Context 0,1;Write-Host '--- test';Get-Content 'Tools\\smoke-progress.txt' -Tail 25;Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check KCP listener and active host",
+			"type": "shell",
+			"command": "Write-Host 'UDP';Get-NetUDPEndpoint -LocalPort 17891 -ErrorAction SilentlyContinue|Select-Object LocalAddress,LocalPort,OwningProcess|Format-Table -AutoSize;Write-Host 'KCP processes';Get-Process -Name Unity,PKOAssetBatchExporter -ErrorAction SilentlyContinue|Select-Object Id,ProcessName,CPU,StartTime|Format-Table -AutoSize;Write-Host 'Smoke timestamp';Get-Item 'Tools\\smoke-progress.txt'|Select-Object LastWriteTime,Length|Format-List;Write-Host 'Errors';Get-Content 'Tools\\smoke-errors.txt' -Tail 20",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect KCP and NetworkManager logs",
+			"type": "shell",
+			"command": "$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log'; Select-String -Path $log -Pattern 'Kcp|KCP|NetworkManager|NetworkServer|StartHost|Host started|Transport|17891|Server Started|Listening|Address already' | Select-Object -Last 100 | ForEach-Object {$_.Line};Write-Host '---';Get-Content $log -Tail 100",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Diagnose stalled smoke spawn",
+			"type": "shell",
+			"command": "Write-Host '--- KCP UDP';Get-NetUDPEndpoint -LocalPort 17891 -ErrorAction SilentlyContinue|Select-Object LocalAddress,LocalPort,OwningProcess|Format-Table -AutoSize;Write-Host '--- smoke progress';Get-Item 'Tools\\smoke-progress.txt'|Select-Object LastWriteTime,Length|Format-List;Get-Content 'Tools\\smoke-progress.txt' -Tail 30;Write-Host '--- process';Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object Id,CPU,Responding,StartTime|Format-List;Write-Host '--- runtime errors';Select-String -Path (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Pattern 'Failed|failed|Error|error|Exception|spawn|Spawn|Kcp|KCP|Network'|Select-Object -Last 60|ForEach-Object{$_.Line}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Restore Unity edit mode",
+			"type": "shell",
+			"command": "$done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue;$err=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue;$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue;Write-Host \"pending=$([bool]$request) done=$($done.LastWriteTime) error=$($err.LastWriteTime)\";if($err -and $err.LastWriteTime -gt $done.LastWriteTime){Get-Content $err.FullName -Tail 60};Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List;Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 35 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exiting Playmode|Loaded scene|WorldSmokeTest|Asset Pipeline Refresh' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test repaired Argent texture export",
+			"type": "shell",
+			"command": "$out=Join-Path $env:TEMP ('PKO-Argent-DDS-Probe-'+[guid]::NewGuid().ToString('N'));$exe='Tools\\PKO-file-viewer\\BatchExporter\\bin\\Release-Fixed\\PKOAssetBatchExporter.exe';& $exe 'E:\\NEW SV\\Client' $out --file 'E:\\NEW SV\\Client\\model\\scene\\by-bd005.lmo';if($LASTEXITCODE -ne 0){throw 'Argent structure probe failed.'};$mtl=Join-Path $out 'Models\\model\\scene\\by-bd005.mtl';$png=(Select-String -Path $mtl -Pattern '^map_Kd .*\\.png$'|Measure-Object).Count;$dds=(Select-String -Path $mtl -Pattern '^map_Kd .*\\.dds$'|Measure-Object).Count;Write-Host \"PNG_MTL_REFERENCES=$png DDS_MTL_REFERENCES=$dds OUTPUT=$out\";if($png -eq 0 -or $dds -ne 0){throw 'DDS textures did not decode to PNG references.'}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Repair Argent structure textures",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & '.\\Tools\\ImportPKOClient.ps1' -SceneOnly -SkipUnityImport",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Validate repaired scene materials",
+			"type": "shell",
+			"command": "$root='Assets\\ImportedClient\\Models\\model\\scene';$mtls=Get-ChildItem $root -File -Filter '*.mtl';$png=0;$dds=0;$missing=[System.Collections.Generic.List[string]]::new();foreach($mtl in $mtls){foreach($line in Get-Content $mtl.FullName|Where-Object{$_ -match '^map_Kd\\s+'}){$relative=($line -replace '^map_Kd\\s+','').Trim().Replace('/','\\');if($relative -match '\\.png$'){$png++}elseif($relative -match '\\.dds$'){$dds++};if(-not(Test-Path (Join-Path $mtl.DirectoryName $relative))){$missing.Add(\"$($mtl.Name) -> $relative\")}}};Write-Host \"sceneObjs=$((Get-ChildItem $root -File -Filter '*.obj'|Measure-Object).Count) mtls=$($mtls.Count) pngReferences=$png ddsReferences=$dds missingTextures=$($missing.Count) scenePngs=$((Get-ChildItem 'Assets\\ImportedClient\\Textures\\scene' -File -Filter '*.png'|Measure-Object).Count)\";$missing|Select-Object -First 30;Write-Host '--- key buildings';foreach($name in @('by-bd001','by-bd005','by-bd010','by-bd020')){$mtl=Join-Path $root ($name+'.mtl');$pngCount=(Select-String -Path $mtl -Pattern '^map_Kd .*\\.png$'|Measure-Object).Count;Write-Host \"$name pngMaterials=$pngCount\"};Write-Host '--- Unity';Get-Process Unity -ErrorAction SilentlyContinue|Select-Object Id,CPU,Responding|Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check scene texture references",
+			"type": "shell",
+			"command": "$root='Assets\\ImportedClient\\Models\\model\\scene';$mtls=Get-ChildItem $root -File -Filter '*.mtl';$png=0;$dds=0;$missing=[System.Collections.Generic.List[string]]::new();foreach($mtl in $mtls){foreach($line in (Get-Content $mtl.FullName|Where-Object{$_ -match '^map_Kd\\s+'})){$relative=($line -replace '^map_Kd\\s+','').Trim().Replace('/','\\');if($relative -match '\\.png$'){$png++}elseif($relative -match '\\.dds$'){$dds++};if(-not(Test-Path (Join-Path $mtl.DirectoryName $relative))){$missing.Add(($mtl.Name+': '+$relative))}}};Write-Host \"sceneObjs=$((Get-ChildItem $root -File -Filter '*.obj'|Measure-Object).Count) mtls=$($mtls.Count) pngReferences=$png ddsReferences=$dds missingTextures=$($missing.Count) scenePngs=$((Get-ChildItem 'Assets\\ImportedClient\\Textures\\scene' -File -Filter '*.png'|Measure-Object).Count)\";$missing|Select-Object -First 30;foreach($name in @('by-bd001','by-bd005','by-bd010','by-bd020')){$mtl=Join-Path $root ($name+'.mtl');$pngCount=(Select-String -Path $mtl -Pattern '^map_Kd .*\\.png$'|Measure-Object).Count;Write-Host \"$name pngMaterials=$pngCount\"};Get-Process Unity -ErrorAction SilentlyContinue|Select-Object Id,CPU,Responding|Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Reimport corrected building materials",
+			"type": "shell",
+			"command": "$done=Get-Item 'Tools\\configure-world.done.txt' -ErrorAction SilentlyContinue;$errorFile=Get-Item 'Tools\\configure-world.error.txt' -ErrorAction SilentlyContinue;$request=Get-Item 'Tools\\configure-world.request' -ErrorAction SilentlyContinue;Write-Host \"requestPending=$([bool]$request) doneTime=$($done.LastWriteTime) errorTime=$($errorFile.LastWriteTime)\";if($errorFile -and $errorFile.LastWriteTime -gt $done.LastWriteTime){Get-Content $errorFile.FullName -Tail 100};$log=Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log';Write-Host \"editorLog=$((Get-Item $log).LastWriteTime)\";Get-Content $log -Tail 60 | Select-String -Pattern 'Asset Pipeline Refresh|error CS|Scripts have compiler errors|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify repaired structures in smoke test",
+			"type": "shell",
+			"command": "Write-Host \"requestPending=$(Test-Path 'Tools\\validate-world.request')\";foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt','Tools\\gameplay-smoke.png')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 35};if($path -like '*audit*'){Get-Content $item.FullName|Select-String -Pattern '^EnvironmentRenderer=|^Structure='}}};Get-Content (Join-Path $env:LOCALAPPDATA 'Unity\\Editor\\Editor.log') -Tail 40 | Select-String -Pattern 'error CS|Scripts have compiler errors|Exception:' -Context 0,1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Collect completed runtime structure audit",
+			"type": "shell",
+			"command": "foreach($path in @('Tools\\smoke-progress.txt','Tools\\smoke-results.txt','Tools\\smoke-errors.txt','Tools\\runtime-visual-audit.txt','Tools\\gameplay-smoke.png')){$item=Get-Item $path -ErrorAction SilentlyContinue;if($item){Write-Host \"$path time=$($item.LastWriteTime) bytes=$($item.Length)\";if($path -like '*progress*' -or $path -like '*results*' -or $path -like '*errors*'){Get-Content $item.FullName -Tail 35};if($path -like '*audit*'){Get-Content $item.FullName|Select-String -Pattern '^EnvironmentRenderer=|^Structure='}}};Get-Process -Id 25496 -ErrorAction SilentlyContinue|Select-Object CPU,Responding|Format-List",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Final PKO world asset verification",
+			"type": "shell",
+			"command": "foreach($root in @('Assets\\PKO_Data\\ClientImport','Assets\\ImportedClient')){$models=Join-Path $root 'Models\\model';$objCount=(Get-ChildItem $models -Recurse -File -Filter '*.obj'|Measure-Object).Count;$textureCount=(Get-ChildItem (Join-Path $root 'Textures') -Recurse -File -ErrorAction SilentlyContinue|Measure-Object).Count;$sceneObj=(Get-ChildItem (Join-Path $models 'scene') -File -Filter '*.obj'|Measure-Object).Count;$sceneMtl=(Get-ChildItem (Join-Path $models 'scene') -File -Filter '*.mtl'|Measure-Object).Count;$scenePng=(Get-ChildItem (Join-Path $root 'Textures\\scene') -File -Filter '*.png'|Measure-Object).Count;Write-Host \"$root OBJ=$objCount textures=$textureCount sceneOBJ=$sceneObj sceneMTL=$sceneMtl scenePNG=$scenePng\"};Write-Host '--- new smoke';Get-Content 'Tools\\smoke-results.txt' -Tail 30;Write-Host \"smokeErrors=$((Get-Item 'Tools\\smoke-errors.txt').Length)\";Write-Host \"configurePending=$(Test-Path 'Tools\\configure-world.request') validatePending=$(Test-Path 'Tools\\validate-world.request')\";Write-Host '--- failed source models';Write-Host \"preserved=$((Get-ChildItem 'Assets\\PKO_Data\\ClientImport\\Source\\UnconvertedModels' -Recurse -File -ErrorAction SilentlyContinue|Measure-Object).Count)\";Get-Content 'Tools\\configure-world.done.txt' -TotalCount 2;Write-Host '--- Unity';Get-Process -Name Unity -ErrorAction SilentlyContinue|Select-Object Id,CPU,Responding|Format-Table -AutoSize",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Compare canonical and mirrored models",
+			"type": "shell",
+			"command": "$source='Assets\\PKO_Data\\ClientImport\\Models';$mirror='Assets\\ImportedClient\\Models';foreach($category in @('model\\character','model\\effect','model\\item','model\\scene')){$src=Join-Path $source $category;$dst=Join-Path $mirror $category;$srcFiles=Get-ChildItem $src -Recurse -File -Filter '*.obj' -ErrorAction SilentlyContinue;$dstFiles=Get-ChildItem $dst -Recurse -File -Filter '*.obj' -ErrorAction SilentlyContinue;$srcSet=@{};foreach($f in $srcFiles){$srcSet[$f.FullName.Substring((Resolve-Path $source).Path.Length+1).ToLowerInvariant()]=$f};$extra=@($dstFiles|Where-Object{$_ -and -not $srcSet.ContainsKey($_.FullName.Substring((Resolve-Path $mirror).Path.Length+1).ToLowerInvariant())});$different=@($dstFiles|Where-Object{$key=$_.FullName.Substring((Resolve-Path $mirror).Path.Length+1).ToLowerInvariant();$srcSet.ContainsKey($key) -and $srcSet[$key].Length -ne $_.Length});Write-Host \"--- $category canonical=$($srcFiles.Count) mirror=$($dstFiles.Count) stale=$($extra.Count) lengthMismatch=$($different.Count)\";$extra|Select-Object -First 40 FullName,Length|Format-Table -AutoSize};Write-Host '--- by-bd scene sizes';foreach($name in @('kao-bd001','nml-bd016')){foreach($root in @($source,$mirror)){$p=Join-Path $root \"model\\scene\\$name.obj\";if(Test-Path $p){$f=Get-Item $p;Write-Host \"$($f.FullName) bytes=$($f.Length)\"}}}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Confirm stale OBJ recovery backups",
+			"type": "shell",
+			"command": "$target='Assets\\ImportedClient\\Models';$canonical='Assets\\PKO_Data\\ClientImport\\Models';$raw='Assets\\PKO_Data\\ClientImport\\Source\\UnconvertedModels';$prefix=(Resolve-Path $target).Path.TrimEnd('\\')+'\\';foreach($obj in Get-ChildItem $target -Recurse -File -Filter '*.obj'){$rel=$obj.FullName.Substring($prefix.Length);if(Test-Path (Join-Path $canonical $rel)){continue};$base=[IO.Path]::ChangeExtension($rel,$null);$backupLgo=Join-Path $raw ($base+'.lgo.bytes');$backupLmo=Join-Path $raw ($base+'.lmo.bytes');$face=Select-String -Path $obj.FullName -Pattern '^f ' -Quiet;Write-Host \"$rel length=$($obj.Length) faces=$face lgoBackup=$(Test-Path $backupLgo) lmoBackup=$(Test-Path $backupLmo) mtl=$(Test-Path ([IO.Path]::ChangeExtension($obj.FullName,'.mtl')))\"}",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify cleaned model mirrors",
+			"type": "shell",
+			"command": "foreach($root in @('Assets\\PKO_Data\\ClientImport','Assets\\ImportedClient')){$models=Join-Path $root 'Models\\model';Write-Host \"--- $root total=$((Get-ChildItem $models -Recurse -File -Filter '*.obj'|Measure-Object).Count)\";foreach($category in @('character','effect','item','scene')){$dir=Join-Path $models $category;Write-Host \"$category=$((Get-ChildItem $dir -Recurse -File -Filter '*.obj'|Measure-Object).Count)\"};$scene=Join-Path $models 'scene';$mtls=Get-ChildItem $scene -File -Filter '*.mtl';$png=0;$dds=0;$missing=0;foreach($mtl in $mtls){foreach($line in Get-Content $mtl.FullName|Where-Object{$_ -match '^map_Kd\\s+'}){$rel=($line -replace '^map_Kd\\s+','').Trim().Replace('/','\\');if($rel -match '\\.png$'){$png++}elseif($rel -match '\\.dds$'){$dds++};if(-not(Test-Path (Join-Path $mtl.DirectoryName $rel))){$missing++}}};Write-Host \"sceneMTL=$($mtls.Count) PNGRefs=$png DDSRefs=$dds missingTextures=$missing\"};Write-Host '--- stale stubs';(Get-ChildItem 'Assets\\ImportedClient\\Models\\model' -Recurse -File -Filter '*.obj'|Where-Object{$_.Length -lt 40}|Measure-Object).Count;Write-Host '--- smoke';Get-Content 'Tools\\smoke-results.txt' -Tail 20;Write-Host \"errors=$((Get-Item 'Tools\\smoke-errors.txt').Length)\"",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Launcher</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header><h1 id="name">GAME PROJECT - K/G</h1><span id="ver" class="muted"></span></header>
+    <div id="outdatedBanner" class="banner" hidden>
+      <span id="outdatedText"></span>
+      <button id="outdatedBtn" class="ghost">Baixar versao mais recente</button>
+    </div>
+    <section class="hero">
+      <p id="status" class="status">Verificando atualizacoes...</p>
+      <p id="notes" class="muted"></p>
+      <div class="bar"><div id="fill"></div></div>
+      <p id="detail" class="muted">&nbsp;</p>
+      <div id="crashActions" class="crash-actions" hidden>
+        <button id="copyLog" class="ghost">Copiar log de erro</button>
+        <button id="openLogs" class="ghost">Abrir pasta de logs</button>
+        <span id="crashNote" class="muted"></span>
+      </div>
+      <div id="avActions" class="crash-actions" hidden>
+        <button id="fixAv" class="ghost">Corrigir bloqueio do antivirus</button>
+        <span id="avNote" class="muted"></span>
+      </div>
+      <div id="redistActions" class="crash-actions" hidden>
+        <button id="fixRedist" class="ghost">Instalar componentes do sistema (VC++)</button>
+        <span id="redistNote" class="muted"></span>
+      </div>
+      <div id="winEventBox" class="winevent" hidden>
+        <p class="muted">Diagnostico do Windows (copie e envie ao suporte):</p>
+        <pre id="winEventText"></pre>
+      </div>
+    </section>
+    <footer>
+      <div class="left">
+        <button id="dir" class="ghost">Pasta de instalacao</button>
+        <button id="open" class="ghost">Abrir pasta</button>
+        <button id="repair" class="ghost">Verificar e reparar</button>
+        <button id="fixRedistManual" class="ghost">Componentes do sistema</button>
+        <button id="site" class="ghost">Site</button>
+        <span id="path" class="muted"></span>
+      </div>
+      <button id="main" disabled>...</button>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

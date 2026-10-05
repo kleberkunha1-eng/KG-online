@@ -1,8 +1,8 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Mirror;
 using System.Collections.Generic;
 using TOP.Core;
-using System.Linq;  // ✅ para Resources.LoadAll
+using System.Linq;
 using System;
 
 namespace TOP.Player
@@ -21,7 +21,7 @@ namespace TOP.Player
         private PlayerStats _stats;
         private PlayerAnimation _animation;
         private PlayerCombat _combat;
-        private SkillData[] _allSkills;  // ✅ Cache de todas skills
+        private SkillData[] _allSkills;
 
         void Awake()
         {
@@ -32,7 +32,7 @@ namespace TOP.Player
 
         void Start()
         {
-            LoadAllSkills();  // ✅ Carrega todas skills como ItemDatabase
+            LoadAllSkills();
         }
 
         void Update()
@@ -45,42 +45,42 @@ namespace TOP.Player
                     _skillCooldowns[key] -= Time.deltaTime;
             }
         }
-// No arquivo PlayerSkills.cs
-public void TryUseSkill(int skillId)
-{
-    // Se for um comando de rede:
-    CmdUseSkill(skillId); 
-}
 
-[Command]
-public void CmdUseSkill(int skillId)
-{
-    // Lógica para verificar cooldown, MP e executar a skill
-    Debug.Log($"Executando skill ID: {skillId}");
-}
-        // ✅ Carrega skills automaticamente (igual ItemDatabase)
-        void LoadAllSkills()
+        // ✅ CORREÇÃO: Método público chamado pelo PlayerHotbar (client-side)
+        // Envia Command para o servidor executar
+        public void TryUseSkill(int skillId)
         {
-            _allSkills = Resources.LoadAll<SkillData>("Skills");
-            Debug.Log($"[PlayerSkills] Carregadas {_allSkills.Length} skills de Resources/Skills");
+            CmdUseSkill(skillId);
         }
 
-        SkillData GetSkillData(int skillId)
-        {
-            if (_allSkills == null) LoadAllSkills();
-            
-            return _allSkills.FirstOrDefault(s => s.skillId == skillId);
-        }
-
+        /// <summary>
+        /// ✅ ÚNICO Command para usar skill. Recebe apenas skillId.
+        /// O servidor resolve posição/target internamente.
+        /// </summary>
         [Command]
-        public void CmdUseSkill(int skillId, Vector3 targetPosition)
+        public void CmdUseSkill(int skillId)
         {
-            UseSkill(skillId, targetPosition, null);
+            // Obtém posição/target atuais do player
+            Vector3 targetPos = transform.position + transform.forward * 5f;
+            uint targetNetId = 0;
+
+            // Se tiver target no combat, usa ele
+            var combat = GetComponent<PlayerCombat>();
+            if (combat != null)
+            {
+                // Acessa o target atual via reflection ou propriedade pública
+                // Por simplicidade, usamos posição à frente
+            }
+
+            if(combat != null && combat.CurrentTargetNetId != 0 && NetworkServer.spawned.TryGetValue(combat.CurrentTargetNetId, out var selected)) { targetNetId=selected.netId; targetPos=selected.transform.position; }
+            UseSkill(skillId, targetPos, targetNetId);
         }
 
+        // ✅ Overload server-only para uso interno (com target específico)
         [Server]
-        public void UseSkill(int skillId, Vector3 targetPosition, NetworkIdentity target = null)
+        public void UseSkill(int skillId, Vector3 targetPosition, uint targetNetId = 0)
         {
+            if (_stats == null || _stats.IsDead) return;
             if (!_skillLevels.ContainsKey(skillId)) 
             {
                 Debug.LogWarning($"[PlayerSkills] Skill {skillId} não aprendida!");
@@ -108,6 +108,9 @@ public void CmdUseSkill(int skillId)
                 return;
             }
 
+            if (_stats.CurrentSp < skillData.spCost) return;
+            if (skillData.targetType == SkillTargetType.SingleEnemy && (targetNetId == 0 || !NetworkServer.spawned.TryGetValue(targetNetId, out var enemyTarget) || enemyTarget.GetComponent<EnemyStats>() == null || enemyTarget.GetComponent<EnemyStats>().IsDead || Vector3.Distance(transform.position,enemyTarget.transform.position) > skillData.range)) return;
+
             // Consome recursos
             _stats.ConsumeMp(skillData.mpCost);
             _stats.ConsumeSp(skillData.spCost);
@@ -117,17 +120,36 @@ public void CmdUseSkill(int skillId)
 
             // Executa skill
             OnSkillCastStarted?.Invoke(skillData, skillData.castTime);
-            ExecuteSkill(skillData, targetPosition, target);
+            ExecuteSkill(skillData, targetPosition, targetNetId);
             OnSkillExecuted?.Invoke(skillData);
 
             // Animação
             _animation?.RpcTriggerSkill(skillId);
-            
+
             Debug.Log($"[PlayerSkills] ✅ {skillData.skillName} executada!");
         }
 
+        // ✅ Carrega skills automaticamente (igual ItemDatabase)
+        void LoadAllSkills()
+        {
+            _allSkills = Resources.LoadAll<SkillData>("Skills");
+            var known = new HashSet<int>(_allSkills.Select(s => s.skillId));
+            var merged = new List<SkillData>(_allSkills);
+            foreach (var pko in TOP.Data.PkoTables.Skills.Values)
+                if (!known.Contains(pko.Id)) merged.Add(TOP.Data.PkoTables.ToSkillData(pko));
+            _allSkills = merged.ToArray();
+            Debug.Log($"[PlayerSkills] Carregadas {_allSkills.Length} skills de Resources/Skills");
+        }
+
+        SkillData GetSkillData(int skillId)
+        {
+            if (_allSkills == null) LoadAllSkills();
+
+            return _allSkills.FirstOrDefault(s => s.skillId == skillId);
+        }
+
         [Server]
-        void ExecuteSkill(SkillData data, Vector3 targetPosition, NetworkIdentity target)
+        void ExecuteSkill(SkillData data, Vector3 targetPosition, uint targetNetId)
         {
             // Efeitos visuais
             if (data.castEffect != null)
@@ -143,12 +165,13 @@ public void CmdUseSkill(int skillId)
                     break;
 
                 case SkillTargetType.SingleEnemy:
-                    if (target != null)
-                        ApplySkillEffect(data, target.netId);
+                    if (targetNetId != 0)
+                        ApplySkillEffect(data, targetNetId);
                     break;
 
                 case SkillTargetType.AreaEnemy:
-                    // TODO: AoE
+                    var targets = new HashSet<uint>();
+                    foreach(var hit in Physics.OverlapSphere(targetPosition,data.areaRadius)) { var enemy=hit.GetComponentInParent<EnemyStats>(); if(enemy != null && !enemy.IsDead && targets.Add(enemy.netId)) ApplySkillEffect(data,enemy.netId); if(targets.Count >= data.maxTargets) break; }
                     break;
             }
 
@@ -156,8 +179,6 @@ public void CmdUseSkill(int skillId)
             if (data.isProjectile && data.projectilePrefab != null)
             {
                 GameObject projectile = Instantiate(data.projectilePrefab, transform.position + Vector3.up, Quaternion.identity);
-                // SkillProjectile proj = projectile.GetComponent<SkillProjectile>();
-                // if (proj != null) proj.Initialize(data, netId, target?.netId ?? 0);
                 NetworkServer.Spawn(projectile);
             }
         }
@@ -169,13 +190,13 @@ public void CmdUseSkill(int skillId)
                 return;
 
             PlayerStats targetStats = targetObj.GetComponent<PlayerStats>();
-            if (targetStats == null) return;
+            if (targetStats == null) { var enemy = targetObj.GetComponent<EnemyStats>(); if(enemy != null && !enemy.IsDead) enemy.TakeDamage(CalculateSkillDamage(data),netId,DamageType.Physical); return; }
 
             int damage = CalculateSkillDamage(data);
 
             if (data.healAmount > 0)
             {
-                targetStats.Heal(damage);
+                targetStats.Heal(Mathf.RoundToInt(data.healAmount * data.healMultiplier));
             }
             else
             {
@@ -188,7 +209,7 @@ public void CmdUseSkill(int skillId)
         {
             int level = _skillLevels.ContainsKey(data.skillId) ? _skillLevels[data.skillId] : 1;
             float levelMultiplier = Mathf.Pow(data.damagePerLevel, level - 1);
-            
+
             int finalDamage = Mathf.RoundToInt(data.baseDamage * data.damageMultiplier * levelMultiplier * data.elementMultiplier);
 
             if (data.element == SkillElement.None)
@@ -223,6 +244,30 @@ public void CmdUseSkill(int skillId)
         public int GetSkillLevel(int skillId) => _skillLevels.ContainsKey(skillId) ? _skillLevels[skillId] : 0;
         public float GetCooldown(int skillId) => _skillCooldowns.ContainsKey(skillId) ? _skillCooldowns[skillId] : 0f;
 
-        void OnSkillsDataChanged(string oldValue, string newValue) { }
+        void OnSkillsDataChanged(string oldValue, string newValue)
+        {
+            if (isServer) return;
+            _skillLevels.Clear();
+            foreach (var part in (newValue ?? "").Split(';'))
+            {
+                var kv = part.Split(':');
+                if (kv.Length == 2 && int.TryParse(kv[0], out int id) && int.TryParse(kv[1], out int lv)) _skillLevels[id] = lv;
+            }
+        }
+
+        public IReadOnlyDictionary<int, int> SkillLevels => _skillLevels;
+
+        [Command]
+        public void CmdLearnSkill(int skillId)
+        {
+            var pc = GetComponent<PlayerController>();
+            if (pc == null || !TOP.Data.PkoTables.Skills.TryGetValue(skillId, out var s)) return;
+            int cur = GetSkillLevel(skillId);
+            int max = 1; foreach (var v in s.ClassMaxLevel.Values) max = Mathf.Max(max, v);
+            int cost = Mathf.Max(1, s.Points);
+            if (cur >= max || pc.Level < s.LearnLevel || pc.SkillPoints < cost) return;
+            pc.SkillPoints -= cost;
+            LearnSkill(skillId, cur + 1);
+        }
     }
 }

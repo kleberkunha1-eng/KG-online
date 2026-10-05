@@ -1,0 +1,56 @@
+{
+  "name": "game-project-kg-launcher",
+  "productName": "GAME PROJECT - KG Launcher",
+  "version": "1.0.8",
+  "description": "Launcher oficial do GAME PROJECT - KG",
+  "author": {
+    "name": "KG Studios",
+    "email": "support@gamekg.pages.dev"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "node tools/build-launcher.js",
+    "publish-update": "node tools/publish.js",
+    "test": "node tools/selftest.js"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.gameprojectkg.launcher",
+    "productName": "GAME PROJECT - KG Launcher",
+    "copyright": "Copyright (c) 2026 KG Studios",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "patcher.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "launcher.config.json",
+        "to": "launcher.config.json"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "GameProjectKG-Launcher.exe"
+    },
+    "portable": {
+      "artifactName": "GameProjectKG-Launcher.exe"
+    }
+  }
+}

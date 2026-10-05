@@ -1,5 +1,5 @@
 using Mirror;
-using TOP.Gameplay;
+using TOP.Player;  // ✅ CORREÇÃO: era TOP.Gameplay
 
 namespace TOP.Network
 {
@@ -19,7 +19,7 @@ namespace TOP.Network
         public string Username;
         public string SessionToken;
         public NetworkConnectionToClient Connection;
-        public PlayerController PlayerController;
+        public PlayerController PlayerController;  // ✅ TOP.Player.PlayerController
         public RateLimiter RateLimiter;
         public float LastPingTime;
         public float ConnectTime;

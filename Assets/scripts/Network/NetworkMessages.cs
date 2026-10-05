@@ -1,10 +1,48 @@
-using Mirror;
+﻿using Mirror;
 using UnityEngine;
-using System;
 using TOP.Core;
+using TOP.Data;  // ✅ Usa CharacterPreviewData de TOP.Data
 
 namespace TOP.Network
 {
+
+    // ============================================================
+// MIRROR-FRIENDLY PREVIEW (sem DateTime? nem Vector3)
+// ============================================================
+public struct NetworkCharacterPreview : NetworkMessage
+{
+    public long Id;
+    public byte SlotIndex;
+    public string Name;
+    public byte Gender;
+    public byte Job;
+    public int Level;
+    public string MapName;
+    public float PosX;
+    public float PosY;
+    public float PosZ;
+    public float RotationY;
+    public byte HairStyle;
+    public byte HairColor;
+    public byte FaceStyle;
+    public int[] EquippedItems;
+    public long LastOnlineTicks; // 0 = null
+}
+    // ============================================================
+    // AUTH
+    // ============================================================
+    public struct AuthRequestMessage : NetworkMessage
+    {
+        public string jwtToken;
+        public long accountId;
+    }
+
+    public struct AuthResponseMessage : NetworkMessage
+    {
+        public bool accepted;
+        public string errorMessage;
+    }
+
     public struct LoginRequest : NetworkMessage
     {
         public string Username;
@@ -19,13 +57,16 @@ namespace TOP.Network
         public string Message;
     }
 
+    // ============================================================
+    // CHARACTER
+    // ============================================================
     public struct CharacterListRequest : NetworkMessage { }
 
-    public struct CharacterListResponse : NetworkMessage
+   public struct CharacterListResponse : NetworkMessage
     {
         public bool Success;
         public string Error;
-        public CharacterPreviewData[] Characters;
+        public NetworkCharacterPreview[] Characters;  // ✅ NOVO - MIRROR-FRIENDLY
     }
 
     public struct CreateCharacterRequest : NetworkMessage
@@ -36,6 +77,8 @@ namespace TOP.Network
         public byte Job;
         public byte HairStyle;
         public byte HairColor;
+        public byte FaceStyle;
+        public byte StartCity;
     }
 
     public struct CreateCharacterResponse : NetworkMessage
@@ -72,6 +115,9 @@ namespace TOP.Network
         public string Error;
     }
 
+    // ============================================================
+    // PING
+    // ============================================================
     public struct ClientPing : NetworkMessage
     {
         public float ClientTime;
@@ -94,6 +140,9 @@ namespace TOP.Network
         Info, Warning, Error, Kicked, Banned, Maintenance
     }
 
+    // ============================================================
+    // INVENTORY
+    // ============================================================
     public struct MoveItemRequest : NetworkMessage
     {
         public ushort FromSlot;
@@ -118,6 +167,9 @@ namespace TOP.Network
         public ushort SlotIndex;
     }
 
+    // ============================================================
+    // CHAT
+    // ============================================================
     public struct ChatMessage : NetworkMessage
     {
         public ChatChannel Channel;
@@ -130,22 +182,41 @@ namespace TOP.Network
         World, Party, Guild, Whisper, System, Trade, Shout
     }
 
-    [Serializable]
-    public class CharacterPreviewData
+    // ============================================================
+    // COMBAT
+    // ============================================================
+    public struct AttackRequest : NetworkMessage
     {
-        public long Id;
-        public byte SlotIndex;
-        public string Name;
-        public byte Gender;
-        public byte Job;
-        public int Level;
-        public string MapName;
-        public float PosX;
-        public float PosY;
-        public float PosZ;
+        public uint TargetNetId;
+        public int SkillId;
+    }
+
+    public struct DamageResponse : NetworkMessage
+    {
+        public uint TargetNetId;
+        public int Damage;
+        public bool IsCritical;
+        public bool IsMiss;
+        public DamageType DamageType;
+    }
+
+    // ============================================================
+    // MOVEMENT
+    // ============================================================
+    public struct MoveRequest : NetworkMessage
+    {
+        public Vector3 Position;
         public float RotationY;
-        public byte HairStyle;
-        public byte HairColor;
-        public DateTime? LastOnline;
+        public bool IsRunning;
+    }
+
+    // ============================================================
+    // LEVEL UP
+    // ============================================================
+    public struct LevelUpResponse : NetworkMessage
+    {
+        public int NewLevel;
+        public int StatPointsGained;
+        public int SkillPointsGained;
     }
 }

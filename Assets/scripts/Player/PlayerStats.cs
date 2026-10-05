@@ -1,23 +1,17 @@
 using System;
 using System.Collections.Generic;
+using TOP.Data;
 using UnityEngine;
 using Mirror;
 using TOP.Core;
-using TOP.Gameplay;
 
 namespace TOP.Player
 {
     public class PlayerStats : NetworkBehaviour, ICharacterStats
     {
-        [Server]
-public void RestoreMp(int amount) {
-    // Sua lógica de restaurar MP (ex: currentMp += amount)
-}
-
-[Server]
-public void RestoreSp(int amount) {
-    // Sua lógica de restaurar SP
-}
+        // ============================================================
+        // EVENTOS
+        // ============================================================
         public event System.Action OnHealthUpdated;
         public event System.Action OnManaUpdated;
         public event System.Action OnStaminaUpdated;
@@ -25,77 +19,179 @@ public void RestoreSp(int amount) {
         public event System.Action OnRevive;
         public event System.Action OnStatsChanged;
 
-        // Implementação obrigatória de ICharacterStats
-        public int Health      => CurrentHp;
-        public int Mana        => CurrentMp;
-        public int Stamina     => CurrentSp;
-        public int MaxHealth   => MaxHp;
-        public int MaxMana     => MaxMp;
-        public int MaxStamina  => MaxSp;
-        public int Accuracy    => 0;
-        public int Luck        => 0;
-        public int Attack      => PhysicalAttack;
-        public int Defense     => PhysicalDefense;
-        public int MagicAttack   => CalculateMagicAttack();
-        public int MagicDefense  => CalculateMagicDefense();
-        public int Level       => 1;
-        public bool IsDead     => CurrentHp <= 0;
+        // ============================================================
+        // SKILLS
+        // ============================================================
+        [Serializable]
+        public class SkillInfo
+        {
+            public byte level;
+            public ulong exp;
+        }
 
-        // Estatísticas derivadas
-        public float MoveSpeed     => 5f + (Agility * 0.01f);
-        public float AttackSpeed   => 1f + (Agility * 0.005f);
-        public float CriticalRate  => 0.05f + (Agility * 0.002f);
+        private readonly Dictionary<int, SkillInfo> learnedSkills = new Dictionary<int, SkillInfo>();
+
+        // ============================================================
+        // ICharacterStats IMPLEMENTATION
+        // ============================================================
+        public int Health => CurrentHp;
+        public int Mana => CurrentMp;
+        public int Stamina => CurrentSp;
+        public int MaxHealth => MaxHp;
+        public int MaxMana => MaxMp;
+        public int MaxStamina => MaxSp;
+        public int Accuracy => 0;
+        public int Luck => 0;
+        public int Attack => PhysicalAttack;
+        public int Defense => PhysicalDefense;
+        public int MagicAttack => CalculateMagicAttack();
+        public int MagicDefense => CalculateMagicDefense();
+        public int Level => GetComponent<PlayerController>()?.Level ?? 1;
+        public bool IsDead => CurrentHp <= 0;
+
+        // ============================================================
+        // ESTATÍSTICAS DERIVADAS
+        // ============================================================
+        public float MoveSpeed => 5f + (Agility * 0.01f);
+        public float AttackSpeed => 1f + (Agility * 0.005f);
+        public float CriticalRate => 0.05f + (Agility * 0.002f);
         public float CriticalDamage => 1.5f;
 
         public float HpRegen => 1f + (Constitution * 0.1f);
         public float MpRegen => 1f + (Spirit * 0.1f);
         public float SpRegen => 2f + (Constitution * 0.05f);
 
+        // ============================================================
+        // BASE STATS
+        // ============================================================
         [Header("Base Stats")]
         [SyncVar] public int BaseStrength;
         [SyncVar] public int BaseAgility;
         [SyncVar] public int BaseConstitution;
         [SyncVar] public int BaseSpirit;
+        [SyncVar] public int BaseStamina;
 
+        // ============================================================
+        // CURRENT VALUES
+        // ============================================================
         [Header("Current Values")]
         [SyncVar] public int CurrentHp;
         [SyncVar] public int CurrentMp;
         [SyncVar] public int CurrentSp;
 
-        [Header("Bonus Stats")]
+        // ============================================================
+        // BONUS STATS
+        // ============================================================
         [SyncVar] private int _bonusStr;
         [SyncVar] private int _bonusAgi;
         [SyncVar] private int _bonusCon;
         [SyncVar] private int _bonusSpr;
+        [SyncVar] private int _bonusSta;
         [SyncVar] private int _bonusHp;
         [SyncVar] private int _bonusMp;
         [SyncVar] private int _bonusSp;
         [SyncVar] private int _bonusAtk;
         [SyncVar] private int _bonusDef;
 
-        // Calculados a partir de base + bonus
-        public int Strength      => BaseStrength      + _bonusStr;
-        public int Agility       => BaseAgility       + _bonusAgi;
-        public int Constitution  => BaseConstitution  + _bonusCon;
-        public int Spirit        => BaseSpirit        + _bonusSpr;
+        // ============================================================
+        // PROPRIEDADES CALCULADAS
+        // ============================================================
+        public int Strength => BaseStrength + _bonusStr;
+        public int Agility => BaseAgility + _bonusAgi;
+        public int Constitution => BaseConstitution + _bonusCon;
+        public int Spirit => BaseSpirit + _bonusSpr;
+        // ✅ CORREÇÃO: Stamina é uma propriedade calculada, não conflita com ICharacterStats.Stamina
+        public int StaminaStat => BaseStamina + _bonusSta;
 
-        public int MaxHp   => CalculateMaxHp() + _bonusHp;
-        public int MaxMp   => CalculateMaxMp() + _bonusMp;
-        public int MaxSp   => CalculateMaxSp() + _bonusSp;
+        public int MaxHp => CalculateMaxHp() + _bonusHp;
+        public int MaxMp => CalculateMaxMp() + _bonusMp;
+        public int MaxSp => CalculateMaxSp() + _bonusSp;
 
-        public int PhysicalAttack   => CalculatePhysicalAttack() + _bonusAtk;
-   
-        public int PhysicalDefense  => CalculatePhysicalDefense() + _bonusDef;
-      
+        public int PhysicalAttack => CalculatePhysicalAttack() + _bonusAtk;
+        public int PhysicalDefense => CalculatePhysicalDefense() + _bonusDef;
 
-        // Regeneração
+        // ============================================================
+        // REGENERAÇÃO
+        // ============================================================
         private float _lastHpRegen;
         private float _lastMpRegen;
         private float _lastSpRegen;
 
-        #region Modificadores (buffs / debuffs)
+        // ============================================================
+        // MODIFICADORES
+        // ============================================================
         private readonly List<StatModifier> _modifiers = new List<StatModifier>();
 
+        // ============================================================
+        // INICIALIZAÇÃO DO BANCO
+        // ============================================================
+        public void InitializeFromData(CharacterData data)
+        {
+            if (data == null) return;
+
+            BaseStrength = data.BaseStr;
+            BaseAgility = data.BaseAgi;
+            BaseConstitution = data.BaseCon;
+            BaseSpirit = data.BaseSpr;
+            BaseStamina = data.BaseSta;
+
+            RecalculateStats();
+            SetCurrentHpMpSp(data.CurrentHp, data.CurrentMp, data.CurrentSp);
+
+            if (data.Skills != null)
+            {
+                foreach (var skill in data.Skills)
+                {
+                    LearnSkill(skill.SkillId, skill.Level);
+                }
+            }
+
+            Debug.Log($"[PlayerStats] Inicializado — STR:{Strength} AGI:{Agility} CON:{Constitution}");
+        }
+
+        public List<CharacterSkillData> GetSkillsData()
+        {
+            var skills = new List<CharacterSkillData>();
+
+            foreach (var kvp in learnedSkills)
+            {
+                skills.Add(new CharacterSkillData
+                {
+                    SkillId = kvp.Key,
+                    Level = kvp.Value.level,
+                    Exp = kvp.Value.exp
+                });
+            }
+
+            return skills;
+        }
+
+        private void RecalculateStats() { SyncController(); }
+
+        [Server]
+        public void SyncController()
+        {
+            var controller = GetComponent<PlayerController>();
+            if (controller == null) return;
+            controller.MaxHp = MaxHp; controller.MaxMp = MaxMp; controller.MaxSp = MaxSp;
+            controller.CurrentHp = CurrentHp; controller.CurrentMp = CurrentMp; controller.CurrentSp = CurrentSp;
+        }
+
+        private void LearnSkill(int skillId, byte level)
+        {
+            if (!learnedSkills.ContainsKey(skillId))
+            {
+                learnedSkills[skillId] = new SkillInfo { level = level, exp = 0 };
+            }
+            else
+            {
+                learnedSkills[skillId].level = level;
+            }
+        }
+
+        // ============================================================
+        // MODIFICADORES
+        // ============================================================
         public void AddModifier(StatModifier modifier)
         {
             _modifiers.Add(modifier);
@@ -116,9 +212,10 @@ public void RestoreSp(int amount) {
             _modifiers.Clear();
             OnStatsChanged?.Invoke();
         }
-        #endregion
 
-        #region ICharacterStats - Métodos de dano / cura
+        // ============================================================
+        // DANO / CURA
+        // ============================================================
         [Server]
         public void TakeDamage(int damage, uint attackerId, DamageType damageType = DamageType.Physical)
         {
@@ -135,7 +232,6 @@ public void RestoreSp(int amount) {
         public void Heal(int amount)
         {
             if (IsDead) return;
-
             CurrentHp = Mathf.Min(CurrentHp + amount, MaxHp);
             OnHealthUpdated?.Invoke();
         }
@@ -153,26 +249,46 @@ public void RestoreSp(int amount) {
             CurrentSp = Mathf.Min(CurrentSp + amount, MaxSp);
             OnStaminaUpdated?.Invoke();
         }
-        #endregion
 
-        #region XP / Gold
+        [Server]
+        public void RestoreMp(int amount)
+        {
+            RestoreMana(amount);
+        }
+
+        [Server]
+        public void RestoreSp(int amount)
+        {
+            RestoreStamina(amount);
+        }
+
+        // ============================================================
+        // XP / GOLD
+        // ============================================================
         [Server]
         public void AddExperience(int amount)
         {
-            // TODO implementar sistema de level
+            var controller = GetComponent<PlayerController>();
+            if (controller != null)
+                controller.AddExp((ulong)Mathf.Max(0, amount));
         }
 
         [Server]
         public void AddGold(int amount)
         {
-            // TODO implementar sistema de gold
+            var controller = GetComponent<PlayerController>();
+            if (controller != null)
+                controller.AddGold((ulong)Mathf.Max(0, amount));
         }
-        #endregion
 
-        #region Regeneração automática (HP/MP/SP)
+        // ============================================================
+        // REGENERAÇÃO AUTOMÁTICA
+        // ============================================================
         void Update()
         {
             if (!isServer) return;
+            SyncController();
+            if (IsDead) return;
 
             if (Time.time > _lastHpRegen + 1f)
             {
@@ -192,9 +308,10 @@ public void RestoreSp(int amount) {
                 RestoreStamina(Mathf.RoundToInt(SpRegen));
             }
         }
-        #endregion
 
-        #region Inicialização e valores atuais
+        // ============================================================
+        // INICIALIZAÇÃO
+        // ============================================================
         [Server]
         public void Initialize(int str, int agi, int con, int spr, int maxHp, int maxMp, int maxSp)
         {
@@ -215,14 +332,17 @@ public void RestoreSp(int amount) {
             CurrentMp = Mathf.Clamp(mp, 0, MaxMp);
             CurrentSp = Mathf.Clamp(sp, 0, MaxSp);
         }
-        #endregion
 
-        #region Dano e cura servidor
+        // ============================================================
+        // DANO SERVIDOR
+        // ============================================================
         [Server]
         public void TakeDamage(int damage)
         {
             int finalDamage = Mathf.Max(1, damage - PhysicalDefense);
-            CurrentHp -= finalDamage;
+            if (IsDead || damage <= 0) return;
+            CurrentHp = Mathf.Max(0, CurrentHp - finalDamage);
+            SyncController();
 
             OnHealthUpdated?.Invoke();
 
@@ -232,7 +352,8 @@ public void RestoreSp(int amount) {
                 PlayerController controller = GetComponent<PlayerController>();
                 if (controller != null)
                 {
-                    controller.Die(); // ou PlayerDead() se for o nome na sua classe
+                    OnDeath?.Invoke();
+                    controller.Die();
                 }
             }
         }
@@ -248,33 +369,37 @@ public void RestoreSp(int amount) {
         {
             CurrentSp = Mathf.Max(0, CurrentSp - amount);
         }
-        #endregion
 
-        // ✅ public bool IsMale para resolver o erro em PlayerClass.cs
-        public bool IsMale => true; // ou torne editável no Inspector
+        // ============================================================
+        // BONUS
+        // ============================================================
+        public void AddBonusStrength(int value) => _bonusStr += value;
+        public void AddBonusAgility(int value) => _bonusAgi += value;
+        public void AddBonusConstitution(int value) => _bonusCon += value;
+        public void AddBonusSpirit(int value) => _bonusSpr += value;
+        public void AddBonusStamina(int value) => _bonusSta += value;
+        public void AddBonusHp(int value) => _bonusHp += value;
+        public void AddBonusMp(int value) => _bonusMp += value;
+        public void AddBonusSp(int value) => _bonusSp += value;
+        public void AddBonusAttack(int value) => _bonusAtk += value;
+        public void AddBonusDefense(int value) => _bonusDef += value;
 
-        #region Bonuses (equipamentos / buffs)
-        public void AddBonusStrength(int value)       => _bonusStr += value;
-        public void AddBonusAgility(int value)        => _bonusAgi += value;
-        public void AddBonusConstitution(int value)   => _bonusCon += value;
-        public void AddBonusSpirit(int value)         => _bonusSpr += value;
-        public void AddBonusHp(int value)             => _bonusHp += value;
-        public void AddBonusMp(int value)             => _bonusMp += value;
-        public void AddBonusSp(int value)             => _bonusSp += value;
-        public void AddBonusAttack(int value)         => _bonusAtk += value;
-        public void AddBonusDefense(int value)        => _bonusDef += value;
-        #endregion
-
-        #region Cálculos de base (máximos e ataque/defesa)
-        int CalculateMaxHp()   => 100 + (Constitution * 10) + (BaseStrength * 2);
-        int CalculateMaxMp()   => 50 + (Spirit * 8) + (BaseConstitution * 2);
-        int CalculateMaxSp()   => 30 + (Constitution * 5) + (BaseAgility * 2);
+        // ============================================================
+        // CÁLCULOS
+        // ============================================================
+        int CalculateMaxHp() => 100 + (Constitution * 10) + (BaseStrength * 2);
+        int CalculateMaxMp() => 50 + (Spirit * 8) + (BaseConstitution * 2);
+        int CalculateMaxSp() => 30 + (Constitution * 5) + (BaseAgility * 2);
 
         int CalculatePhysicalAttack() => 10 + (Strength * 2) + (Agility * 1);
-        int CalculateMagicAttack()    => 5 + (Spirit * 3);
+        int CalculateMagicAttack() => 5 + (Spirit * 3);
 
         int CalculatePhysicalDefense() => 5 + (Constitution * 1) + (Strength * 1);
-        int CalculateMagicDefense()    => 3 + (Spirit * 2) + (Constitution * 1);
-        #endregion
+        int CalculateMagicDefense() => 3 + (Spirit * 2) + (Constitution * 1);
+
+        // ============================================================
+        // HELPERS
+        // ============================================================
+        public bool IsMale => true;
     }
 }

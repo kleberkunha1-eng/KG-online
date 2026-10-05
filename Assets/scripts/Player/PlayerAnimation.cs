@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Mirror;
 using System;
 using TOP.Core;
@@ -50,6 +50,10 @@ namespace TOP.Player
         private PlayerStats stats;
         private PlayerSkills skills;
 
+        static readonly int[] EmotePoses = { 2, 3, 18, 19, 20, 21, 22, 23 };
+        private TOP.Character.PkoPoseDriver pose;
+        private TOP.Character.PkoPoseDriver Pose { get { if (pose == null) pose = GetComponentInChildren<TOP.Character.PkoPoseDriver>(); return pose; } }
+
         private float currentMoveSpeed;
         private float targetMoveSpeed;
         private float currentCastProgress;
@@ -58,7 +62,8 @@ namespace TOP.Player
 
         void Awake()
         {
-            anim = GetComponent<Animator>();
+            var visual=transform.Find("CharacterVisual");
+            anim = visual != null ? visual.GetComponentInChildren<Animator>() : GetComponent<Animator>();
             movement = GetComponent<PlayerMovement>();
             combat = GetComponent<PlayerCombat>();
             stats = GetComponent<PlayerStats>();
@@ -140,7 +145,9 @@ namespace TOP.Player
 
         private void UpdateLocomotion()
         {
-            targetMoveSpeed = movement != null && movement.IsMoving ? 1f : 0f;
+            targetMoveSpeed = movement != null && movement.IsMoving ? (movement.IsRunning ? .5f : .25f) : 0f;
+            anim.SetBool(isMovingParam, movement != null && movement.IsMoving);
+            anim.SetBool(isRunningParam, movement != null && movement.IsRunning);
             currentMoveSpeed = Mathf.MoveTowards(currentMoveSpeed, targetMoveSpeed,
                 locomotionBlendSpeed * Time.deltaTime);
 
@@ -188,9 +195,13 @@ namespace TOP.Player
         {
         }
 
+        [ClientRpc] public void RpcDeath() { OnDeath(); }
+        [ClientRpc] public void RpcRespawn() { OnRevive(); }
+
         private void OnDeath()
         {
             // ✅ PlayDeath() para PlayerController
+            Pose?.Die();
             anim.SetTrigger(dieTrigger);
             anim.SetBool(isDeadParam, true);
             anim.SetBool(isMovingParam, false);
@@ -201,6 +212,7 @@ namespace TOP.Player
         private void OnRevive()
         {
             // ✅ PlayRespawn() para PlayerController
+            Pose?.Revive();
             anim.SetTrigger(reviveTrigger);
             anim.SetBool(isDeadParam, false);
         }
@@ -224,6 +236,7 @@ namespace TOP.Player
 
         private void OnSkillExecuted(SkillData skill)
         {
+            Pose?.Skill(GetSkillAnimationId(skill));
             anim.SetInteger(skillIdParam, GetSkillAnimationId(skill));
             anim.SetTrigger(skillTrigger);
         }
@@ -239,6 +252,7 @@ namespace TOP.Player
         [TargetRpc]
         public void RpcTriggerSkill(int skillId)
         {
+            Pose?.Skill(skillId);
             anim.SetInteger(skillIdParam, skillId);
             anim.SetTrigger(skillTrigger);
         }
@@ -253,16 +267,19 @@ namespace TOP.Player
         // ✅ resolvido para PlayerController.cs
         public void PlayDeath()
         {
+            Pose?.Die();
             anim.SetTrigger(dieTrigger);
         }
 
         public void PlayRespawn()
         {
+            Pose?.Revive();
             anim.SetTrigger(reviveTrigger);
         }
 
         public void PlayAttack(int attackType = 0)
         {
+            Pose?.Attack();
             anim.SetInteger(attackTypeParam, attackType);
             anim.SetTrigger(attackTrigger);
         }
@@ -284,6 +301,7 @@ namespace TOP.Player
 
         public void PlayEmote(int emoteId)
         {
+            Pose?.Emote(EmotePoses[Mathf.Abs(emoteId) % EmotePoses.Length]);
             anim.SetInteger(emoteIdParam, emoteId);
             anim.SetTrigger(emoteTrigger);
         }

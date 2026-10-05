@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace TOP.Core
 {
@@ -56,7 +56,22 @@ namespace TOP.Core
         Costume = 12,
         Cape = 13,
         Pet = 14,
-        Mount = 15
+        Mount = 15,
+        // Slots de aparencia (visual) e extras do cliente original
+        Wing = 16,
+        ApparelHelmet = 17,
+        ApparelBody = 18,
+        ApparelGloves = 19,
+        ApparelBoots = 20,
+        ApparelShield = 21,
+        ApparelSword = 22,
+        ApparelGreatSword = 23,
+        ApparelGun = 24,
+        ApparelDagger = 25,
+        ApparelStaff = 26,
+        ApparelBow = 27,
+        ApparelPet = 28,
+        ApparelGlow = 29
     }
 
     public enum WeaponType
