@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 using TOP.Services;
 using TOP.Data;
 using TOP.Player;
+using kcp2k;
 
 namespace TOP.Network
 {
@@ -21,6 +22,10 @@ namespace TOP.Network
         [Header("Tales of Pirates - Config")]
         [SerializeField] private float autoSaveInterval = 60f;
         [SerializeField] private string serverInstanceId = "server_01";
+
+        [Header("Development Connection")]
+        [SerializeField] private string developmentServerAddress = "127.0.0.1";
+        [SerializeField] private ushort developmentServerPort = 7777;
 
         [Header("Scenes")]
         [SerializeField] private string loginScene = "LoginScene";
@@ -53,6 +58,97 @@ namespace TOP.Network
             DontDestroyOnLoad(gameObject);
         }
 
+        private void Start()
+        {
+            if (HasCommandLineFlag("--server") && !NetworkServer.active && !NetworkClient.active)
+            {
+                ConfigureTransportPort(GetServerListenPort());
+                StartServer();
+            }
+        }
+
+        public bool ConnectToGameServer(out string error)
+        {
+            error = null;
+            if (NetworkClient.active)
+            {
+                error = "A conexao com o servidor ja esta em andamento.";
+                return false;
+            }
+
+            string host;
+            ushort port;
+            if (!ApiConfig.TryGetGameServer(out host, out port))
+            {
+                if (!Application.isEditor)
+                {
+                    error = "Servidor multiplayer nao configurado. Atualize o launcher ou contate o suporte.";
+                    return false;
+                }
+
+                host = developmentServerAddress;
+                port = developmentServerPort;
+            }
+
+            if (string.IsNullOrWhiteSpace(host) || port == 0)
+            {
+                error = "Endereco do servidor multiplayer invalido.";
+                return false;
+            }
+
+            networkAddress = host;
+            ConfigureTransportPort(port);
+            StartClient();
+            return true;
+        }
+
+        private void ConfigureTransportPort(ushort port)
+        {
+            if (transport is KcpTransport kcpTransport)
+                kcpTransport.Port = port;
+            else
+                Debug.LogWarning($"[TOPNetworkManager] Transporte '{transport?.GetType().Name}' nao aceita configuracao de porta KCP.");
+        }
+
+        private static bool HasCommandLineFlag(string flag)
+        {
+            foreach (string argument in Environment.GetCommandLineArgs())
+                if (string.Equals(argument, flag, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+
+        private ushort GetServerListenPort()
+        {
+            foreach (string argument in Environment.GetCommandLineArgs())
+            {
+                const string portArgument = "--server-port=";
+                if (argument.StartsWith(portArgument, StringComparison.OrdinalIgnoreCase)
+                    && ushort.TryParse(argument.Substring(portArgument.Length), out ushort port)
+                    && port != 0)
+                    return port;
+            }
+
+            return developmentServerPort;
+        }
+
+        private IEnumerator LoadDedicatedWorld()
+        {
+            Scene worldScene = SceneManager.GetSceneByName(gameScene);
+            if (worldScene.isLoaded)
+                yield break;
+
+            AsyncOperation loadOperation = SceneManager.LoadSceneAsync(gameScene, LoadSceneMode.Additive);
+            if (loadOperation == null)
+            {
+                Debug.LogError($"[TOPNetworkManager] Nao foi possivel carregar a cena dedicada '{gameScene}'.");
+                yield break;
+            }
+
+            yield return loadOperation;
+            Debug.Log($"[TOPNetworkManager] Mundo dedicado '{gameScene}' carregado.");
+        }
+
         // =================================================================================
         // SERVER LIFECYCLE
         // =================================================================================
@@ -75,6 +171,9 @@ namespace TOP.Network
 
             autoCreatePlayer = false;
             InvokeRepeating(nameof(AutoSaveAll), autoSaveInterval, autoSaveInterval);
+
+            if (HasCommandLineFlag("--server"))
+                StartCoroutine(LoadDedicatedWorld());
         }
 
         public override void OnStopServer()

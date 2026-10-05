@@ -2,6 +2,22 @@
 
 Projeto configurado para Unity 6000.4.4f1. Abra `Assets/Scenes/LoginScene.unity` e entre em Play. O login precisa da API Node em `API` (porta 3000) e do MariaDB configurado nela. Para iniciar a API: `cd API` e `node server.js`. Não execute uma segunda instância se a porta já estiver ocupada.
 
+## Multiplayer
+
+O cliente Unity usa Mirror/KCP e **nunca** inicia um host no computador do jogador. Após o login REST, ele lê o destino Mirror de `api.json` (ou dos argumentos `--game-server=HOST --game-server-port=PORT`) e conecta como cliente. Um `api.json` de produção deve conter:
+
+```json
+{
+  "apiUrl": "https://sua-api.example",
+  "gameServerHost": "game.example",
+  "gameServerPort": 7777
+}
+```
+
+Execute uma instância dedicada do mesmo build em uma máquina pública separada com `GameProjectKG.exe -batchmode -nographics --server --server-port=7777`. Libere UDP na porta configurada e mantenha a máquina do servidor separada dos computadores administrativos. O servidor valida o JWT na API antes de liberar a seleção de personagem.
+
+O cliente C++ original fornecido em `E:\NEW SV\Client` utiliza um protocolo TCP próprio, com handshake RSA/AES e Gate/Account/Game servers. Ele não é compatível com Mirror/KCP. Seus dados, animações e comportamento podem ser migrados para Unity, mas para conectar o Unity ao servidor legado seria necessária uma implementação completa e separada desse protocolo.
+
 ## Controles
 
 - Clique no chão para andar; segure Shift para correr.

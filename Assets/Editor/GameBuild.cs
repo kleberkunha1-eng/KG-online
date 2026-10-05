@@ -46,7 +46,8 @@ public static class GameBuild
         // o jogo e aberto fora do launcher proprio (ex.: build publicada direto no itch.io, sem o
         // argumento --api= que o launcher injeta). Sem isso o cliente cai no fallback
         // http://127.0.0.1:3000, que so existe na maquina do desenvolvedor.
-        File.WriteAllText(Out + "/api.json", "{\"apiUrl\":\"https://gamekg.pages.dev\"}");
+        if (r.summary.result == BuildResult.Succeeded)
+            File.WriteAllText(Out + "/api.json", "{\"apiUrl\":\"https://gamekg.pages.dev\",\"gameServerHost\":\"\",\"gameServerPort\":7777}");
         return r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | " + r.summary.totalErrors + " errors | " + r.summary.totalTime;
     }
 }

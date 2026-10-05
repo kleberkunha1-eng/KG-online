@@ -372,8 +372,18 @@ namespace TOP.UI.Pko
         {
             PlayerPrefs.SetString(PrefUser, idField.text.Trim());
             Say("Login ok. Conectando ao servidor...");
-            if (TOPNetworkManager.Instance != null) TOPNetworkManager.Instance.StartHost();
-            else { busy = false; Say("Servidor de rede nao encontrado na cena.", true); }
+            if (TOPNetworkManager.Instance == null)
+            {
+                busy = false;
+                Say("Servico de rede nao encontrado na cena.", true);
+                return;
+            }
+
+            if (!TOPNetworkManager.Instance.ConnectToGameServer(out string error))
+            {
+                busy = false;
+                Say(error, true);
+            }
         }
 
         void OnRegisterOk()
