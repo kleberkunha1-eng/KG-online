@@ -286,9 +286,16 @@ ipcMain.handle('play', async () => {
             // vez. Isso resolve o caso observado nos logs sem exigir que o jogador entenda o problema
             // ou clique em botoes extras. Os eventos 'progress' ja existentes (fase 'check'/'download')
             // mantém a tela com feedback visual durante essa correcao automatica.
+            // IMPORTANTE: so pula a tentativa de excecao se ela JA TEVE SUCESSO antes (avExclusionOk
+            // === true). Anteriormente isso so rodava uma unica vez NA VIDA do app, independente de
+            // ter funcionado ou nao (ex.: jogador cancelou o UAC, ou o comando falhou por qualquer
+            // motivo) - nesse caso o jogo ficava preso para sempre nesse erro, sem nunca mais tentar
+            // se corrigir sozinho. Agora ele tenta de novo a cada falha, ate conseguir.
             const settings = loadSettings();
-            if (!settings.avExclusionAttempted) {
-                await fixAntivirusBlockInternal(dir).catch(() => { });
+            let avFix = { ok: settings.avExclusionOk === true };
+            if (!avFix.ok) {
+                avFix = await fixAntivirusBlockInternal(dir).catch(e => ({ ok: false, error: e.message }));
+                settings.avExclusionOk = !!avFix.ok;
                 settings.avExclusionAttempted = Date.now();
                 saveSettings(settings);
             }
@@ -301,9 +308,23 @@ ipcMain.handle('play', async () => {
             currentPlan = await patcher.check(config.patchUrl, dir, null, { forceHash: true });
             if (!currentPlan.upToDate) {
                 plan = currentPlan;
+                // Identifica o antivirus real instalado para dar uma instrucao especifica em vez de
+                // generica: a excecao automatica (Add-MpPreference) so funciona para o Windows Defender;
+                // se houver um antivirus de terceiros, ele continua bloqueando mesmo com essa excecao.
+                const avList = await detectAntivirusInternal().catch(() => []);
+                const thirdParty = avList.filter(n => !/windows defender|microsoft defender/i.test(n));
+                const fileList = currentPlan.need.slice(0, 5).map(f => f.path).join(', ');
+                let hint;
+                if (thirdParty.length) {
+                    hint = `Detectamos o antivirus "${thirdParty.join(', ')}" instalado - a correcao automatica deste launcher so funciona no Windows Defender. Abra o programa do seu antivirus, procure por "Excecoes"/"Exclusions" e adicione a pasta ${dir} manualmente, depois clique em ATUALIZAR.`;
+                } else if (!avFix.ok) {
+                    hint = `Nao foi possivel adicionar a excecao automatica no Windows Defender (${avFix.error || 'permissao de administrador negada'}). Abra o Windows Security > Virus e ameacas > Gerenciar configuracoes > Exclusoes e adicione a pasta ${dir} manualmente, depois clique em ATUALIZAR.`;
+                } else {
+                    hint = `A pasta ${dir} ja esta na excecao do Windows Defender, mas os arquivos continuam sendo alterados - pode ser outro antivirus nao detectado automaticamente, ou a protecao em nuvem do Defender. Tente desativar temporariamente a protecao em tempo real e clicar em ATUALIZAR.`;
+                }
                 return {
                     ok: false,
-                    error: `Arquivos do jogo continuam corrompidos apos tentativa automatica de correcao (${currentPlan.need.length} arquivo(s): ${currentPlan.need.slice(0, 5).map(f => f.path).join(', ')}). Isso costuma ser o antivirus alterando os arquivos repetidamente - verifique se a pasta ${dir} esta na lista de excecoes do seu antivirus, ou tente temporariamente desativa-lo e clicar em ATUALIZAR.`,
+                    error: `Arquivos do jogo continuam corrompidos apos tentativa automatica de correcao (${currentPlan.need.length} arquivo(s): ${fileList}). ${hint}`,
                 };
             }
         }
