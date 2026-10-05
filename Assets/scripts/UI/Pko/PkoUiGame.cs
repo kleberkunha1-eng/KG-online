@@ -53,7 +53,11 @@ namespace TOP.UI.Pko
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
         {
-            UnityEngine.SceneManagement.SceneManager.sceneLoaded += (scene, _) => { if (scene.name == "GameScene") Create(); };
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += (scene, _) =>
+            {
+                if (scene.name == "GameScene") Create();
+                else DestroyExisting(); // logout/char-select/etc: nao deixar o HUD do jogo vazar para outras telas
+            };
             if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene") Create();
         }
 
@@ -62,6 +66,27 @@ namespace TOP.UI.Pko
             var existing = FindAnyObjectByType<PkoUiGame>(); if (existing != null) return existing;
             var go = new GameObject("PkoUiGame"); DontDestroyOnLoad(go); return go.AddComponent<PkoUiGame>();
         }
+
+        static void DestroyExisting()
+        {
+            var existing = FindAnyObjectByType<PkoUiGame>();
+            if (existing == null) return;
+            existing.CloseAllWindows(); // fechar na hora: Destroy() so remove o GameObject no fim do frame
+            Destroy(existing.gameObject);
+        }
+
+        // Ao sair da GameScene (logout, troca de personagem, etc.) as janelas do HUD (status,
+        // minimapa, hotbar, chat, inventario...) ficam na mesma PkoCanvas persistente usada pelas
+        // telas de login/selecao - por isso precisam ser fechadas explicitamente aqui, e nao apenas
+        // destruir este GameObject (que so contem a logica, nao as janelas em si).
+        void CloseAllWindows()
+        {
+            if (ui == null) return;
+            foreach (var w in new List<PkoWindow>(ui.Windows.Values))
+                if (w != null && w.IsOpen) w.Close();
+        }
+
+        void OnDestroy() => CloseAllWindows();
 
         void Start()
         {
