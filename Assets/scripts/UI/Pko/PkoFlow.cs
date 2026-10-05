@@ -304,17 +304,23 @@ namespace TOP.UI.Pko
 
         static RectTransform MakeCard(Transform parent, string name, float w, float h, out GameObject root)
         {
-            var borderGo = new GameObject(name + "_Border", typeof(Image)); borderGo.transform.SetParent(parent, false);
+            // Container unico: border e fundo sao filhos dele, entao SetActive(false) no root esconde os dois
+            // (antes a borda era criada solta como irmao do fundo e nunca era desativada junto do card).
+            root = new GameObject(name, typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            var rootRt = (RectTransform)root.transform; rootRt.anchorMin = rootRt.anchorMax = new Vector2(.5f, .5f);
+            rootRt.pivot = new Vector2(.5f, .5f); rootRt.sizeDelta = new Vector2(w, h);
+
+            var borderGo = new GameObject(name + "_Border", typeof(Image)); borderGo.transform.SetParent(root.transform, false);
             var borderImg = borderGo.GetComponent<Image>(); borderImg.color = CardBorder; borderImg.raycastTarget = false;
             var borderRt = (RectTransform)borderGo.transform; borderRt.anchorMin = borderRt.anchorMax = new Vector2(.5f, .5f);
             borderRt.pivot = new Vector2(.5f, .5f); borderRt.sizeDelta = new Vector2(w + 6, h + 6);
 
-            root = new GameObject(name, typeof(Image));
-            root.transform.SetParent(parent, false);
-            var img = root.GetComponent<Image>(); img.color = CardBg;
-            var rt = (RectTransform)root.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, .5f);
-            rt.pivot = new Vector2(.5f, .5f); rt.sizeDelta = new Vector2(w, h);
-            return rt;
+            var bgGo = new GameObject(name + "_Bg", typeof(Image)); bgGo.transform.SetParent(root.transform, false);
+            var bgImg = bgGo.GetComponent<Image>(); bgImg.color = CardBg;
+            var bgRt = (RectTransform)bgGo.transform; bgRt.anchorMin = bgRt.anchorMax = new Vector2(.5f, .5f);
+            bgRt.pivot = new Vector2(.5f, .5f); bgRt.sizeDelta = new Vector2(w, h);
+            return bgRt;
         }
 
         static Text MakeLabel(Transform parent, string text, int size, Color color, FontStyle style, TextAnchor anchor, float w, float h, float y)
