@@ -37,12 +37,14 @@ namespace TOP.UI.Pko
 
         string scene;
         PkoUi ui;
-        Canvas bgCanvas, statusCanvas;
+        Canvas bgCanvas, statusCanvas, loginCanvas;
         Text status;
         readonly List<PkoWindow> opened = new List<PkoWindow>();
 
-        // login
-        PkoWindow account, register;
+        // login (card proprio, pintado sobre a arte de fundo nova - nao usa mais login.clu)
+        GameObject loginCard, registerCard;
+        InputField idField, pwField, regIdField, regPwField, regPw2Field, regEmailField;
+        Toggle rememberToggle;
         LoginNetworkClient loginClient;
         bool busy;
 
@@ -101,6 +103,7 @@ namespace TOP.UI.Pko
             }
             if (bgCanvas != null) Destroy(bgCanvas.gameObject);
             if (statusCanvas != null) Destroy(statusCanvas.gameObject);
+            if (loginCanvas != null) Destroy(loginCanvas.gameObject);
         }
 
         void DisableLegacyUi()
@@ -116,10 +119,26 @@ namespace TOP.UI.Pko
             bgCanvas = MakeCanvas("FlowBackdrop", 40);
             var bg = new GameObject("Bg", typeof(RawImage)); bg.transform.SetParent(bgCanvas.transform, false);
             var r = bg.GetComponent<RawImage>(); r.raycastTarget = false;
-            var tex = new Texture2D(1, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            for (int y = 0; y < 64; y++) tex.SetPixel(0, y, Color.Lerp(new Color(.02f, .05f, .12f), new Color(.09f, .22f, .38f), y / 63f));
-            tex.Apply(); r.texture = tex;
-            var rt = r.rectTransform; rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+
+            // Na tela de login usamos a arte nova (doca/ilhas); nas demais mantemos o gradiente simples de sempre.
+            var customBg = scene == LoginSceneName ? Resources.Load<Texture2D>("UI/LoginBackground") : null;
+            if (customBg != null)
+            {
+                r.texture = customBg;
+                var rt = r.rectTransform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, .5f); rt.pivot = new Vector2(.5f, .5f);
+                // EnvelopeParent = mesmo comportamento de "background-size: cover" do CSS: preenche a tela
+                // inteira preservando a proporcao da imagem (corta as bordas em vez de distorcer).
+                var fit = bg.AddComponent<AspectRatioFitter>();
+                fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+                fit.aspectRatio = (float)customBg.width / customBg.height;
+            }
+            else
+            {
+                var tex = new Texture2D(1, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+                for (int y = 0; y < 64; y++) tex.SetPixel(0, y, Color.Lerp(new Color(.02f, .05f, .12f), new Color(.09f, .22f, .38f), y / 63f));
+                tex.Apply(); r.texture = tex;
+                var rt = r.rectTransform; rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+            }
 
             statusCanvas = MakeCanvas("FlowStatus", 60);
             var go = new GameObject("Status", typeof(Text)); go.transform.SetParent(statusCanvas.transform, false);
@@ -168,44 +187,86 @@ namespace TOP.UI.Pko
         }
 
         // ---------- LOGIN ----------
+        // Card proprio (nao usa mais login.clu/frmAccount ou frmRegister): desenhado em cima da arte de
+        // fundo nova (doca/ilhas), com estilo similar (painel azul-marinho translucido + borda dourada).
+        static readonly Color CardBg = new Color(0.035f, 0.08f, 0.16f, 0.88f);
+        static readonly Color CardBorder = new Color(0.75f, 0.6f, 0.28f, 0.95f);
+        static readonly Color Gold = new Color(0.95f, 0.84f, 0.55f);
+        static readonly Color FieldBg = new Color(0.02f, 0.05f, 0.1f, 0.65f);
+        static readonly Color LoginBlue = new Color(0.16f, 0.46f, 0.85f);
+        static readonly Color ButtonSlate = new Color(0.12f, 0.18f, 0.3f, 0.9f);
+
         void SetupLogin()
         {
             loginClient = LoginNetworkClient.Instance;
             if (loginClient == null) loginClient = new GameObject("LoginNetworkClient").AddComponent<LoginNetworkClient>();
             loginClient.OnLoginSuccess += OnLoginOk; loginClient.OnRegisterSuccess += OnRegisterOk; loginClient.OnError += OnLoginError;
 
-            account = Show("login.clu/frmAccount");
-            Field(account, "edtPassword", true);
-            var id = Field(account, "edtID"); if (id != null) id.text = PlayerPrefs.GetString(PrefUser, "");
-            var chk = account.Get<Toggle>("chkID"); if (chk != null) chk.isOn = id != null && id.text.Length > 0;
-            account.OnClick("btnYes", DoLogin);
-            account.OnClick("btnNo", Application.Quit);
-            account.OnClick("btnKeyboard", OpenRegister);
-            account.SetText("labTitle", "Login");
-            account.Draggable = false;
+            loginCanvas = MakeCanvas("LoginCanvas", 50);
 
-            var link = ui.MakeLabel(account.Rect, "[Criar conta]  (F2)", 11, TextAnchor.MiddleCenter);
-            var lr = link.rectTransform; lr.anchorMin = lr.anchorMax = new Vector2(.5f, 0); lr.pivot = new Vector2(.5f, 1);
-            lr.sizeDelta = new Vector2(185, 16); lr.anchoredPosition = new Vector2(0, -6);
-            link.color = new Color(1f, .9f, .5f); link.raycastTarget = true;
-            link.gameObject.AddComponent<PkoClick>().Clicked = _ => OpenRegister();
+            BuildLoginCard();
+            BuildRegisterCard();
+            registerCard.SetActive(false);
 
-            register = ui.Get("login.clu/frmRegister"); register.CenterOnScreen(); opened.Add(register);
-            Field(register, "edtRegPassword", true); Field(register, "edtRegPassword2", true);
-            register.OnClick("btnRegYes", DoRegister);
-            register.OnClick("btnRegNo", () => { register.Close(); account.Open(); });
+            var savedUser = PlayerPrefs.GetString(PrefUser, "");
+            idField.text = savedUser;
+            rememberToggle.isOn = savedUser.Length > 0;
+
             Say("Informe sua conta para entrar.");
         }
 
-        void OpenRegister() { if (register == null) return; account.Close(); register.Open(); Say("Preencha os dados para criar sua conta."); }
+        void BuildLoginCard()
+        {
+            var cardRt = MakeCard(loginCanvas.transform, "LoginCard", 300, 400, out loginCard);
+
+            MakeLabel(cardRt, "Login", 28, Gold, FontStyle.Bold, TextAnchor.MiddleCenter, 260, 40, -14);
+
+            idField = MakeInput(cardRt, "Conta", false, 260, 42, -70);
+            pwField = MakeInput(cardRt, "Senha", true, 260, 42, -122);
+            MakeEyeToggle(pwField);
+
+            rememberToggle = MakeToggle(cardRt, "Lembrar conta", 260, 24, -166);
+
+            var loginBtn = MakeButton(cardRt, "Login", LoginBlue, 260, 48, -206);
+            loginBtn.onClick.AddListener(DoLogin);
+
+            var registerBtn = MakeButton(cardRt, "Registrar", ButtonSlate, 124, 40, -266, -70);
+            registerBtn.onClick.AddListener(OpenRegister);
+
+            var exitBtn = MakeButton(cardRt, "Sair", ButtonSlate, 124, 40, -266, 70);
+            exitBtn.onClick.AddListener(Application.Quit);
+        }
+
+        void BuildRegisterCard()
+        {
+            var cardRt = MakeCard(loginCanvas.transform, "RegisterCard", 300, 460, out registerCard);
+
+            MakeLabel(cardRt, "Criar conta", 26, Gold, FontStyle.Bold, TextAnchor.MiddleCenter, 260, 40, -14);
+
+            regIdField = MakeInput(cardRt, "Conta (3-16 caracteres)", false, 260, 40, -68);
+            regPwField = MakeInput(cardRt, "Senha (min. 4)", true, 260, 40, -116);
+            regPw2Field = MakeInput(cardRt, "Confirmar senha", true, 260, 40, -164);
+            regEmailField = MakeInput(cardRt, "E-mail (opcional)", false, 260, 40, -212);
+
+            var createBtn = MakeButton(cardRt, "Registrar", LoginBlue, 260, 46, -270);
+            createBtn.onClick.AddListener(DoRegister);
+
+            var backBtn = MakeButton(cardRt, "Voltar", ButtonSlate, 260, 40, -326);
+            backBtn.onClick.AddListener(() => { registerCard.SetActive(false); loginCard.SetActive(true); Say("Informe sua conta para entrar."); });
+        }
+
+        void OpenRegister()
+        {
+            loginCard.SetActive(false); registerCard.SetActive(true);
+            Say("Preencha os dados para criar sua conta.");
+        }
 
         void DoLogin()
         {
             if (busy) return;
-            var id = Field(account, "edtID").text.Trim(); var pw = Field(account, "edtPassword").text;
+            var id = idField.text.Trim(); var pw = pwField.text;
             if (id.Length == 0 || pw.Length == 0) { Say("Informe conta e senha.", true); return; }
-            var chk = account.Get<Toggle>("chkID");
-            if (chk != null && chk.isOn) PlayerPrefs.SetString(PrefUser, id); else PlayerPrefs.DeleteKey(PrefUser);
+            if (rememberToggle.isOn) PlayerPrefs.SetString(PrefUser, id); else PlayerPrefs.DeleteKey(PrefUser);
             busy = true; Say("Autenticando...");
             loginClient.Login(id, pw);
         }
@@ -213,8 +274,7 @@ namespace TOP.UI.Pko
         void DoRegister()
         {
             if (busy) return;
-            string id = Field(register, "edtRegID").text.Trim(), p1 = Field(register, "edtRegPassword").text,
-                   p2 = Field(register, "edtRegPassword2").text, mail = Field(register, "edtRegEmail").text.Trim();
+            string id = regIdField.text.Trim(), p1 = regPwField.text, p2 = regPw2Field.text, mail = regEmailField.text.Trim();
             if (id.Length < 3 || p1.Length < 4) { Say("Conta (min. 3) e senha (min. 4) invalidas.", true); return; }
             if (p1 != p2) { Say("As senhas nao conferem.", true); return; }
             busy = true; Say("Criando conta...");
@@ -231,13 +291,128 @@ namespace TOP.UI.Pko
         void OnRegisterOk()
         {
             busy = false;
-            Field(account, "edtID").text = Field(register, "edtRegID").text.Trim();
-            Field(account, "edtPassword").text = "";
-            register.Close(); account.Open();
+            idField.text = regIdField.text.Trim();
+            pwField.text = "";
+            registerCard.SetActive(false); loginCard.SetActive(true);
             Say("Conta criada! Entre com seus dados.");
         }
 
         void OnLoginError(string err) { busy = false; Say(string.IsNullOrEmpty(err) ? "Falha na conexao." : err, true); }
+
+        // ---------- helpers de UI do login/registro (sem dependencia do sistema legado login.clu) ----------
+        static Font F() => Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+        static RectTransform MakeCard(Transform parent, string name, float w, float h, out GameObject root)
+        {
+            var borderGo = new GameObject(name + "_Border", typeof(Image)); borderGo.transform.SetParent(parent, false);
+            var borderImg = borderGo.GetComponent<Image>(); borderImg.color = CardBorder; borderImg.raycastTarget = false;
+            var borderRt = (RectTransform)borderGo.transform; borderRt.anchorMin = borderRt.anchorMax = new Vector2(.5f, .5f);
+            borderRt.pivot = new Vector2(.5f, .5f); borderRt.sizeDelta = new Vector2(w + 6, h + 6);
+
+            root = new GameObject(name, typeof(Image));
+            root.transform.SetParent(parent, false);
+            var img = root.GetComponent<Image>(); img.color = CardBg;
+            var rt = (RectTransform)root.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, .5f);
+            rt.pivot = new Vector2(.5f, .5f); rt.sizeDelta = new Vector2(w, h);
+            return rt;
+        }
+
+        static Text MakeLabel(Transform parent, string text, int size, Color color, FontStyle style, TextAnchor anchor, float w, float h, float y)
+        {
+            var go = new GameObject("Label_" + text, typeof(Text)); go.transform.SetParent(parent, false);
+            var t = go.GetComponent<Text>(); t.font = F(); t.fontSize = size; t.color = color; t.fontStyle = style;
+            t.alignment = anchor; t.text = text; t.raycastTarget = false;
+            var r = t.rectTransform; r.anchorMin = r.anchorMax = new Vector2(.5f, 1f); r.pivot = new Vector2(.5f, 1f);
+            r.sizeDelta = new Vector2(w, h); r.anchoredPosition = new Vector2(0, y);
+            return t;
+        }
+
+        static InputField MakeInput(Transform parent, string placeholder, bool password, float w, float h, float y)
+        {
+            var go = new GameObject("Input_" + placeholder, typeof(Image), typeof(InputField));
+            go.transform.SetParent(parent, false);
+            var bgImg = go.GetComponent<Image>(); bgImg.color = FieldBg;
+            var rt = (RectTransform)go.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, 1f); rt.pivot = new Vector2(.5f, 1f);
+            rt.sizeDelta = new Vector2(w, h); rt.anchoredPosition = new Vector2(0, y);
+
+            var textGo = new GameObject("Text", typeof(Text)); textGo.transform.SetParent(go.transform, false);
+            var text = textGo.GetComponent<Text>(); text.font = F(); text.fontSize = 15; text.color = Color.white; text.alignment = TextAnchor.MiddleLeft;
+            var tr = text.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = new Vector2(12, 2); tr.offsetMax = new Vector2(-36, -2);
+
+            var phGo = new GameObject("Placeholder", typeof(Text)); phGo.transform.SetParent(go.transform, false);
+            var ph = phGo.GetComponent<Text>(); ph.font = F(); ph.fontSize = 15; ph.color = new Color(1, 1, 1, .4f);
+            ph.fontStyle = FontStyle.Italic; ph.alignment = TextAnchor.MiddleLeft; ph.text = placeholder;
+            var pr = ph.rectTransform; pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.offsetMin = new Vector2(12, 2); pr.offsetMax = new Vector2(-36, -2);
+
+            var input = go.GetComponent<InputField>();
+            input.textComponent = text; input.placeholder = ph; input.targetGraphic = bgImg;
+            if (password) input.contentType = InputField.ContentType.Password;
+            return input;
+        }
+
+        static void MakeEyeToggle(InputField pwField)
+        {
+            var go = new GameObject("EyeToggle", typeof(Image), typeof(Button));
+            go.transform.SetParent(pwField.transform, false);
+            var img = go.GetComponent<Image>(); img.color = new Color(1, 1, 1, .08f);
+            var rt = (RectTransform)go.transform; rt.anchorMin = rt.anchorMax = new Vector2(1f, .5f); rt.pivot = new Vector2(1f, .5f);
+            rt.sizeDelta = new Vector2(32, 28); rt.anchoredPosition = new Vector2(-4, 0);
+
+            var txtGo = new GameObject("Text", typeof(Text)); txtGo.transform.SetParent(go.transform, false);
+            var txt = txtGo.GetComponent<Text>(); txt.font = F(); txt.fontSize = 10; txt.color = new Color(1, 1, 1, .8f);
+            txt.alignment = TextAnchor.MiddleCenter; txt.text = "Ver"; txt.raycastTarget = false;
+            var tr = txt.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
+
+            var btn = go.GetComponent<Button>(); btn.targetGraphic = img;
+            btn.onClick.AddListener(() =>
+            {
+                bool shown = pwField.contentType == InputField.ContentType.Standard;
+                pwField.contentType = shown ? InputField.ContentType.Password : InputField.ContentType.Standard;
+                txt.text = shown ? "Ver" : "Ocultar";
+                pwField.ForceLabelUpdate();
+            });
+        }
+
+        static Toggle MakeToggle(Transform parent, string label, float w, float h, float y)
+        {
+            var go = new GameObject("Toggle_" + label, typeof(Toggle));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, 1f); rt.pivot = new Vector2(.5f, 1f);
+            rt.sizeDelta = new Vector2(w, h); rt.anchoredPosition = new Vector2(0, y);
+
+            var boxGo = new GameObject("Box", typeof(Image)); boxGo.transform.SetParent(go.transform, false);
+            var boxImg = boxGo.GetComponent<Image>(); boxImg.color = FieldBg;
+            var br = (RectTransform)boxGo.transform; br.anchorMin = br.anchorMax = new Vector2(0, .5f); br.pivot = new Vector2(0, .5f);
+            br.sizeDelta = new Vector2(h - 4, h - 4); br.anchoredPosition = new Vector2(0, 0);
+
+            var checkGo = new GameObject("Check", typeof(Image)); checkGo.transform.SetParent(boxGo.transform, false);
+            var checkImg = checkGo.GetComponent<Image>(); checkImg.color = Gold;
+            var cr = (RectTransform)checkGo.transform; cr.anchorMin = Vector2.zero; cr.anchorMax = Vector2.one; cr.offsetMin = new Vector2(3, 3); cr.offsetMax = new Vector2(-3, -3);
+
+            var labGo = new GameObject("Label", typeof(Text)); labGo.transform.SetParent(go.transform, false);
+            var lab = labGo.GetComponent<Text>(); lab.font = F(); lab.fontSize = 13; lab.color = Color.white; lab.alignment = TextAnchor.MiddleLeft; lab.text = label; lab.raycastTarget = false;
+            var lr = lab.rectTransform; lr.anchorMin = new Vector2(0, 0); lr.anchorMax = new Vector2(1, 1); lr.offsetMin = new Vector2(h + 4, 0); lr.offsetMax = Vector2.zero;
+
+            var toggle = go.GetComponent<Toggle>();
+            toggle.targetGraphic = boxImg; toggle.graphic = checkImg; toggle.isOn = false;
+            return toggle;
+        }
+
+        static Button MakeButton(Transform parent, string label, Color bg, float w, float h, float y, float x = 0)
+        {
+            var go = new GameObject("Btn_" + label, typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var img = go.GetComponent<Image>(); img.color = bg;
+            var rt = (RectTransform)go.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, 1f); rt.pivot = new Vector2(.5f, 1f);
+            rt.sizeDelta = new Vector2(w, h); rt.anchoredPosition = new Vector2(x, y);
+
+            var txtGo = new GameObject("Text", typeof(Text)); txtGo.transform.SetParent(go.transform, false);
+            var txt = txtGo.GetComponent<Text>(); txt.font = F(); txt.fontSize = 16; txt.color = Color.white; txt.alignment = TextAnchor.MiddleCenter; txt.text = label; txt.raycastTarget = false;
+            var tr = txt.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
+
+            var btn = go.GetComponent<Button>(); btn.targetGraphic = img;
+            return btn;
+        }
 
         // ---------- SELECAO ----------
         void SetupSelect()
@@ -309,11 +484,11 @@ namespace TOP.UI.Pko
             }
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                if (account != null && account.IsOpen) DoLogin();
-                else if (register != null && register.IsOpen) DoRegister();
+                if (loginCard != null && loginCard.activeSelf) DoLogin();
+                else if (registerCard != null && registerCard.activeSelf) DoRegister();
                 else if (pwd != null && pwd.IsOpen) ConfirmDelete();
             }
-            if (Input.GetKeyDown(KeyCode.F2) && account != null && account.IsOpen) OpenRegister();
+            if (Input.GetKeyDown(KeyCode.F2) && loginCard != null && loginCard.activeSelf) OpenRegister();
         }
 
         void Pick(int slot) { selSlot = slot; Refresh(false); }
