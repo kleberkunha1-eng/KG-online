@@ -1,5 +1,8 @@
 # Tales of Pirates Unity
 
+> 📘 **Precisa gerar build, publicar no itch.io, ou gerenciar o servidor dedicado?** Veja o
+> [Guia de Operações](GUIA-OPERACOES.md) — todos os comandos passo a passo.
+
 Projeto configurado para Unity 6000.4.4f1. Abra `Assets/Scenes/LoginScene.unity` e entre em Play. O login precisa da API Node em `API` (porta 3000) e do MariaDB configurado nela. Para iniciar a API: `cd API` e `node server.js`. Não execute uma segunda instância se a porta já estiver ocupada.
 
 ## Multiplayer
