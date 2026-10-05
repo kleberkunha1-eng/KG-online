@@ -38,6 +38,11 @@ public static class GameBuild
             options = BuildOptions.None,
         };
         var r = BuildPipeline.BuildPlayer(opts);
+        // Garante que toda build gerada ja aponte para a API publica (Cloudflare), mesmo quando
+        // o jogo e aberto fora do launcher proprio (ex.: build publicada direto no itch.io, sem o
+        // argumento --api= que o launcher injeta). Sem isso o cliente cai no fallback
+        // http://127.0.0.1:3000, que so existe na maquina do desenvolvedor.
+        File.WriteAllText(Out + "/api.json", "{\"apiUrl\":\"https://gamekg.pages.dev\"}");
         return r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | " + r.summary.totalErrors + " errors | " + r.summary.totalTime;
     }
 }
