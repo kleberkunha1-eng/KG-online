@@ -73,3 +73,30 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+API/tunnel.log
+API/public-url.txt
+API/.env
+
+Launcher/node_modules/
+Launcher/dist/
+API/patch/
+API/downloads/
+API/site/
+
+/Build/
+Tools/build-result.txt
+
+Launcher/publish.config.json
+
+# Code signing: nunca versionar certificados, senhas ou segredos de assinatura.
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.local
+Secrets/
+Certificates/
+/Release/
+Docs/*.local.md

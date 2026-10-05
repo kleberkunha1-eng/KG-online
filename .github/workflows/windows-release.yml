@@ -1,0 +1,59 @@
+# Workflow OPCIONAL de release Windows. Nao roda automaticamente (workflow_dispatch manual) ate
+# que uma licenca Unity e um certificado de assinatura estejam configurados como GitHub Secrets.
+#
+# Segredos necessarios (Settings > Secrets and variables > Actions) - NUNCA colocar valores aqui:
+#   UNITY_LICENSE        - conteudo do arquivo .ulf de uma licenca Unity ativada para CI
+#   UNITY_EMAIL           - e-mail da conta Unity usada para ativar a licenca
+#   UNITY_PASSWORD        - senha da conta Unity
+#   SIGN_CERT_BASE64      - certificado .pfx codificado em base64 (modo LocalCertificate)
+#   SIGN_CERT_PASSWORD    - senha do certificado
+#   SIGN_TIMESTAMP_URL    - URL do servidor de timestamp (opcional, tem padrao)
+#
+# Sem esses secrets configurados, este workflow nao deve ser acionado - a build/assinatura
+# continua sendo feita localmente via Tools/Release/Build-Release.ps1.
+name: Windows Release (opcional)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versao do release (ex.: 1.0.0)"
+        required: true
+
+jobs:
+  build-and-sign:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Unity (Windows x64)
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneWindows64
+          buildsPath: Build
+
+      - name: Restaurar certificado de assinatura (se configurado)
+        if: ${{ secrets.SIGN_CERT_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String("${{ secrets.SIGN_CERT_BASE64 }}")
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\game.pfx", $bytes)
+
+      - name: Sign + Verify + Hash
+        shell: pwsh
+        env:
+          SIGNING_MODE: ${{ secrets.SIGN_CERT_BASE64 != '' && 'LocalCertificate' || 'None' }}
+          SIGN_CERT_PATH: ${{ runner.temp }}\game.pfx
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+          SIGN_TIMESTAMP_URL: ${{ secrets.SIGN_TIMESTAMP_URL }}
+        run: |
+          powershell -File Tools\Release\Build-Release.ps1 -SkipUnityBuild -Version "${{ github.event.inputs.version }}"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameProjectKG-${{ github.event.inputs.version }}
+          path: Release/GameProjectKG-${{ github.event.inputs.version }}/**
