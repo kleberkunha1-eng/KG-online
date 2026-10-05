@@ -47,7 +47,27 @@ public static class GameBuild
         // argumento --api= que o launcher injeta). Sem isso o cliente cai no fallback
         // http://127.0.0.1:3000, que so existe na maquina do desenvolvedor.
         if (r.summary.result == BuildResult.Succeeded)
-            File.WriteAllText(Out + "/api.json", "{\"apiUrl\":\"https://gamekg.pages.dev\",\"gameServerHost\":\"\",\"gameServerPort\":7777}");
+        {
+            var (host, port) = ReadServerAddress();
+            File.WriteAllText(Out + "/api.json",
+                "{\"apiUrl\":\"https://gamekg.pages.dev\",\"gameServerHost\":\"" + host + "\",\"gameServerPort\":" + port + "}");
+        }
         return r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | " + r.summary.totalErrors + " errors | " + r.summary.totalTime;
+    }
+
+    // Le o endereco publico do servidor dedicado (host e porta) de Tools/server-address.txt,
+    // arquivo local e NAO versionado (contem o endereco do tunel playit.gg, que pode mudar).
+    // Formato esperado na 1a linha: host:porta (ex.: abc123.joinmc.link:25565).
+    // Se o arquivo nao existir, gera build com gameServerHost vazio (cliente mostra erro claro
+    // em vez de tentar conectar a um servidor inexistente).
+    static (string host, int port) ReadServerAddress()
+    {
+        const string path = "Tools/server-address.txt";
+        if (!File.Exists(path)) return ("", 7777);
+        var line = File.ReadAllLines(path).FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#"));
+        if (string.IsNullOrWhiteSpace(line)) return ("", 7777);
+        var parts = line.Trim().Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[1], out var port)) return ("", 7777);
+        return (parts[0], port);
     }
 }

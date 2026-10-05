@@ -106,3 +106,8 @@ Docs/*.local.md
 
 # Binario do Butler (ferramenta de publicacao itch.io), baixado automaticamente pelo script
 Tools/Release/butler/
+
+# Playit.gg (tunel do servidor dedicado - instalado como servico separado do Windows, nao faz
+# parte deste repo) e endereco publico do servidor (muda conforme o tunel) - nunca versionar.
+Tools/Release/logs/
+Tools/server-address.txt
