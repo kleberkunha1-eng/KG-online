@@ -88,6 +88,42 @@ nunca deve ser apresentado como solucao para distribuicao publica** - serve apen
 internos/desenvolvimento, pois sua cadeia de confianca nunca sera reconhecida pelo Windows de um
 jogador.
 
+## Testando o pipeline com um certificado autoassinado (build interno/dev)
+
+Se voce ja tem um certificado autoassinado no repositorio de certificados do Windows (por
+exemplo, o criado implicitamente pelo `electron-builder` em builds antigas do Launcher -
+`CN=GAME PROJECT - KG`), pode exporta-lo para um `.pfx` e usar o pipeline de assinatura
+completo **apenas para validar que tudo funciona**, sem gastar com um certificado real:
+
+```powershell
+# 1. Exportar o certificado existente para um .pfx fora do controle de versao
+$securePwd = Read-Host -AsSecureString "Senha do .pfx"
+Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+    Where-Object { $_.Subject -like '*GAME PROJECT - KG*' } |
+    Export-PfxCertificate -FilePath "Secrets\Certificates\GameProjectKG-dev.pfx" -Password $securePwd
+
+# 2. Configurar o modo local + permitir raiz nao confiavel na verificacao (SOMENTE para testes)
+$env:SIGNING_MODE = 'LocalCertificate'
+$env:SIGN_CERT_PATH = (Resolve-Path 'Secrets\Certificates\GameProjectKG-dev.pfx')
+$env:SIGN_CERT_PASSWORD = '<a mesma senha usada acima>'
+$env:SIGN_ALLOW_SELF_SIGNED = 'true'
+
+# 3. Rodar o pipeline normalmente
+powershell -ExecutionPolicy Bypass -File Tools\Release\Build-Release.ps1 -SkipUnityBuild -Version 0.1.0-dev
+```
+
+`SIGN_ALLOW_SELF_SIGNED=true` faz o `Verify-Signature.ps1` aceitar uma assinatura cujo **unico**
+problema seja "raiz de certificado nao confiavel" (o caso de um certificado autoassinado) -
+qualquer outro problema (hash do arquivo nao bate, certificado expirado/revogado, assinatura
+corrompida) continua abortando o release normalmente, como em qualquer outro modo. Isso foi
+validado com um teste negativo (arquivo adulterado continua sendo rejeitado mesmo com a flag).
+
+A pasta `Secrets/` ja esta no `.gitignore` - o `.pfx` e a senha gerados aqui nunca sao
+commitados. **Nunca defina `SIGN_ALLOW_SELF_SIGNED=true` em um release real/publico** - isso
+produziria um executavel que o Windows SmartScreen tratara exatamente como um app desconhecido
+(nenhuma melhoria de reputacao), apenas confirmando que a mecanica de assinar/verificar/empacotar
+funciona de ponta a ponta.
+
 ## Arquivos assinados pelo pipeline
 
 - `GameProjectKG.exe` (jogo, gerado pelo Unity)

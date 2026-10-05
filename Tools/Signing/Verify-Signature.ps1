@@ -21,13 +21,47 @@
 .PARAMETER AllowUnsigned
     Quando presente, arquivos sem assinatura sao reportados como aviso (nao erro). Use
     somente para builds de desenvolvimento (SIGNING_MODE=None) - nunca em release.
+
+.PARAMETER AllowUntrustedRoot
+    Quando presente, aceita uma assinatura cujo UNICO problema e a raiz do certificado
+    nao ser confiavel (caso de certificados autoassinados usados para build/teste
+    interno). A verificacao continua validando criptograficamente a cadeia e o hash do
+    arquivo via X509Chain (com a politica AllowUnknownCertificateAuthority) - se houver
+    qualquer outro problema alem de UntrustedRoot (hash incorreto, certificado expirado,
+    revogado, etc.), a verificacao continua falhando normalmente.
+
+    IMPORTANTE: isto NAO resolve a reputacao do SmartScreen nem faz o Windows confiar no
+    executavel em maquinas de jogadores - serve apenas para validar que o pipeline de
+    assinatura esta funcionando corretamente durante desenvolvimento/testes internos com
+    um certificado autoassinado. Nunca use esta flag para builds destinadas a distribuicao
+    publica sem um certificado emitido por uma CA confiavel.
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string[]]$Files,
 
-    [switch]$AllowUnsigned
+    [switch]$AllowUnsigned,
+
+    [switch]$AllowUntrustedRoot
 )
+
+function Test-OnlyUntrustedRoot {
+    param([System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate)
+
+    $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+    $chain.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+    $chain.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
+    $built = $chain.Build($Certificate)
+
+    $otherIssues = $chain.ChainStatus | Where-Object {
+        $_.Status -ne [System.Security.Cryptography.X509Certificates.X509ChainStatusFlags]::UntrustedRoot -and
+        $_.Status -ne [System.Security.Cryptography.X509Certificates.X509ChainStatusFlags]::NoError
+    }
+
+    # Precisa ter dado exatamente UntrustedRoot (ou nenhum problema) com a politica relaxada -
+    # qualquer outro status (hash invalido, revogado, expirado, etc.) continua reprovando.
+    return ($built -or ($chain.ChainStatus.Status -contains [System.Security.Cryptography.X509Certificates.X509ChainStatusFlags]::UntrustedRoot)) -and ($otherIssues.Count -eq 0)
+}
 
 function Find-SignTool {
     $roots = @(
@@ -69,6 +103,14 @@ foreach ($f in $Files) {
     if (-not $isValid -and $AllowUnsigned -and $sig.Status -eq 'NotSigned') {
         Write-Host "[WARN] $(Split-Path $resolved -Leaf): nao assinado (permitido - modo desenvolvimento)." -ForegroundColor Yellow
         $results += [pscustomobject]@{ File = $resolved; Status = 'NotSigned (dev)'; Publisher = $publisher }
+        continue
+    }
+
+    if (-not $isValid -and $AllowUntrustedRoot -and $sig.Status -eq 'UnknownError' -and $sig.SignerCertificate -and (Test-OnlyUntrustedRoot -Certificate $sig.SignerCertificate)) {
+        Write-Host "[WARN] $(Split-Path $resolved -Leaf): assinado, hash OK, mas certificado autoassinado/raiz nao confiavel (permitido - build interno/teste)." -ForegroundColor Yellow
+        Write-Host "       Publisher : $publisher"
+        Write-Host "       ATENCAO: isto NAO sera confiavel no Windows SmartScreen de maquinas de jogadores." -ForegroundColor Yellow
+        $results += [pscustomobject]@{ File = $resolved; Status = 'SelfSigned (dev)'; Publisher = $publisher }
         continue
     }
 

@@ -116,6 +116,17 @@ if (-not $DryRun -and -not (Test-Path $gameExe)) { Fail "GameProjectKG.exe nao e
 Step 'SIGN GAME'
 $signMode = $env:SIGNING_MODE
 if (-not $signMode) { $signMode = 'None' }
+# SIGN_ALLOW_SELF_SIGNED=true permite builds assinadas com certificado autoassinado (modo
+# LocalCertificate de desenvolvimento/testes internos) sem abortar na verificacao, desde que a
+# UNICA falha seja "raiz nao confiavel" (qualquer outro problema - hash incorreto, certificado
+# expirado/revogado - ainda aborta o release normalmente). NUNCA usar isto para distribuicao
+# publica: um certificado autoassinado nao e confiavel pelo SmartScreen dos jogadores.
+$allowSelfSigned = $env:SIGN_ALLOW_SELF_SIGNED -eq 'true'
+$verifyExtraArgs = @{}
+if ($allowSelfSigned) {
+    $verifyExtraArgs = @{ AllowUntrustedRoot = $true }
+    Warn "SIGN_ALLOW_SELF_SIGNED=true - certificados autoassinados serao aceitos na verificacao (apenas para build interno/teste, NAO usar em distribuicao publica)."
+}
 if ($signMode -eq 'None') {
     Warn "SIGNING_MODE nao configurado (ou 'None') - Game.exe NAO sera assinado."
     $report.GameSigned = 'NOT SIGNED (SIGNING_MODE=None)'
@@ -126,14 +137,14 @@ if ($signMode -eq 'None') {
     } else {
         & (Join-Path $PSScriptRoot '..\Signing\Sign-WindowsBuild.ps1') -Files $filesToSign -DryRun | Out-Null
     }
-    $report.GameSigned = if ($DryRun) { 'DRY-RUN' } else { 'SIGNED' }
+    $report.GameSigned = if ($DryRun) { 'DRY-RUN' } elseif ($allowSelfSigned) { 'SIGNED (self-signed, dev only)' } else { 'SIGNED' }
     $report.Timestamp = 'OK'
     Ok "Game.exe: $($report.GameSigned)"
 }
 
 if (-not $DryRun -and $signMode -ne 'None') {
     Step 'VERIFY GAME SIGNATURE'
-    & (Join-Path $PSScriptRoot '..\Signing\Verify-Signature.ps1') -Files @($gameExe)
+    & (Join-Path $PSScriptRoot '..\Signing\Verify-Signature.ps1') -Files @($gameExe) @verifyExtraArgs
     if ($LASTEXITCODE -ne 0) { Fail 'Verificacao de assinatura do jogo falhou - release abortado.' }
     Ok 'Assinatura do Game.exe valida.'
 }
@@ -150,9 +161,9 @@ if (-not $SkipLauncher) {
         }
         if ($signMode -ne 'None' -and (Test-Path $launcherExe)) {
             & (Join-Path $PSScriptRoot '..\Signing\Sign-WindowsBuild.ps1') -Files @($launcherExe) | Out-Null
-            & (Join-Path $PSScriptRoot '..\Signing\Verify-Signature.ps1') -Files @($launcherExe)
+            & (Join-Path $PSScriptRoot '..\Signing\Verify-Signature.ps1') -Files @($launcherExe) @verifyExtraArgs
             if ($LASTEXITCODE -ne 0) { Fail 'Verificacao de assinatura do Launcher falhou - release abortado.' }
-            $report.LauncherSigned = 'SIGNED'
+            $report.LauncherSigned = if ($allowSelfSigned) { 'SIGNED (self-signed, dev only)' } else { 'SIGNED' }
         } else {
             $report.LauncherSigned = 'NOT SIGNED (SIGNING_MODE=None)'
         }
