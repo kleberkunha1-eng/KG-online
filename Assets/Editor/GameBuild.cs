@@ -16,7 +16,11 @@ public static class GameBuild
 
     static void Poll()
     {
-        if (!File.Exists(Request) || EditorApplication.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        if (!File.Exists(Request)) return;
+        // Se o Editor estiver em Play Mode, o request ficaria parado para sempre (nunca builda
+        // enquanto isPlaying == true). Sai do Play Mode automaticamente e aguarda o proximo tick.
+        if (EditorApplication.isPlaying) { EditorApplication.isPlaying = false; return; }
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
         File.Delete(Request);
         File.WriteAllText(Result, Build());
     }

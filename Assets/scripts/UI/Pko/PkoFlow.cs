@@ -41,10 +41,9 @@ namespace TOP.UI.Pko
         Text status;
         readonly List<PkoWindow> opened = new List<PkoWindow>();
 
-        // login (card proprio, pintado sobre a arte de fundo nova - nao usa mais login.clu)
+        // login (card proprio, reproduz pixel-a-pixel o modelo "login_exact_pixel_v2" enviado pelo usuario)
         GameObject loginCard, registerCard;
         InputField idField, pwField, regIdField, regPwField, regPw2Field, regEmailField;
-        Toggle rememberToggle;
         LoginNetworkClient loginClient;
         bool busy;
 
@@ -150,7 +149,7 @@ namespace TOP.UI.Pko
 
         static Canvas MakeCanvas(string n, int order)
         {
-            var go = new GameObject(n, typeof(Canvas), typeof(CanvasScaler));
+            var go = new GameObject(n, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var c = go.GetComponent<Canvas>(); c.renderMode = RenderMode.ScreenSpaceOverlay; c.sortingOrder = order;
             var sc = go.GetComponent<CanvasScaler>(); sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             sc.referenceResolution = new Vector2(800, 600); sc.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight; sc.matchWidthOrHeight = 1f;
@@ -209,32 +208,121 @@ namespace TOP.UI.Pko
             registerCard.SetActive(false);
 
             var savedUser = PlayerPrefs.GetString(PrefUser, "");
-            idField.text = savedUser;
-            rememberToggle.isOn = savedUser.Length > 0;
+            if (!string.IsNullOrEmpty(savedUser)) idField.text = savedUser;
 
             Say("Informe sua conta para entrar.");
         }
 
+        // Dimensoes exatas do modelo fornecido (login_exact_pixel_v2): painel de referencia 313x329px.
+        // Todas as posicoes abaixo sao as mesmas porcentagens usadas no CSS original (left/top/width/height
+        // relativos ao painel), convertidas para ancoras do RectTransform (0..1) - por isso escalam
+        // perfeitamente com a tela sem perder o alinhamento pixel-a-pixel do design.
+        const float PanelRefW = 313f, PanelRefH = 329f;
+        static readonly Color FieldTextVisible = new Color(0.788f, 0.765f, 0.741f); // #c9c3bd
+        static readonly Color FieldCaret = new Color(0.909f, 0.847f, 0.733f); // #e8d8bb
+
+        static Texture2D LoginTex(string name) => Resources.Load<Texture2D>("UI/Login/" + name);
+
         void BuildLoginCard()
         {
-            var cardRt = MakeCard(loginCanvas.transform, "LoginCard", 300, 400, out loginCard);
+            const float PanelW = 320f;
+            const float PanelH = PanelW * PanelRefH / PanelRefW;
 
-            MakeLabel(cardRt, "Login", 28, Gold, FontStyle.Bold, TextAnchor.MiddleCenter, 260, 40, -14);
+            loginCard = new GameObject("LoginCard", typeof(RectTransform));
+            loginCard.transform.SetParent(loginCanvas.transform, false);
+            var cardRt = (RectTransform)loginCard.transform;
+            cardRt.anchorMin = cardRt.anchorMax = new Vector2(.5f, .5f); cardRt.pivot = new Vector2(.5f, .5f);
+            cardRt.sizeDelta = new Vector2(PanelW, PanelH);
 
-            idField = MakeInput(cardRt, "Conta", false, 260, 42, -70);
-            pwField = MakeInput(cardRt, "Senha", true, 260, 42, -122);
-            MakeEyeToggle(pwField);
+            // Moldura/titulo "Login" ja fazem parte da arte (panel.png) - nao sao textos separados.
+            var art = new GameObject("PanelArt", typeof(RawImage)); art.transform.SetParent(cardRt, false);
+            var artImg = art.GetComponent<RawImage>(); artImg.texture = LoginTex("panel"); artImg.raycastTarget = false;
+            SetAnchors((RectTransform)art.transform, 0, 1, 0, 1);
 
-            rememberToggle = MakeToggle(cardRt, "Lembrar conta", 260, 24, -166);
+            // left=35 top=121 w=229 h=35 (313x329)
+            idField = BuildExactField(cardRt, "Account", LoginTex("account_original"), LoginTex("account_blank"),
+                0.111821f, 0.843450f, 0.525836f, 0.632219f, leftPad: 0.172f, rightPad: 0.05f, password: false);
 
-            var loginBtn = MakeButton(cardRt, "Login", LoginBlue, 260, 48, -206);
+            // left=35 top=164 w=229 h=35
+            pwField = BuildExactField(cardRt, "Password", LoginTex("password_original"), LoginTex("password_blank"),
+                0.111821f, 0.843450f, 0.395137f, 0.501520f, leftPad: 0.172f, rightPad: 0.15f, password: true);
+            BuildEyeToggle(pwField);
+
+            // left=23 top=212 w=251 h=47
+            var loginBtn = BuildExactButton(cardRt, LoginTex("login_button"), LoginTex("login_button_pressed"),
+                0.073482f, 0.875399f, 0.212766f, 0.355623f);
             loginBtn.onClick.AddListener(DoLogin);
 
-            var registerBtn = MakeButton(cardRt, "Registrar", ButtonSlate, 124, 40, -266, -70);
+            // left=37 top=267 w=105 h=28
+            var registerBtn = BuildExactButton(cardRt, LoginTex("register_button"), LoginTex("register_button_pressed"),
+                0.118211f, 0.453674f, 0.103343f, 0.188450f);
             registerBtn.onClick.AddListener(OpenRegister);
 
-            var exitBtn = MakeButton(cardRt, "Sair", ButtonSlate, 124, 40, -266, 70);
+            // left=157 top=267 w=104 h=28
+            var exitBtn = BuildExactButton(cardRt, LoginTex("exit_button"), LoginTex("exit_button_pressed"),
+                0.501597f, 0.833866f, 0.103343f, 0.188450f);
             exitBtn.onClick.AddListener(Application.Quit);
+        }
+
+        static void SetAnchors(RectTransform rt, float xMin, float xMax, float yMin, float yMax)
+        {
+            rt.anchorMin = new Vector2(xMin, yMin); rt.anchorMax = new Vector2(xMax, yMax);
+            rt.offsetMin = rt.offsetMax = Vector2.zero; rt.pivot = new Vector2(.5f, .5f);
+        }
+
+        // Campo "image-exact": mostra a arte original (com o rotulo/icone ja desenhados) enquanto vazio e sem
+        // foco; ao focar ou digitar, troca para a arte "blank" (sem rotulo) e revela o texto real digitado -
+        // mesmo comportamento do field.editing no CSS/JS original.
+        static InputField BuildExactField(Transform parent, string name, Texture2D original, Texture2D blank,
+            float xMin, float xMax, float yMin, float yMax, float leftPad, float rightPad, bool password)
+        {
+            var go = new GameObject("Field_" + name, typeof(RawImage), typeof(InputField));
+            go.transform.SetParent(parent, false);
+            SetAnchors((RectTransform)go.transform, xMin, xMax, yMin, yMax);
+            var bg = go.GetComponent<RawImage>(); bg.texture = original;
+
+            var textGo = new GameObject("Text", typeof(Text)); textGo.transform.SetParent(go.transform, false);
+            var text = textGo.GetComponent<Text>(); text.font = F(); text.fontSize = 16; text.color = new Color(1, 1, 1, 0);
+            text.alignment = TextAnchor.MiddleLeft; text.raycastTarget = false;
+            SetAnchors((RectTransform)textGo.transform, leftPad, 1f - rightPad, 0f, 1f);
+
+            var input = go.GetComponent<InputField>();
+            input.textComponent = text; input.targetGraphic = bg; input.transition = Selectable.Transition.None;
+            input.customCaretColor = true; input.caretColor = FieldCaret;
+            if (password) input.contentType = InputField.ContentType.Password;
+
+            var sync = go.AddComponent<ExactFieldSync>();
+            sync.Init(bg, original, blank, input, text, FieldTextVisible);
+            return input;
+        }
+
+        // Area invisivel sobre o olho ja desenhado na arte do campo de senha (so alterna mostrar/ocultar).
+        static void BuildEyeToggle(InputField pwField)
+        {
+            var go = new GameObject("EyeHit", typeof(Image), typeof(Button));
+            go.transform.SetParent(pwField.transform, false);
+            var img = go.GetComponent<Image>(); img.color = new Color(0, 0, 0, 0);
+            SetAnchors((RectTransform)go.transform, 0.828f, 0.978f, 0.08f, 0.92f);
+            var btn = go.GetComponent<Button>(); btn.transition = Selectable.Transition.None; btn.targetGraphic = img;
+            btn.onClick.AddListener(() =>
+            {
+                bool shown = pwField.contentType == InputField.ContentType.Standard;
+                pwField.contentType = shown ? InputField.ContentType.Password : InputField.ContentType.Standard;
+                pwField.ForceLabelUpdate();
+            });
+        }
+
+        // Botao "image-exact": troca para a arte "pressed" durante o clique, igual ao :active do CSS.
+        static Button BuildExactButton(Transform parent, Texture2D normal, Texture2D pressed,
+            float xMin, float xMax, float yMin, float yMax)
+        {
+            var go = new GameObject("Button", typeof(RawImage), typeof(Button));
+            go.transform.SetParent(parent, false);
+            SetAnchors((RectTransform)go.transform, xMin, xMax, yMin, yMax);
+            var img = go.GetComponent<RawImage>(); img.texture = normal;
+            var btn = go.GetComponent<Button>(); btn.transition = Selectable.Transition.None; btn.targetGraphic = img;
+            go.AddComponent<ExactButtonSwap>().Init(img, normal, pressed);
+            return btn;
         }
 
         void BuildRegisterCard()
@@ -266,7 +354,6 @@ namespace TOP.UI.Pko
             if (busy) return;
             var id = idField.text.Trim(); var pw = pwField.text;
             if (id.Length == 0 || pw.Length == 0) { Say("Informe conta e senha.", true); return; }
-            if (rememberToggle.isOn) PlayerPrefs.SetString(PrefUser, id); else PlayerPrefs.DeleteKey(PrefUser);
             busy = true; Say("Autenticando...");
             loginClient.Login(id, pw);
         }
@@ -283,6 +370,7 @@ namespace TOP.UI.Pko
 
         void OnLoginOk(string token, long accountId)
         {
+            PlayerPrefs.SetString(PrefUser, idField.text.Trim());
             Say("Login ok. Conectando ao servidor...");
             if (TOPNetworkManager.Instance != null) TOPNetworkManager.Instance.StartHost();
             else { busy = false; Say("Servidor de rede nao encontrado na cena.", true); }
@@ -377,31 +465,6 @@ namespace TOP.UI.Pko
                 txt.text = shown ? "Ver" : "Ocultar";
                 pwField.ForceLabelUpdate();
             });
-        }
-
-        static Toggle MakeToggle(Transform parent, string label, float w, float h, float y)
-        {
-            var go = new GameObject("Toggle_" + label, typeof(Toggle));
-            go.transform.SetParent(parent, false);
-            var rt = (RectTransform)go.transform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, 1f); rt.pivot = new Vector2(.5f, 1f);
-            rt.sizeDelta = new Vector2(w, h); rt.anchoredPosition = new Vector2(0, y);
-
-            var boxGo = new GameObject("Box", typeof(Image)); boxGo.transform.SetParent(go.transform, false);
-            var boxImg = boxGo.GetComponent<Image>(); boxImg.color = FieldBg;
-            var br = (RectTransform)boxGo.transform; br.anchorMin = br.anchorMax = new Vector2(0, .5f); br.pivot = new Vector2(0, .5f);
-            br.sizeDelta = new Vector2(h - 4, h - 4); br.anchoredPosition = new Vector2(0, 0);
-
-            var checkGo = new GameObject("Check", typeof(Image)); checkGo.transform.SetParent(boxGo.transform, false);
-            var checkImg = checkGo.GetComponent<Image>(); checkImg.color = Gold;
-            var cr = (RectTransform)checkGo.transform; cr.anchorMin = Vector2.zero; cr.anchorMax = Vector2.one; cr.offsetMin = new Vector2(3, 3); cr.offsetMax = new Vector2(-3, -3);
-
-            var labGo = new GameObject("Label", typeof(Text)); labGo.transform.SetParent(go.transform, false);
-            var lab = labGo.GetComponent<Text>(); lab.font = F(); lab.fontSize = 13; lab.color = Color.white; lab.alignment = TextAnchor.MiddleLeft; lab.text = label; lab.raycastTarget = false;
-            var lr = lab.rectTransform; lr.anchorMin = new Vector2(0, 0); lr.anchorMax = new Vector2(1, 1); lr.offsetMin = new Vector2(h + 4, 0); lr.offsetMax = Vector2.zero;
-
-            var toggle = go.GetComponent<Toggle>();
-            toggle.targetGraphic = boxImg; toggle.graphic = checkImg; toggle.isOn = false;
-            return toggle;
         }
 
         static Button MakeButton(Transform parent, string label, Color bg, float w, float h, float y, float x = 0)
@@ -695,5 +758,45 @@ namespace TOP.UI.Pko
             listRequested = false; nextTry = 0;
             Say("Personagem apagado.");
         }
+    }
+
+    // Campo "image-exact": alterna a arte de fundo (com rotulo desenhado) <-> arte "blank" (sem rotulo)
+    // conforme o campo esta focado/preenchido, igual ao field.editing do CSS/JS do modelo original.
+    class ExactFieldSync : MonoBehaviour, ISelectHandler, IDeselectHandler
+    {
+        static readonly Color Hidden = new Color(1, 1, 1, 0);
+        RawImage bg; Texture2D original, blank; InputField field; Text text; Color visibleColor; bool selected;
+
+        public void Init(RawImage bg, Texture2D original, Texture2D blank, InputField field, Text text, Color visibleColor)
+        {
+            this.bg = bg; this.original = original; this.blank = blank; this.field = field; this.text = text; this.visibleColor = visibleColor;
+            field.onValueChanged.AddListener(_ => Sync());
+            Sync();
+        }
+
+        public void OnSelect(BaseEventData e) { selected = true; Sync(); }
+        public void OnDeselect(BaseEventData e) { selected = false; Sync(); }
+
+        void Sync()
+        {
+            bool editing = selected || (field != null && field.text.Length > 0);
+            if (bg != null) bg.texture = editing ? blank : original;
+            if (text != null) text.color = editing ? visibleColor : Hidden;
+        }
+    }
+
+    // Botao "image-exact": troca para a arte "pressed" enquanto o ponteiro esta pressionado, igual ao :active do CSS.
+    class ExactButtonSwap : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    {
+        RawImage img; Texture2D normal, pressed;
+
+        public void Init(RawImage img, Texture2D normal, Texture2D pressed)
+        {
+            this.img = img; this.normal = normal; this.pressed = pressed; img.texture = normal;
+        }
+
+        public void OnPointerDown(PointerEventData e) { if (img != null) img.texture = pressed; }
+        public void OnPointerUp(PointerEventData e) { if (img != null) img.texture = normal; }
+        public void OnPointerExit(PointerEventData e) { if (img != null) img.texture = normal; }
     }
 }
