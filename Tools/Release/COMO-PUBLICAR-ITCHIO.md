@@ -49,9 +49,19 @@ Nao muda nada: o jogo continua se conectando em `https://gamekg.pages.dev` (API/
 mesmo jeito, independente de ter sido baixado pelo launcher proprio ou pelo itch.io. So muda
 *como o executavel chega ate o jogador* - os dados de conta/personagem continuam no mesmo lugar.
 
-## Proximos passos sugeridos (nao feito ainda, precisa de voce)
+## Status atual (ja feito)
 
-- Criar a conta no itch.io e a pagina do jogo (passos 1-2 acima - so voce pode fazer isso, exige
-  confirmar e-mail e aceitar os termos).
-- Me passar o `SEU_USUARIO` e `SEU_JOGO` (ou simplesmente rodar o script com eles) pra eu validar
-  que a publicacao funciona de ponta a ponta.
+- Conta criada: `kg-online` (https://kg-online.itch.io).
+- Jogo publicado: https://kg-online.itch.io/kg-online (visibilidade: Public).
+- Primeira build enviada via Butler (canal `windows`, versao 1).
+- Comando usado para publicar (ja validado funcionando):
+  ```powershell
+  cd "Tools\Release"
+  .\butler\butler.exe push "..\..\Build\GameProjectKG" "kg-online/kg-online:windows"
+  ```
+- Para novas atualizacoes, basta gerar a build no Unity de novo e rodar o mesmo comando -
+  o Butler so envia a diferenca (patch), entao fica rapido depois da primeira vez.
+- Verificar status de uma build: `.\butler\butler.exe status "kg-online/kg-online"`.
+
+Nota: o dominio de download do Butler mudou de `broth.itch.ovh` para `broth.itch.zone` - o
+script `Publish-Itch.ps1` ja foi atualizado com o endereco correto.

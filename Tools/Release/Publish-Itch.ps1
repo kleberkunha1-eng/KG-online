@@ -53,7 +53,7 @@ if (-not (Test-Path $butlerExe)) {
     Write-Host "Butler nao encontrado - baixando (uma vez so, ~15MB)..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Path $butlerDir -Force | Out-Null
     $zipPath = Join-Path $butlerDir "butler.zip"
-    Invoke-WebRequest -Uri "https://broth.itch.ovh/butler/windows-amd64/LATEST/archive/default" -OutFile $zipPath
+    Invoke-WebRequest -Uri "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -OutFile $zipPath
     Expand-Archive -Path $zipPath -DestinationPath $butlerDir -Force
     Remove-Item $zipPath -Force
     if (-not (Test-Path $butlerExe)) {
