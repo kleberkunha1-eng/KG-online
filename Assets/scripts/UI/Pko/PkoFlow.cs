@@ -124,12 +124,14 @@ namespace TOP.UI.Pko
             if (customBg != null)
             {
                 r.texture = customBg;
-                var rt = r.rectTransform; rt.anchorMin = rt.anchorMax = new Vector2(.5f, .5f); rt.pivot = new Vector2(.5f, .5f);
-                // EnvelopeParent = mesmo comportamento de "background-size: cover" do CSS: preenche a tela
-                // inteira preservando a proporcao da imagem (corta as bordas em vez de distorcer).
-                var fit = bg.AddComponent<AspectRatioFitter>();
-                fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-                fit.aspectRatio = (float)customBg.width / customBg.height;
+                var rt = r.rectTransform;
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+                var cover = bg.GetComponent<RawImageCover>();
+                if (cover == null) cover = bg.AddComponent<RawImageCover>();
+                cover.Refresh();
             }
             else
             {
