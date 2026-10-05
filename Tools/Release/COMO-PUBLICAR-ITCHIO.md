@@ -31,6 +31,20 @@ atrapalhar.
 
 ## Publicar uma build (toda vez que tiver uma atualizacao)
 
+### Opcao recomendada: um unico comando pros dois canais (itch.io + GitHub Releases/launcher)
+
+```powershell
+cd "Tools\Release"
+.\Publish-Update.ps1 -Notes "Descricao da atualizacao"
+```
+
+Isso gera a build no Unity (se o Editor estiver aberto neste projeto), publica no GitHub Releases
+(launcher proprio, com manifest/hashes) e no itch.io (Butler), nessa ordem. Use `-SkipUnityBuild`
+se ja gerou a build manualmente, ou `-SkipGithub`/`-SkipItch` pra publicar em so um dos canais.
+Veja `Publish-Update.ps1` (comentarios no topo) pra mais detalhes e parametros.
+
+### Manual, so itch.io
+
 1. Gere a build no Unity: **Tools > Build Game (Windows)** (igual ao processo atual, gera em
    `Build\GameProjectKG`).
 2. Rode o script de publicacao (ele baixa o Butler sozinho na primeira vez):
