@@ -54,7 +54,11 @@ namespace TOP.Services
         [Serializable] class AuditDto { public string action; public long charId; public string detail; }
 
         // ---- HTTP ----
-        static async Task<string> SendAsync(string method, string path, string body, CancellationToken ct)
+        // O token JWT e sempre o da conta/jogador especifico da requisicao - nunca um estado estatico global.
+        // No cliente standalone (login local), quem chama passa TOP.Network.LoginNetworkClient.AuthToken.
+        // No servidor dedicado, quem chama passa o token armazenado por conexao (PlayerConnection.SessionToken),
+        // pois o processo do servidor nunca faz login localmente e nao possui um AuthToken estatico valido.
+        static async Task<string> SendAsync(string method, string path, string body, string token, CancellationToken ct)
         {
             using (var req = new UnityWebRequest(ApiConfig.GameUrl + path, method))
             {
@@ -64,7 +68,7 @@ namespace TOP.Services
                     req.SetRequestHeader("Content-Type", "application/json");
                 }
                 req.downloadHandler = new DownloadHandlerBuffer();
-                req.SetRequestHeader("Authorization", "Bearer " + TOP.Network.LoginNetworkClient.AuthToken);
+                req.SetRequestHeader("Authorization", "Bearer " + (token ?? ""));
                 req.timeout = 20;
                 var op = req.SendWebRequest();
                 while (!op.isDone)
@@ -89,18 +93,21 @@ namespace TOP.Services
         }
 
         // ---- API publica (mesmas assinaturas do antigo acesso direto ao MySQL) ----
-        public async Task<bool> IsAdminAsync(long accountId, CancellationToken ct = default)
+        // IMPORTANTE: 'token' deve ser o JWT especifico do jogador desta chamada (PlayerConnection.SessionToken
+        // no servidor dedicado, ou LoginNetworkClient.AuthToken no cliente standalone). Nunca reutilizar um
+        // token estatico/global, pois o servidor atende multiplos jogadores simultaneamente.
+        public async Task<bool> IsAdminAsync(long accountId, string token, CancellationToken ct = default)
         {
-            try { return JsonUtility.FromJson<Ok>(await SendAsync("GET", "/me", null, ct)).admin; }
+            try { return JsonUtility.FromJson<Ok>(await SendAsync("GET", "/me", null, token, ct)).admin; }
             catch (Exception e) { Debug.LogError("[API] IsAdmin: " + e.Message); return false; }
         }
 
-        public async Task<List<CharacterPreviewData>> GetCharacterListAsync(long accountId, CancellationToken ct = default)
+        public async Task<List<CharacterPreviewData>> GetCharacterListAsync(long accountId, string token, CancellationToken ct = default)
         {
             var result = new List<CharacterPreviewData>();
             try
             {
-                var dto = JsonUtility.FromJson<ListDto>(await SendAsync("GET", "/characters", null, ct));
+                var dto = JsonUtility.FromJson<ListDto>(await SendAsync("GET", "/characters", null, token, ct));
                 if (dto == null || !dto.success) return result;
                 foreach (var p in dto.Characters)
                     result.Add(new CharacterPreviewData
@@ -118,7 +125,7 @@ namespace TOP.Services
 
         public async Task<(bool success, long charId, string error)> CreateCharacterAsync(
             long accountId, byte slot, string name, byte gender, byte job,
-            byte hairStyle, byte hairColor, StartCity city = null, byte faceStyle = 0, CancellationToken ct = default)
+            byte hairStyle, byte hairColor, string token, StartCity city = null, byte faceStyle = 0, CancellationToken ct = default)
         {
             city ??= StartCities.Get(0);
             try
@@ -128,17 +135,17 @@ namespace TOP.Services
                     name = name, slot = slot, job = job, gender = gender, hairStyle = hairStyle, hairColor = hairColor, faceStyle = faceStyle,
                     city = city == null ? null : new CityDto { map = city.map, x = city.x, y = city.y, z = city.z, rotY = city.rotY },
                 });
-                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/characters", body, ct));
+                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/characters", body, token, ct));
                 return (r.success, r.charId, r.error);
             }
             catch (Exception e) { Debug.LogError("[API] CreateCharacter: " + e.Message); return (false, 0, "DB_ERROR"); }
         }
 
-        public async Task<CharacterData> LoadCharacterAsync(long charId, long accountId, CancellationToken ct = default)
+        public async Task<CharacterData> LoadCharacterAsync(long charId, long accountId, string token, CancellationToken ct = default)
         {
             try
             {
-                var dto = JsonUtility.FromJson<LoadDto>(await SendAsync("GET", "/characters/" + charId, null, ct));
+                var dto = JsonUtility.FromJson<LoadDto>(await SendAsync("GET", "/characters/" + charId, null, token, ct));
                 if (dto == null || !dto.success || dto.Character == null) return null;
                 var c = dto.Character;
                 c.Inventory = new List<InventoryItemData>();
@@ -157,7 +164,7 @@ namespace TOP.Services
             catch (Exception e) { Debug.LogError("[API] LoadCharacter: " + e.Message); return null; }
         }
 
-        public async Task<bool> SaveCharacterAsync(CharacterData data, CancellationToken ct = default)
+        public async Task<bool> SaveCharacterAsync(CharacterData data, string token, CancellationToken ct = default)
         {
             if (data == null) return false;
             try
@@ -177,29 +184,29 @@ namespace TOP.Services
                     }
                 if (data.Skills != null)
                     foreach (var s in data.Skills) save.Skills.Add(new SkillDto { Id = s.Id, SkillId = s.SkillId, Level = s.Level, Exp = s.Exp });
-                var r = JsonUtility.FromJson<Ok>(await SendAsync("PUT", "/characters/" + data.Id, JsonUtility.ToJson(save), ct));
+                var r = JsonUtility.FromJson<Ok>(await SendAsync("PUT", "/characters/" + data.Id, JsonUtility.ToJson(save), token, ct));
                 return r.success;
             }
             catch (Exception e) { Debug.LogError("[API] SaveCharacter: " + e.Message); return false; }
         }
 
-        public async Task<(bool success, string error)> DeleteCharacterAsync(long charId, long accountId, string password, CancellationToken ct = default)
+        public async Task<(bool success, string error)> DeleteCharacterAsync(long charId, long accountId, string password, string token, CancellationToken ct = default)
         {
             try
             {
-                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/characters/" + charId + "/delete", JsonUtility.ToJson(new DeleteDto { password = password }), ct));
+                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/characters/" + charId + "/delete", JsonUtility.ToJson(new DeleteDto { password = password }), token, ct));
                 return (r.success, r.error);
             }
             catch (Exception e) { Debug.LogError("[API] DeleteCharacter: " + e.Message); return (false, "DB_ERROR"); }
         }
 
-        public async Task LogAuditAsync(long? accountId, long? charId, string action, object detail, string ip, CancellationToken ct = default)
+        public async Task LogAuditAsync(long? accountId, long? charId, string action, object detail, string ip, string token, CancellationToken ct = default)
         {
             try
             {
                 string json = "{}";
                 if (detail != null) { try { json = JsonUtility.ToJson(detail); } catch { json = detail.ToString(); } }
-                await SendAsync("POST", "/audit", JsonUtility.ToJson(new AuditDto { action = action, charId = charId ?? 0, detail = json }), ct);
+                await SendAsync("POST", "/audit", JsonUtility.ToJson(new AuditDto { action = action, charId = charId ?? 0, detail = json }), token, ct);
             }
             catch (Exception e) { Debug.LogWarning("[API] Audit: " + e.Message); }
         }

@@ -84,6 +84,11 @@ namespace TOP.Services
             {
                 foreach (SecurityLogEntry entry in entries)
                 {
+                    // NOTA: este servico nao tem acesso a uma conexao/token especifico (eventos podem vir de
+                    // qualquer conta). A API /api/game/audit exige um JWT valido da propria conta, entao sem
+                    // um token por-conexao esta chamada falha com 401 (tratado e logado como aviso abaixo).
+                    // Se este servico for usado futuramente, passe o PlayerConnection.SessionToken do jogador
+                    // relacionado ao evento via TOPNetworkManager.Instance.GetSessionToken(connectionId).
                     await DatabaseService.Instance.LogAuditAsync(
                         entry.AccountId,
                         entry.CharacterId,
@@ -94,7 +99,8 @@ namespace TOP.Services
                             message = entry.Message,
                             ip = entry.IpAddress
                         },
-                        entry.IpAddress
+                        entry.IpAddress,
+                        null
                     );
                 }
             }

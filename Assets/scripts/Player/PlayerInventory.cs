@@ -196,7 +196,8 @@ namespace TOP.Player
         {
             var pc = GetComponent<TOP.Player.PlayerController>();
             if (pc == null || quantity < 1 || !TOP.Data.PkoTables.Items.ContainsKey(itemId)) return;
-            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
             int max = Mathf.Max(1, TOP.Data.PkoTables.Items[itemId].Stack);
             while (quantity > 0)
             {
@@ -214,7 +215,8 @@ namespace TOP.Player
         {
             var pc = GetComponent<TOP.Player.PlayerController>();
             if (pc == null || !TOP.Data.PkoTables.Items.TryGetValue(itemId, out var it)) return;
-            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
             int slot = FindEmptySlot();
             if (slot == -1) return;
             if (!AddItem(itemId, 1, (ushort)slot)) return;
@@ -245,14 +247,16 @@ namespace TOP.Player
             var pc = GetComponent<TOP.Player.PlayerController>();
             var cls = GetComponent<TOP.Player.PlayerClass>();
             if (pc == null || cls == null || !System.Enum.IsDefined(typeof(TOP.Core.CharacterClass), classId)) return;
-            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) return;
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) return;
             cls.SetClass((TOP.Core.CharacterClass)classId);
         }
         [Command]
         public async void CmdAdminSetLevel(int level)
         {
             var pc = GetComponent<TOP.Player.PlayerController>();
-            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) return;
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) return;
             pc.AdminSetLevel(level);
         }
 
@@ -260,7 +264,8 @@ namespace TOP.Player
         public async void CmdAdminSetGold(long gold)
         {
             var pc = GetComponent<TOP.Player.PlayerController>();
-            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) return;
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) return;
             pc.AdminSetGold((ulong)System.Math.Max(0, gold));
         }
 
@@ -268,7 +273,8 @@ namespace TOP.Player
         public async void CmdAdminAddPoints(int stat, int skill)
         {
             var pc = GetComponent<TOP.Player.PlayerController>();
-            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId)) return;
+            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
+            if (pc == null || !await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) return;
             pc.AdminAddPoints(stat, skill);
         }
 

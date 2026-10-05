@@ -48,6 +48,7 @@ namespace TOP.Network
             public bool IsAuthenticated;
             public long AccountId;
             public string Username;
+            public string SessionToken;
         }
 
         public override void Awake()
@@ -346,7 +347,7 @@ namespace TOP.Network
                     catch (Exception ex) { error = ex.Message; }
                 }
 
-                FinalizeAuthentication(conn, isValid, accountId, username, error);
+                FinalizeAuthentication(conn, isValid, accountId, username, error, token);
             }
         }
 
@@ -358,7 +359,7 @@ namespace TOP.Network
             public string username;
         }
 
-        private void FinalizeAuthentication(NetworkConnectionToClient conn, bool isValid, long accountId, string username, string error)
+        private void FinalizeAuthentication(NetworkConnectionToClient conn, bool isValid, long accountId, string username, string error, string token)
         {
             if (!isValid)
             {
@@ -381,6 +382,7 @@ namespace TOP.Network
                 pending.IsAuthenticated = true;
                 pending.AccountId = accountId;
                 pending.Username = username;
+                pending.SessionToken = token;
             }
 
             PlayerConnection playerConn;
@@ -389,6 +391,7 @@ namespace TOP.Network
                 playerConn.State = ConnectionState.CharacterSelect;
                 playerConn.AccountId = accountId;
                 playerConn.Username = username;
+                playerConn.SessionToken = token;
             }
 
             _accountConnections[accountId] = conn;
@@ -427,8 +430,19 @@ namespace TOP.Network
                 playerConn.AccountId = pending.AccountId;
                 playerConn.Username = pending.Username;
             }
+            if (string.IsNullOrEmpty(playerConn.SessionToken) && !string.IsNullOrEmpty(pending.SessionToken))
+                playerConn.SessionToken = pending.SessionToken;
 
             return true;
+        }
+
+        /// <summary>
+        /// Retorna o JWT da conta conectada nesta conexao. Usado por Commands (ex.: PlayerInventory)
+        /// que precisam chamar o DatabaseService com o token do jogador especifico, nunca um estatico global.
+        /// </summary>
+        public string GetSessionToken(int connectionId)
+        {
+            return _connections.TryGetValue(connectionId, out PlayerConnection playerConn) ? playerConn.SessionToken : null;
         }
 
         // =================================================================================
@@ -452,7 +466,7 @@ namespace TOP.Network
                 return;
             }
 
-            List<CharacterPreviewData> dbChars = await DatabaseService.Instance.GetCharacterListAsync(playerConn.AccountId);
+            List<CharacterPreviewData> dbChars = await DatabaseService.Instance.GetCharacterListAsync(playerConn.AccountId, playerConn.SessionToken);
             Debug.Log($"[Server] Carregou {dbChars.Count} personagens do banco para account {playerConn.AccountId}");
 
             var netChars = new NetworkCharacterPreview[dbChars.Count];
@@ -526,7 +540,7 @@ namespace TOP.Network
 
             var result = await DatabaseService.Instance.CreateCharacterAsync(
                 playerConn.AccountId, msg.SlotIndex, msg.Name, msg.Gender, msg.Job,
-                msg.HairStyle, msg.HairColor, city, msg.FaceStyle);
+                msg.HairStyle, msg.HairColor, playerConn.SessionToken, city, msg.FaceStyle);
 
             conn.Send(new CreateCharacterResponse
             {
@@ -555,7 +569,7 @@ namespace TOP.Network
             }
 
             var result = await DatabaseService.Instance.DeleteCharacterAsync(
-                msg.CharacterId, playerConn.AccountId, msg.Password);
+                msg.CharacterId, playerConn.AccountId, msg.Password, playerConn.SessionToken);
 
             conn.Send(new DeleteCharacterResponse
             {
@@ -588,7 +602,7 @@ namespace TOP.Network
             CharacterData charData = null;
             try
             {
-                charData = await DatabaseService.Instance.LoadCharacterAsync(msg.CharacterId, playerConn.AccountId);
+                charData = await DatabaseService.Instance.LoadCharacterAsync(msg.CharacterId, playerConn.AccountId, playerConn.SessionToken);
             }
             catch (Exception ex)
             {
@@ -676,7 +690,7 @@ namespace TOP.Network
             {
                 await DatabaseService.Instance.LogAuditAsync(
                     playerConn.AccountId, msg.CharacterId, "ENTER_WORLD",
-                    new { map = charData.MapName, pos = spawnPos }, conn.address);
+                    new { map = charData.MapName, pos = spawnPos }, conn.address, playerConn.SessionToken);
             }
             catch (Exception ex)
             {
@@ -778,7 +792,7 @@ namespace TOP.Network
                 data.PosZ = playerConn.PlayerController.transform.position.z;
                 data.RotationY = playerConn.PlayerController.transform.rotation.eulerAngles.y;
 
-                bool saved = await DatabaseService.Instance.SaveCharacterAsync(data);
+                bool saved = await DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
                 if (saved)
                     Debug.Log($"[SavePlayer] ✅ {data.Name} salvo em {data.MapName} ({data.PosX:F1}, {data.PosY:F1}, {data.PosZ:F1})");
             }
@@ -796,7 +810,7 @@ namespace TOP.Network
                     data.PosZ = playerConn.PlayerController.transform.position.z;
                     data.RotationY = playerConn.PlayerController.transform.rotation.eulerAngles.y;
 
-                    bool saved = await DatabaseService.Instance.SaveCharacterAsync(data);
+                    bool saved = await DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
                     Debug.Log($"[SaveAndDisconnect] {(saved ? "✅" : "❌")} {data.Name} salvo antes de desconectar.");
                 }
             }
