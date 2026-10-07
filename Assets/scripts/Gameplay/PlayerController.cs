@@ -237,6 +237,36 @@ namespace TOP.Player
         }
 
         // =================================================================================
+        // SALAO DE BELEZA (hairs.txt)
+        // =================================================================================
+        [Command]
+        public void CmdApplyHairstyle(int hairId)
+        {
+            PkoHair chosen = null;
+            foreach (var h in PkoTables.Hairs) if (h.Id == hairId) { chosen = h; break; }
+            if (chosen == null) { RpcShowMessage("Penteado inválido.", PlayerMessageType.Error); return; }
+            int raceIdx = Mathf.Clamp(Job, 0, chosen.UsableRace.Length - 1);
+            if (!chosen.UsableRace[raceIdx]) { RpcShowMessage("Penteado não disponível para sua raça.", PlayerMessageType.Error); return; }
+            if (!SpendGold(chosen.Cost)) { RpcShowMessage("Ouro insuficiente.", PlayerMessageType.Error); return; }
+            HairStyle = (byte)chosen.ModelStyle;
+            RpcShowMessage($"Novo penteado: {chosen.Name} ({chosen.Color})", PlayerMessageType.Success);
+        }
+
+        [ClientRpc]
+        public void RpcOpenHairSalon()
+        {
+            if (!isLocalPlayer) return;
+            TOP.UI.HairSalonUI.OpenLocal(this);
+        }
+
+        [ClientRpc]
+        public void RpcOpenForge()
+        {
+            if (!isLocalPlayer) return;
+            TOP.UI.ForgeUI.OpenLocal(GetComponent<PlayerForge>());
+        }
+
+        // =================================================================================
         // MORTE E RESPAWN
         // =================================================================================
         [Server]

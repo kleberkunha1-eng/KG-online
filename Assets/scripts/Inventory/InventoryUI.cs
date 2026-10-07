@@ -133,6 +133,7 @@ namespace TOP.Inventory
             {
                 playerEquipment.OnItemEquipped += OnItemEquipped;
                 playerEquipment.OnItemUnequipped += OnItemUnequipped;
+                playerEquipment.OnVisualsChanged += RefreshEquipment;
                 Debug.Log("[InventoryUI] ✅ PlayerEquipment conectado");
             }
         }
@@ -192,6 +193,7 @@ namespace TOP.Inventory
             {
                 playerEquipment.OnItemEquipped -= OnItemEquipped;
                 playerEquipment.OnItemUnequipped -= OnItemUnequipped;
+                playerEquipment.OnVisualsChanged -= RefreshEquipment;
             }
         }
 
@@ -207,7 +209,7 @@ namespace TOP.Inventory
             }
 
             var itemData = ItemDatabase.Instance?.GetItem(newSlot.ItemId);
-            inventorySlots[index].SetItem(itemData, newSlot.Quantity, 100);
+            inventorySlots[index].SetItem(itemData, newSlot.Quantity, DurabilityPercent(newSlot, itemData));
         }
 
         void OnItemAdded(InventoryItem item, int slotIndex)
@@ -251,10 +253,18 @@ namespace TOP.Inventory
 
                 var itemData = ItemDatabase.Instance?.GetItem(slot.ItemId);
                 if (itemData != null)
-                    inventorySlots[i].SetItem(itemData, slot.Quantity, 100);
+                    inventorySlots[i].SetItem(itemData, slot.Quantity, DurabilityPercent(slot, itemData));
                 else
                     inventorySlots[i].Clear();
             }
+        }
+
+        // A durabilidade atual do item (0 = sem desgaste salvo ainda) vira 0-100% para a UI.
+        static int DurabilityPercent(InventoryItem slot, ItemData itemData)
+        {
+            int max = itemData is EquipmentData eq && eq.maxDurability > 0 ? eq.maxDurability : 100;
+            if (slot.Durability <= 0) return 100;
+            return Mathf.Clamp(Mathf.RoundToInt(100f * slot.Durability / max), 0, 100);
         }
 
         void RefreshEquipment()
@@ -312,7 +322,14 @@ namespace TOP.Inventory
             if (slot == null) return;
 
             var equipData = ItemDatabase.Instance?.GetEquipment(slot.ItemId);
-            if (equipData != null && equipData.slot == targetSlot)
+            if (equipData == null) return;
+
+            // Espadas de uma mão podem ir para o slot de escudo (dual wield); o servidor já permite isso
+            // em PlayerEquipment.CanWear, então a UI precisa aceitar o mesmo caso para não bloquear o drag.
+            bool offhandSword = targetSlot == EquipmentSlot.Shield && equipData.slot == EquipmentSlot.Weapon
+                && TOP.Data.PkoTables.Items.TryGetValue(slot.ItemId, out var pi) && pi.Type == 1;
+
+            if (equipData.slot == targetSlot || offhandSword)
                 playerInventory.CmdEquipItem((ushort)inventoryIndex, targetSlot);
         }
 
@@ -323,7 +340,9 @@ namespace TOP.Inventory
 
         public void OnEquipmentDraggedToInventory(EquipmentSlot slot, int targetInventoryIndex)
         {
-            playerInventory?.CmdUnequipItem(slot);
+            // Usa o destino arrastado: se o slot estiver ocupado o servidor rejeita e o item
+            // permanece equipado (UnequipItemToSlotOnServer só move quando o alvo está livre).
+            playerInventory?.CmdUnequipItemTo(slot, (ushort)targetInventoryIndex);
         }
 
         public void ShowTooltip(ItemData item, Vector3 position)

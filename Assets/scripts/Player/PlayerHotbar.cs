@@ -49,7 +49,13 @@ namespace TOP.Player
 
         private void HandleInput()
         {
-            if (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject != null && UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.GetComponent<TMPro.TMP_InputField>() != null) return;
+            var selected = UnityEngine.EventSystems.EventSystem.current != null
+                ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+            if (selected != null && (selected.GetComponent<TMPro.TMP_InputField>() != null
+                || selected.GetComponent<UnityEngine.UI.InputField>() != null)) return;
+            if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)
+                || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
+                || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) return;
             // Teclas F1-F10
             for (int i = 0; i < maxSlots && i < 10; i++)
             {

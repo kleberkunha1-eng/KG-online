@@ -62,19 +62,59 @@ namespace TOP.Testing
 
         // Picks a wearable of the original table for the character: right level/class, model for its race that exists as baked asset.
         static TOP.Core.CharacterClass testClass = TOP.Core.CharacterClass.Swordsman;
+        static bool IsRing(EquipmentSlot s) { return s == EquipmentSlot.Ring1 || s == EquipmentSlot.Ring2; }
+        static bool IsOffhandSword(TOP.Data.PkoItem it) { return it.Type == 1 && System.Array.IndexOf(it.EquipSlots, 6) >= 0; }
+        static bool SlotMatches(TOP.Data.PkoItem it, EquipmentSlot itemSlot, EquipmentSlot want, bool offhand)
+        {
+            if (itemSlot == want) return true;
+            if (IsRing(itemSlot) && IsRing(want)) return true;
+            return offhand && want == EquipmentSlot.Shield && itemSlot == EquipmentSlot.Weapon && IsOffhandSword(it);
+        }
+
+        static bool HasRaceModel(TOP.Data.PkoItem it, int race)
+        {
+            string m = it.RaceModels != null && race >= 0 && race < it.RaceModels.Length ? (it.RaceModels[race] ?? "").TrimEnd('_') : "";
+            if (string.IsNullOrEmpty(m) || m == "0") return false;
+            return it.Type >= 20 ? m.Length == 10 && Resources.Load<TOP.Character.PkoPartAsset>("PkoChar/Parts/" + m) != null
+                                 : Resources.Load<GameObject>("PkoChar/Weapons/" + m) != null;
+        }
+
         static int PickItem(int type, int race, int job, int level, int skip = 0, EquipmentSlot? want = null, bool offhand = false)
         {
             foreach (var it in TOP.Data.PkoTables.Items.Values)
             {
                 if (it.Type != type || it.Level > level || it.EquipSlots.Length == 0 || (offhand && System.Array.IndexOf(it.EquipSlots, 6) < 0)) continue;
-                var ds = TOP.Inventory.ItemDatabase.Instance?.GetEquipment(it.Id); if (ds == null || ds.slot != TOP.Data.PkoTables.SlotOf(it) || (want.HasValue && ds.slot != want.Value)) continue;
+                var ds = TOP.Inventory.ItemDatabase.Instance?.GetEquipment(it.Id); if (ds == null || ds.slot != TOP.Data.PkoTables.SlotOf(it) || (want.HasValue && !SlotMatches(it, ds.slot, want.Value, offhand))) continue;
                 if (!TOP.Data.PkoClasses.Allows(it.Classes, testClass) || !TOP.Data.PkoClasses.RaceOk(it, race)) continue;
-                string m = (it.RaceModels[race] ?? "").TrimEnd('_');
-                bool ok = type >= 20 ? m.Length == 10 && Resources.Load<TOP.Character.PkoPartAsset>("PkoChar/Parts/" + m) != null : Resources.Load<GameObject>("PkoChar/Weapons/" + m) != null;
-                if (ok && skip-- <= 0) return it.Id;
+                if (HasRaceModel(it, race) && skip-- <= 0) return it.Id;
             }
             return 0;
         }
+
+        static int PickSlotItem(EquipmentSlot want, int race, int job, int level, HashSet<int> used, bool requireVisible = false, bool offhand = false)
+        {
+            foreach (var it in TOP.Data.PkoTables.Items.Values)
+            {
+                if (used.Contains(it.Id) || it.Level > level || it.EquipSlots.Length == 0) continue;
+                var ds = TOP.Inventory.ItemDatabase.Instance?.GetEquipment(it.Id);
+                if (ds == null || ds.slot != TOP.Data.PkoTables.SlotOf(it) || !SlotMatches(it, ds.slot, want, offhand)) continue;
+                if (!TOP.Data.PkoClasses.Allows(it.Classes, testClass) || !TOP.Data.PkoClasses.RaceOk(it, race)) continue;
+                if (requireVisible && !HasRaceModel(it, race)) continue;
+                used.Add(it.Id);
+                return it.Id;
+            }
+            return 0;
+        }
+
+        static readonly EquipmentSlot[] TestSlots =
+        {
+            EquipmentSlot.Helmet, EquipmentSlot.Armor, EquipmentSlot.Weapon, EquipmentSlot.Shield, EquipmentSlot.Gloves, EquipmentSlot.Boots,
+            EquipmentSlot.Necklace, EquipmentSlot.Ring1, EquipmentSlot.Ring2, EquipmentSlot.Earring, EquipmentSlot.Belt, EquipmentSlot.Tattoo,
+            EquipmentSlot.Cape, EquipmentSlot.Wing, EquipmentSlot.Pet, EquipmentSlot.Mount, EquipmentSlot.ApparelBody, EquipmentSlot.ApparelHelmet,
+            EquipmentSlot.ApparelGloves, EquipmentSlot.ApparelBoots, EquipmentSlot.ApparelShield, EquipmentSlot.ApparelSword, EquipmentSlot.ApparelGreatSword,
+            EquipmentSlot.ApparelGun, EquipmentSlot.ApparelDagger, EquipmentSlot.ApparelStaff, EquipmentSlot.ApparelBow, EquipmentSlot.ApparelPet,
+            EquipmentSlot.ApparelGlow
+        };
 
         IEnumerator AdminTest(Mirror.NetworkIdentity id)
         {
@@ -121,6 +161,7 @@ namespace TOP.Testing
         {
             var inv = id.GetComponent<TOP.Player.PlayerInventory>(); var eq = id.GetComponent<TOP.Player.PlayerEquipment>(); var pc = id.GetComponent<TOP.Player.PlayerController>();
             if (inv == null || eq == null || pv == null || pc == null) { Check(false, "Equip test: components present"); yield break; }
+            var cls = pc.GetComponent<TOP.Player.PlayerClass>();
             var cm = Camera.main; if (cm != null) { foreach (var mb in cm.GetComponents<MonoBehaviour>()) mb.enabled = false; var cf = id.GetComponent<TOP.Player.CameraFollow>(); if (cf != null) cf.enabled = false; }
             var w = PkoUi.Instance != null ? PkoUi.Instance.Get("frmInv") : null;
             Check(w != null, "Inventory window (frmInv) exists");
@@ -128,22 +169,65 @@ namespace TOP.Testing
             w.Open(); yield return new WaitForSeconds(0.5f);
             var grid = w.Grids["grdItem"];
 
-            int race = pv.Race, job = pc.Job, lv = pc.Level; testClass = pc.GetComponent<TOP.Player.PlayerClass>().CurrentClass;
-            // One piece per slot: a costume is several separate items.
-            var set = new (string label, int item, EquipmentSlot slot, string ui)[]
+            if (TOP.Network.LoginNetworkClient.IsAdmin)
             {
-                ("helmet", PickItem(20, race, job, lv, 0, EquipmentSlot.Helmet), EquipmentSlot.Helmet, "cmdArmet"),
-                ("armor", PickItem(22, race, job, lv, 0, EquipmentSlot.Armor), EquipmentSlot.Armor, "cmdBody"),
-                ("gloves", PickItem(23, race, job, lv, 0, EquipmentSlot.Gloves), EquipmentSlot.Gloves, "cmdGlove"),
-                ("boots", PickItem(24, race, job, lv, 0, EquipmentSlot.Boots), EquipmentSlot.Boots, "cmdShoes"),
-                ("weapon", PickItem(1, race, job, lv, 0, EquipmentSlot.Weapon, true), EquipmentSlot.Weapon, "cmdRightHand"),
-                ("offhand sword", PickItem(1, race, job, lv, 1, EquipmentSlot.Weapon, true), EquipmentSlot.Shield, "cmdLeftHand"),
+                Note("STEP prepare: set test character to level 100 / Champion for full equipment coverage");
+                inv.CmdAdminSetLevel(100);
+                inv.CmdAdminSetClass((int)CharacterClass.Champion);
+                yield return new WaitForSeconds(1.5f);
+            }
+
+            Note("STEP prepare: clear test equipment and bag space");
+            foreach (var slot in TestSlots) inv.CmdUnequipItem(slot);
+            yield return new WaitForSeconds(1f);
+            for (int i = 0; i < inv.totalSlots; i++)
+            {
+                var item = inv.GetSlot(i);
+                if (item != null && !item.IsEmpty && !item.IsEquipped) inv.CmdDeleteItem((ushort)i);
+            }
+            yield return new WaitForSeconds(1f);
+
+            int race = pv.Race, job = pc.Job, lv = pc.Level; testClass = cls != null ? cls.CurrentClass : CharacterClass.Swordsman;
+            var used = new HashSet<int>();
+            // One different item per equipment slot. Visible body/weapon slots require baked assets;
+            // accessory/apparel slots only need a valid equipment entry and slot mapping.
+            var set = new (string label, int item, EquipmentSlot slot, string ui, bool visible)[]
+            {
+                ("helmet", PickSlotItem(EquipmentSlot.Helmet, race, job, lv, used, true), EquipmentSlot.Helmet, "cmdArmet", true),
+                ("armor", PickSlotItem(EquipmentSlot.Armor, race, job, lv, used, true), EquipmentSlot.Armor, "cmdBody", true),
+                ("gloves", PickSlotItem(EquipmentSlot.Gloves, race, job, lv, used, true), EquipmentSlot.Gloves, "cmdGlove", true),
+                ("boots", PickSlotItem(EquipmentSlot.Boots, race, job, lv, used, true), EquipmentSlot.Boots, "cmdShoes", true),
+                ("weapon", PickSlotItem(EquipmentSlot.Weapon, race, job, lv, used, true), EquipmentSlot.Weapon, "cmdRightHand", true),
+                ("shield", PickSlotItem(EquipmentSlot.Shield, race, job, lv, used), EquipmentSlot.Shield, "cmdLeftHand", false),
+                ("necklace", PickSlotItem(EquipmentSlot.Necklace, race, job, lv, used), EquipmentSlot.Necklace, "cmdNecklace", false),
+                ("ring 1", PickSlotItem(EquipmentSlot.Ring1, race, job, lv, used), EquipmentSlot.Ring1, "cmdJewelry1", false),
+                ("ring 2", PickSlotItem(EquipmentSlot.Ring2, race, job, lv, used), EquipmentSlot.Ring2, "cmdJewelry2", false),
+                ("earring", PickSlotItem(EquipmentSlot.Earring, race, job, lv, used), EquipmentSlot.Earring, "cmdJewelry3", false),
+                ("belt", PickSlotItem(EquipmentSlot.Belt, race, job, lv, used), EquipmentSlot.Belt, "cmdJewelry4", false),
+                ("tattoo", PickSlotItem(EquipmentSlot.Tattoo, race, job, lv, used), EquipmentSlot.Tattoo, "cmdCirclet1", false),
+                ("cape", PickSlotItem(EquipmentSlot.Cape, race, job, lv, used), EquipmentSlot.Cape, "cmdCloak", false),
+                ("wing", PickSlotItem(EquipmentSlot.Wing, race, job, lv, used), EquipmentSlot.Wing, "cmdWing", false),
+                ("pet", PickSlotItem(EquipmentSlot.Pet, race, job, lv, used), EquipmentSlot.Pet, "cmdPet", false),
+                ("mount", PickSlotItem(EquipmentSlot.Mount, race, job, lv, used), EquipmentSlot.Mount, "cmdMount", false),
+                ("apparel body", PickSlotItem(EquipmentSlot.ApparelBody, race, job, lv, used), EquipmentSlot.ApparelBody, "cmdBodyApp", false),
+                ("apparel helmet", PickSlotItem(EquipmentSlot.ApparelHelmet, race, job, lv, used), EquipmentSlot.ApparelHelmet, "cmdArmetApp", false),
+                ("apparel gloves", PickSlotItem(EquipmentSlot.ApparelGloves, race, job, lv, used), EquipmentSlot.ApparelGloves, "cmdGloveApp", false),
+                ("apparel boots", PickSlotItem(EquipmentSlot.ApparelBoots, race, job, lv, used), EquipmentSlot.ApparelBoots, "cmdShoesApp", false),
+                ("apparel shield", PickSlotItem(EquipmentSlot.ApparelShield, race, job, lv, used), EquipmentSlot.ApparelShield, "cmdShieldApp", false),
+                ("apparel sword", PickSlotItem(EquipmentSlot.ApparelSword, race, job, lv, used), EquipmentSlot.ApparelSword, "cmdSword1App", false),
+                ("apparel greatsword", PickSlotItem(EquipmentSlot.ApparelGreatSword, race, job, lv, used), EquipmentSlot.ApparelGreatSword, "cmdGreatSwordApp", false),
+                ("apparel gun", PickSlotItem(EquipmentSlot.ApparelGun, race, job, lv, used), EquipmentSlot.ApparelGun, "cmdGunApp", false),
+                ("apparel dagger", PickSlotItem(EquipmentSlot.ApparelDagger, race, job, lv, used), EquipmentSlot.ApparelDagger, "cmdDaggerApp", false),
+                ("apparel staff", PickSlotItem(EquipmentSlot.ApparelStaff, race, job, lv, used), EquipmentSlot.ApparelStaff, "cmdStaffApp", false),
+                ("apparel bow", PickSlotItem(EquipmentSlot.ApparelBow, race, job, lv, used), EquipmentSlot.ApparelBow, "cmdBowApp", false),
+                ("apparel pet", PickSlotItem(EquipmentSlot.ApparelPet, race, job, lv, used), EquipmentSlot.ApparelPet, "cmdPetApp", false),
+                ("apparel glow", PickSlotItem(EquipmentSlot.ApparelGlow, race, job, lv, used), EquipmentSlot.ApparelGlow, "cmdGlowApp", false),
             };
             Note("Set: " + string.Join(", ", System.Array.ConvertAll(set, s => s.label + "=" + s.item)));
             int level0 = lv;
 
             // Add everything to the bag.
-            foreach (var s in set) if (s.item > 0) { inv.CmdAddItem(s.item, 1); yield return new WaitForSeconds(0.4f); }
+            foreach (var s in set) if (s.item > 0) { Note("STEP add " + s.label + " item " + s.item); inv.CmdAddItem(s.item, 1); yield return new WaitForSeconds(0.25f); }
             yield return new WaitForSeconds(1f);
             int[] bagSlot = new int[set.Length];
             for (int k = 0; k < set.Length; k++) { bagSlot[k] = -1; for (int i = 0; i < 40; i++) { var it = inv.GetSlot(i); if (it != null && it.ItemId == set[k].item && !it.IsEquipped) { bagSlot[k] = i; break; } } Check(set[k].item == 0 || bagSlot[k] >= 0, "Bag has " + set[k].label + " " + set[k].item); }
@@ -159,7 +243,7 @@ namespace TOP.Testing
                 Drop(grid[bagSlot[k]], w.Get<PkoSlot>(set[k].ui));
                 yield return new WaitForSeconds(1f);
                 Check(eq.GetEquippedItem(set[k].slot)?.ItemId == set[k].item, "Drag " + set[k].label + " " + set[k].item + " onto " + set[k].ui + " equips it");
-                Check(System.Array.IndexOf(pv.Equipped, set[k].item) >= 0, set[k].label + " is shown on the 3D model");
+                Check(System.Array.IndexOf(pv.Equipped, set[k].item) >= 0, set[k].label + " syncs to the visual equipment list");
                 Check(!grid[bagSlot[k]].Filled, set[k].label + " leaves the bag grid");
                 Check(w.Get<PkoSlot>(set[k].ui).Filled, set[k].label + " icon appears in the equipment slot");
             }
@@ -168,16 +252,15 @@ namespace TOP.Testing
             if (pv.Pose != null) { var sb = new System.Text.StringBuilder("wield=" + pv.Pose.Wield + " poses:"); foreach (int p in new[] { 1, 4, 5, 6, 7, 11, 16, 17 }) sb.Append(" " + p + "=" + (pv.Pose.Has(p) ? "ok" : "MISSING")); Note(sb.ToString()); float len = pv.Pose.Once(7); yield return new WaitForSeconds(0.2f); Check(len > 0f, "Attack action plays (" + pv.Pose.CurrentClip + ", " + len.ToString("0.00") + "s)"); yield return new WaitForSeconds(len + 0.3f); }
             if (cm != null) { var look = id.transform.position + Vector3.up * 1.7f; var offs = new[] { new Vector3(0f, .2f, -3.4f), new Vector3(3.4f, .2f, 0f) }; for (int k = 0; k < offs.Length; k++) { cm.transform.position = look + offs[k]; cm.transform.LookAt(look); yield return null; yield return null; yield return Shot("flow-equipset-" + k); } }
 
-            // Take pieces off one by one onto chosen bag slots; the rest stays on.
-            int[] target = { 30, 31, 32, 33, 34, 35 };
+            // Take pieces off one by one onto their reserved bag slot; the rest stays on.
             for (int k = 0; k < set.Length; k++)
             {
                 if (set[k].item == 0 || eq.GetEquippedItem(set[k].slot)?.ItemId != set[k].item) continue;
-                Drop(w.Get<PkoSlot>(set[k].ui), grid[target[k]]);
+                Drop(w.Get<PkoSlot>(set[k].ui), grid[bagSlot[k]]);
                 yield return new WaitForSeconds(1f);
                 Check(eq.GetEquippedItem(set[k].slot)?.ItemId is null or 0, "Drag " + set[k].label + " back to the bag unequips it");
-                Check(inv.GetSlot(target[k])?.ItemId == set[k].item && !inv.GetSlot(target[k]).IsEquipped, set[k].label + " returns to the chosen bag slot " + target[k]);
-                Check(System.Array.IndexOf(pv.Equipped, set[k].item) < 0, set[k].label + " leaves the 3D model");
+                Check(inv.GetSlot(bagSlot[k])?.ItemId == set[k].item && !inv.GetSlot(bagSlot[k]).IsEquipped, set[k].label + " returns to the original bag slot " + bagSlot[k]);
+                Check(System.Array.IndexOf(pv.Equipped, set[k].item) < 0, set[k].label + " leaves the visual equipment list");
                 int still = 0; for (int j = k + 1; j < set.Length; j++) if (set[j].item > 0 && eq.GetEquippedItem(set[j].slot)?.ItemId == set[j].item) still++;
                 int expect = 0; for (int j = k + 1; j < set.Length; j++) if (set[j].item > 0) expect++;
                 Check(still == expect, "Other pieces stay worn (" + still + "/" + expect + ")");
@@ -198,9 +281,12 @@ namespace TOP.Testing
                     Check(inv.GetSlot(a) != null && !inv.GetSlot(a).IsEquipped && inv.GetSlot(a).ItemId == set[1].item, "Replaced armor returns to the bag");
                 }
             }
-            inv.CmdAddItem(121, 1); yield return new WaitForSeconds(1.2f);
-            { int sh = -1; for (int i = 0; i < 40; i++) { var it = inv.GetSlot(i); if (it != null && it.ItemId == 121) { sh = i; break; } }
-              if (sh >= 0) { Drop(grid[sh], w.Get<PkoSlot>("cmdLeftHand")); yield return new WaitForSeconds(1f); Check(eq.GetEquippedItem(EquipmentSlot.Shield)?.ItemId is null or 0, "Level 10 shield (121) is refused at level " + lv); } }
+            if (pc.Level < 10)
+            {
+                inv.CmdAddItem(121, 1); yield return new WaitForSeconds(1.2f);
+                int sh = -1; for (int i = 0; i < 40; i++) { var it = inv.GetSlot(i); if (it != null && it.ItemId == 121) { sh = i; break; } }
+                if (sh >= 0) { Drop(grid[sh], w.Get<PkoSlot>("cmdLeftHand")); yield return new WaitForSeconds(1f); Check(eq.GetEquippedItem(EquipmentSlot.Shield)?.ItemId is null or 0, "Level 10 shield (121) is refused at level " + lv); }
+            }
             Check(pc.Level == level0, "Level unchanged");
         }
         void Note(string s) { lines.Add(s); File.WriteAllLines("Tools/flow-results.txt", lines); }
@@ -228,28 +314,88 @@ namespace TOP.Testing
 
         static void Click(PkoWindow w, string n) { var b = w.Get<Button>(n); if (b != null) b.onClick.Invoke(); }
 
+        static InputField LoginField(string name)
+        {
+            var go = GameObject.Find(name);
+            return go != null ? go.GetComponent<InputField>() : null;
+        }
+
+        static InputField FieldObject(string name)
+        {
+            var go = GameObject.Find(name);
+            return go != null ? go.GetComponent<InputField>() : null;
+        }
+
+        static Button ButtonObject(string name)
+        {
+            var go = GameObject.Find(name);
+            return go != null ? go.GetComponent<Button>() : null;
+        }
+
+        static Text StatusText()
+        {
+            var go = GameObject.Find("Status");
+            return go != null ? go.GetComponent<Text>() : null;
+        }
+
+        static Button DirectChildButton(GameObject root, int index)
+        {
+            if (root == null) return null;
+            int seen = 0;
+            for (int i = 0; i < root.transform.childCount; i++)
+            {
+                var b = root.transform.GetChild(i).GetComponent<Button>();
+                if (b == null) continue;
+                if (seen++ == index) return b;
+            }
+            return null;
+        }
+
         IEnumerator Start()
         {
             Application.runInBackground = true;
             File.WriteAllText("Tools/flow-results.txt", "");
             string user = "flowtest", pass = "flowtest1", cname = "Tst" + Random.Range(1000, 9999);
 
-            yield return Until(() => Win("login.clu", "frmAccount") != null && Win("login.clu", "frmAccount").IsOpen, 20);
-            var acc = Win("login.clu", "frmAccount");
-            Check(acc != null && acc.IsOpen, "Login screen opens (frmAccount)");
-            if (acc == null) { Finish(); yield break; }
+            GameObject loginCard = null;
+            yield return Until(() => { loginCard = GameObject.Find("LoginCard"); return loginCard != null && loginCard.activeInHierarchy && LoginField("Field_Account") != null && LoginField("Field_Password") != null; }, 20);
+            Check(loginCard != null && loginCard.activeInHierarchy, "Login screen opens (LoginCard)");
+            if (loginCard == null) { Finish(); yield break; }
             yield return Shot("flow-login");
 
-            var reg = Win("login.clu", "frmRegister");
-            reg.Get<InputField>("edtRegID").text = user; reg.Get<InputField>("edtRegPassword").text = pass;
-            reg.Get<InputField>("edtRegPassword2").text = pass; reg.Get<InputField>("edtRegEmail").text = "flow@test.local";
-            Click(reg, "btnRegYes");
-            yield return new WaitForSeconds(4);
-            Note("Register attempted (ok or already exists)");
-
-            acc.Open(); acc.Get<InputField>("edtID").text = user; acc.Get<InputField>("edtPassword").text = pass;
-            Click(acc, "btnYes");
-            yield return Until(() => SceneManager.GetActiveScene().name == "CharacterSelectScene", 40);
+            LoginField("Field_Account").text = user;
+            LoginField("Field_Password").text = pass;
+            var loginButton = DirectChildButton(loginCard, 0);
+            Check(loginButton != null, "Login button exists");
+            if (loginButton == null) { Finish(); yield break; }
+            loginButton.onClick.Invoke();
+            yield return Until(() => SceneManager.GetActiveScene().name == "CharacterSelectScene" || (StatusText() != null && StatusText().color.r > .9f), 18);
+            if (SceneManager.GetActiveScene().name != "CharacterSelectScene")
+            {
+                Note("Login with existing flowtest account did not enter CharacterSelectScene. Status=" + (StatusText() != null ? StatusText().text : "-"));
+                user = "flow" + Random.Range(100000, 999999);
+                DirectChildButton(loginCard, 1)?.onClick.Invoke();
+                yield return Until(() => GameObject.Find("RegisterCard") != null && GameObject.Find("RegisterCard").activeInHierarchy, 5);
+                var regUser = FieldObject("Input_Conta (3-16 caracteres)");
+                var regPass = FieldObject("Input_Senha (min. 4)");
+                var regPass2 = FieldObject("Input_Confirmar senha");
+                var regMail = FieldObject("Input_E-mail (opcional)");
+                var regButton = ButtonObject("Btn_Registrar");
+                Check(regUser != null && regPass != null && regPass2 != null && regButton != null, "Register form fields exist");
+                if (regUser == null || regPass == null || regPass2 == null || regButton == null) { Finish(); yield break; }
+                regUser.text = user;
+                regPass.text = pass;
+                regPass2.text = pass;
+                if (regMail != null) regMail.text = "flow@test.local";
+                regButton.onClick.Invoke();
+                yield return Until(() => loginCard != null && loginCard.activeInHierarchy && LoginField("Field_Account") != null && LoginField("Field_Password") != null, 20);
+                Check(loginCard != null && loginCard.activeInHierarchy && LoginField("Field_Account") != null && LoginField("Field_Password") != null, "Register returns to login form");
+                if (loginCard == null || !loginCard.activeInHierarchy || LoginField("Field_Account") == null || LoginField("Field_Password") == null) { Finish(); yield break; }
+                LoginField("Field_Account").text = user;
+                LoginField("Field_Password").text = pass;
+                loginButton.onClick.Invoke();
+                yield return Until(() => SceneManager.GetActiveScene().name == "CharacterSelectScene", 40);
+            }
             Check(SceneManager.GetActiveScene().name == "CharacterSelectScene", "Login via API + Mirror reaches CharacterSelectScene");
             if (SceneManager.GetActiveScene().name != "CharacterSelectScene") { Finish(); yield break; }
 

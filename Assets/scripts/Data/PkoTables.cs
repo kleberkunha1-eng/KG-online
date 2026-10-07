@@ -32,12 +32,21 @@ namespace TOP.Data
         public static bool Allows(int[] itemClasses, CharacterClass c)
         {
             if (itemClasses == null || itemClasses.Length == 0) return true;
+            bool hasRequirement = false;
+            foreach (var cls in itemClasses) if (cls > 0) { hasRequirement = true; break; }
+            if (!hasRequirement) return true;
             foreach (var id in IdsFor(c)) if (System.Array.IndexOf(itemClasses, id) >= 0) return true;
             return false;
         }
 
         // race: 0-based (Lance=0); o iteminfo usa 1-based.
-        public static bool RaceOk(PkoItem it, int race) => it.Races.Length == 0 || System.Array.IndexOf(it.Races, race + 1) >= 0;
+        public static bool RaceOk(PkoItem it, int race)
+        {
+            if (it.Races.Length == 0) return true;
+            bool hasRequirement = false;
+            foreach (var r in it.Races) if (r > 0) { hasRequirement = true; break; }
+            return !hasRequirement || System.Array.IndexOf(it.Races, race + 1) >= 0;
+        }
         public static string NameList(int[] ids)
         {
             var seen = new List<string>();
@@ -59,9 +68,43 @@ namespace TOP.Data
 
     public class PkoStone { public int StoneId, ItemId, Kind; public string Name; public int[] ItemTypes = Array.Empty<int>(); }
 
+    // npclist.txt: NPCs fixos do mundo (vendedores, teleportes, etc.) com localizacao e coordenadas originais.
+    public class PkoNpc { public int Id; public string Name, Location, Continent; public double X, Y; }
+
+    // monsterlist.txt: monstros nomeados do mundo com nivel e coordenada de spawn original.
+    public class PkoWorldMonster { public int Id; public string Name, Continent; public int Level; public double X, Y; }
+
+    // hairs.txt: opcoes de penteado/cor vendidas pelo Hairstylist. ModelStyle e o numero (01..NN) usado
+    // por PkoCharacterVisual.Name(race, style, 1) para montar o nome do modelo de cabelo.
+    public class PkoHair
+    {
+        public int Id; public string Name, Color; public ulong Cost; public int ModelStyle;
+        public bool[] UsableRace = new bool[4];
+    }
+
+    // mountinfo.txt: montarias equipaveis no slot Mount (itens 9500+). Da cliente original so temos os
+    // dados (nome, item, velocidade relativa); os modelos 3D ainda nao foram convertidos para o Unity
+    // (nenhum .lgo de montaria foi importado ate agora), entao o bonus funciona sem troca de visual.
+    public class PkoMount { public int Id, ItemId, BoneId; public string Name; }
+
+    // shipinfo.txt: navios do sistema naval original (combate/navegacao em mar aberto). O cliente Unity
+    // nao tem fisica/navegacao de mar ainda; carregamos os dados (nome, nivel minimo, escritura do navio)
+    // para o item da escritura ja poder ser gerado/identificado corretamente no inventario e no Admin Panel.
+    public class PkoShip { public string Id; public string Name; public int VesselDeedItemId, LevelRestriction; }
+
+    // sceneffectinfo.txt: catalogo de efeitos de particula (.par) do motor original. O Unity ainda nao
+    // tem um conversor .par -> ParticleSystem; guardamos so o catalogo (nome do arquivo original) para
+    // uso futuro quando esse conversor existir.
+    public class PkoSceneEffect { public int Id; public string File, Name; }
+
+    // sceneobjinfo.txt: catalogo de objetos de cenario (predios/decoracoes .lmo) usados pelos mapas.
+    // A posicao real desses objetos ja vem do arquivo binario do mapa (ver GarnerTerrainImporter); esta
+    // tabela serve apenas para identificar o nome/arquivo de modelo de cada ID de objeto.
+    public class PkoSceneObject { public int Id; public string ModelFile, Name; }
+
     public class PkoItem
     {
-        public int Id, Type, Price, Level, Stack = 1, Durability;
+        public int Id, Type, Price, Level, Stack = 1, Durability, VisualEffectId, VisualEffectDummy = -1;
         public string Name, Icon, Description, Model;
         // Per-race model ids (Lance, Carsise, Phyllis, Ami); "0" when the item has no model for that race.
         public string[] RaceModels = new string[4] { "0", "0", "0", "0" };
@@ -76,6 +119,10 @@ namespace TOP.Data
     // Leitor das tabelas originais do cliente (Resources/PKO/*.txt, latin1, colunas separadas por TAB).
     public static class PkoTables
     {
+        public const int MeshyMageWingsItemId = 990001;
+        public const string MeshyMageWingsModel = "MageWings";
+        public const string MeshyMageWingsIcon = "magewings";
+
         static readonly Encoding Latin1 = Encoding.GetEncoding(28591);
         static Dictionary<int, PkoSkill> _skills;
         static Dictionary<int, PkoSkillEffect> _effects;
@@ -94,6 +141,115 @@ namespace TOP.Data
         static Dictionary<int, PkoStone> _stones;
         // Gemas de engaste (stoneinfo.txt) indexadas pelo id do item da gema.
         public static IReadOnlyDictionary<int, PkoStone> Stones { get { if (_stones == null) LoadStones(); return _stones; } }
+
+        static List<PkoNpc> _npcs;
+        static List<PkoWorldMonster> _worldMonsters;
+        static List<PkoHair> _hairs;
+        static Dictionary<int, PkoMount> _mountsByItem;
+        static List<PkoShip> _ships;
+        static List<PkoSceneEffect> _sceneEffects;
+        static List<PkoSceneObject> _sceneObjects;
+        public static IReadOnlyList<PkoNpc> Npcs { get { if (_npcs == null) LoadNpcs(); return _npcs; } }
+        public static IReadOnlyList<PkoWorldMonster> WorldMonsters { get { if (_worldMonsters == null) LoadWorldMonsters(); return _worldMonsters; } }
+        public static IReadOnlyList<PkoHair> Hairs { get { if (_hairs == null) LoadHairs(); return _hairs; } }
+        public static IReadOnlyDictionary<int, PkoMount> MountsByItemId { get { if (_mountsByItem == null) LoadMounts(); return _mountsByItem; } }
+        public static IReadOnlyList<PkoShip> Ships { get { if (_ships == null) LoadShips(); return _ships; } }
+        public static IReadOnlyList<PkoSceneEffect> SceneEffects { get { if (_sceneEffects == null) LoadSceneEffects(); return _sceneEffects; } }
+        public static IReadOnlyList<PkoSceneObject> SceneObjects { get { if (_sceneObjects == null) LoadSceneObjects(); return _sceneObjects; } }
+
+        static bool TryXY(string raw, out double x, out double y)
+        {
+            x = y = 0;
+            var p = raw.Split(',');
+            return p.Length == 2 && double.TryParse(p[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out x)
+                                  && double.TryParse(p[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out y);
+        }
+
+        // npclist.txt: ID | NPC name | Map (local) | Coordinates "x,y" | Continent
+        static void LoadNpcs()
+        {
+            _npcs = new List<PkoNpc>();
+            foreach (var c in Rows("npclist"))
+            {
+                if (c.Length < 5 || !int.TryParse(c[0].Trim(), out var id)) continue;
+                if (!TryXY(c[3], out var x, out var y)) continue;
+                _npcs.Add(new PkoNpc { Id = id, Name = S(c, 1), Location = S(c, 2), X = x, Y = y, Continent = S(c, 4) });
+            }
+        }
+
+        // monsterlist.txt: ID | Name | Level | Coordinates "x,y" | Map (continent)
+        static void LoadWorldMonsters()
+        {
+            _worldMonsters = new List<PkoWorldMonster>();
+            foreach (var c in Rows("monsterlist"))
+            {
+                if (c.Length < 5 || !int.TryParse(c[0].Trim(), out var id) || id <= 0) continue;
+                if (!TryXY(c[3], out var x, out var y)) continue;
+                _worldMonsters.Add(new PkoWorldMonster { Id = id, Name = S(c, 1), Level = I(c, 2, 1), X = x, Y = y, Continent = S(c, 4) });
+            }
+        }
+
+        // hairs.txt: Serial|Name|Color|ReqItem0..3|ReqGold|RelatedModel|MoldFailed|Usable1..4|ItemListID|ModelDenominate
+        // ModelDenominate tem o formato raceeeeestilopart (ex: 0000090001 = raca 0000, estilo 09, parte 0001=cabelo).
+        static void LoadHairs()
+        {
+            _hairs = new List<PkoHair>();
+            foreach (var c in Rows("hairs"))
+            {
+                if (c.Length < 16 || !int.TryParse(c[0].Trim(), out var id)) continue;
+                string denom = S(c, 15);
+                if (denom.Length < 8 || !int.TryParse(denom.Substring(4, 2), out var style)) continue;
+                var h = new PkoHair { Id = id, Name = S(c, 1), Color = S(c, 2), Cost = (ulong)Math.Max(0, I(c, 7)), ModelStyle = style };
+                h.UsableRace[0] = I(c, 10) != 0; h.UsableRace[1] = I(c, 11) != 0; h.UsableRace[2] = I(c, 12) != 0; h.UsableRace[3] = I(c, 13) != 0;
+                _hairs.Add(h);
+            }
+        }
+
+        // mountinfo.txt: ID | Mount Name | Iteminfo ID | boneID | height-rect | offsetX | offsetY | poseID
+        static void LoadMounts()
+        {
+            _mountsByItem = new Dictionary<int, PkoMount>();
+            foreach (var c in Rows("mountinfo"))
+            {
+                if (c.Length < 4 || !int.TryParse(c[0].Trim(), out var id)) continue;
+                int itemId = I(c, 2);
+                if (itemId <= 0) continue;
+                _mountsByItem[itemId] = new PkoMount { Id = id, Name = S(c, 1), ItemId = itemId, BoneId = I(c, 3) };
+            }
+        }
+
+        // shipinfo.txt: ID | Name | Vessel Deed itemId | ... | Level Restriction (coluna 10)
+        static void LoadShips()
+        {
+            _ships = new List<PkoShip>();
+            foreach (var c in Rows("shipinfo"))
+            {
+                if (c.Length < 11 || string.IsNullOrEmpty(S(c, 0))) continue;
+                _ships.Add(new PkoShip { Id = S(c, 0), Name = S(c, 1), VesselDeedItemId = I(c, 2), LevelRestriction = I(c, 10) });
+            }
+        }
+
+        // sceneffectinfo.txt: ID | arquivo .par | nome (coluna com mojibake no original) | ...
+        static void LoadSceneEffects()
+        {
+            _sceneEffects = new List<PkoSceneEffect>();
+            foreach (var c in Rows("sceneffectinfo"))
+            {
+                if (c.Length < 2 || !int.TryParse(c[0].Trim(), out var id)) continue;
+                _sceneEffects.Add(new PkoSceneEffect { Id = id, File = S(c, 1), Name = S(c, 2) });
+            }
+        }
+
+        // sceneobjinfo.txt: ID | arquivo .lmo | nome | ... (resto sao parametros visuais: sombra, brilho, etc.)
+        static void LoadSceneObjects()
+        {
+            _sceneObjects = new List<PkoSceneObject>();
+            foreach (var c in Rows("sceneobjinfo"))
+            {
+                if (c.Length < 2 || !int.TryParse(c[0].Trim(), out var id)) continue;
+                _sceneObjects.Add(new PkoSceneObject { Id = id, ModelFile = S(c, 1), Name = S(c, 2) });
+            }
+        }
 
         static void LoadStones()
         {
@@ -232,10 +388,36 @@ namespace TOP.Data
                     MinAtk = Pair(c, 60), MaxAtk = Pair(c, 61), Def = Pair(c, 62), Hp = Pair(c, 63), Sp = Pair(c, 64),
                     Flee = Pair(c, 65), Hit = Pair(c, 66), Crit = Pair(c, 67), MoveSpeed = Pair(c, 71),
                     Resist = Pair(c, 73, 0), HpRec = Pair(c, 69, 0), SpRec = Pair(c, 70, 0), PctDef = I(c, 41), PctHp = I(c, 42), PctCrit = I(c, 46), MaxSockets = Mathf.Clamp(I(c, 77, 0), 0, 3),
-                    Durability = Pair(c, 76, 1) / 50, Description = S(c, 93)
+                    Durability = Pair(c, 76, 1) / 50, Description = S(c, 93), VisualEffectId = Pair(c, 90, 0),
+                    VisualEffectDummy = Pair(c, 90, 1)
                 };
                 _items[it.Id] = it;
             }
+
+            RegisterCustomWings();
+        }
+
+        static void RegisterCustomWings()
+        {
+            if (_items.ContainsKey(MeshyMageWingsItemId))
+            {
+                Debug.LogError($"[PkoTables] Custom wing item id collision: {MeshyMageWingsItemId}.");
+                return;
+            }
+
+            _items.Add(MeshyMageWingsItemId, new PkoItem
+            {
+                Id = MeshyMageWingsItemId,
+                Name = "Mage Wings",
+                Icon = MeshyMageWingsIcon,
+                Model = MeshyMageWingsModel,
+                Type = 44,
+                Stack = 1,
+                Level = 1,
+                Durability = 100,
+                EquipSlots = new[] { 14 },
+                Description = "A pair of enchanted mage wings."
+            });
         }
 
         // ---------- Conversão para os ScriptableObjects usados pelo jogo ----------
@@ -305,8 +487,8 @@ namespace TOP.Data
             {
                 0 => EquipmentSlot.Helmet, 1 => EquipmentSlot.Costume, 2 => EquipmentSlot.Armor, 3 => EquipmentSlot.Gloves,
                 4 => EquipmentSlot.Boots, 5 => EquipmentSlot.Necklace, 6 => it.Type == 11 ? EquipmentSlot.Shield : EquipmentSlot.Weapon,
-                7 => EquipmentSlot.Ring1, 8 => EquipmentSlot.Ring1, 9 => EquipmentSlot.Weapon, 10 => EquipmentSlot.Ring1, 11 => EquipmentSlot.Ring2,
-                12 => EquipmentSlot.Belt, 13 => EquipmentSlot.Gloves, 14 => EquipmentSlot.Wing, 15 => EquipmentSlot.Cape,
+                7 => EquipmentSlot.Ring1, 8 => EquipmentSlot.Ring1, 9 => EquipmentSlot.Weapon, 10 => EquipmentSlot.Earring, 11 => EquipmentSlot.Earring,
+                12 => EquipmentSlot.Belt, 13 => EquipmentSlot.Tattoo, 14 => EquipmentSlot.Wing, 15 => EquipmentSlot.Cape,
                 16 => EquipmentSlot.Pet, 18 => EquipmentSlot.Mount, _ => EquipmentSlot.Tattoo
             };
         }
@@ -320,8 +502,9 @@ namespace TOP.Data
                 var e = ScriptableObject.CreateInstance<EquipmentData>();
                 e.slot = SlotOf(it);
                 e.requiredLevel = Mathf.Max(1, it.Level);
-                e.bonusAttack = it.MaxAtk; e.bonusDefense = it.Def; e.bonusSTR = it.Str; e.bonusAGI = it.Agi; e.bonusINT = it.Spr;
-                e.bonusHP = it.Hp; e.bonusMP = it.Sp; e.bonusSpeed = it.MoveSpeed;
+                e.bonusAttack = it.MaxAtk; e.bonusDefense = it.Def; e.bonusSTR = it.Str; e.bonusAGI = it.Agi;
+                e.bonusCON = it.Con; e.bonusSPR = it.Spr; e.bonusINT = it.Spr;
+                e.bonusHP = it.Hp; e.bonusSP = it.Sp; e.bonusSpeed = it.MoveSpeed;
                 e.maxDurability = Mathf.Max(1, it.Durability); e.durability = e.maxDurability;
                 d = e;
                 d.itemType = ItemType.Equipment;

@@ -51,10 +51,18 @@ namespace TOP.Inventory
             LoadItemsFromResources();
             foreach (var pko in TOP.Data.PkoTables.Items.Values)
             {
-                if (pko.Id <= 0 || itemsById.ContainsKey(pko.Id)) continue;
+                if (pko.Id <= 0) continue;
                 var data = TOP.Data.PkoTables.ToItemData(pko);
-                itemsById.Add(pko.Id, data);
-                if (data is EquipmentData eq) equipmentById.Add(pko.Id, eq);
+                if (data is EquipmentData eq)
+                {
+                    if (!itemsById.TryGetValue(pko.Id, out var existing) || !(existing is EquipmentData))
+                        itemsById[pko.Id] = data;
+                    equipmentById[pko.Id] = eq;
+                }
+                else if (!itemsById.ContainsKey(pko.Id))
+                {
+                    itemsById.Add(pko.Id, data);
+                }
             }
             isInitialized = true;
             Debug.Log($"[ItemDatabase] Inicializado com {itemsById.Count} items ({equipmentById.Count} equipamentos)");
@@ -188,9 +196,11 @@ namespace TOP.Inventory
             {
                 stats.Str = equip.bonusSTR;
                 stats.Agi = equip.bonusAGI;
-                stats.Spr = equip.bonusINT; // INT no seu código = SPR no meu
+                stats.Con = equip.bonusCON;
+                stats.Spr = equip.bonusSPR != 0 ? equip.bonusSPR : equip.bonusINT;
                 stats.Hp = equip.bonusHP;
                 stats.Mp = equip.bonusMP;
+                stats.Sp = equip.bonusSP;
                 stats.Defense = equip.bonusDefense;
                 stats.MinDamage = equip.bonusAttack;
                 stats.MaxDamage = equip.bonusMagicAttack;
@@ -209,6 +219,7 @@ namespace TOP.Inventory
         public int Spr; // Mapeado para INT
         public int Hp;
         public int Mp;
+        public int Sp;
         public int Defense;
         public int MinDamage;
         public int MaxDamage;

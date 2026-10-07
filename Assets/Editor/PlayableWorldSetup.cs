@@ -173,6 +173,7 @@ namespace TOP.EditorTools
             if (enemy.GetComponent<EnemyStats>() == null) enemy.AddComponent<EnemyStats>();
             if (enemy.GetComponent<EnemyAI>() == null) enemy.AddComponent<EnemyAI>();
             if (enemy.GetComponent<NavMeshAgent>() == null) enemy.AddComponent<NavMeshAgent>();
+            enemy.GetComponent<NavMeshAgent>().enabled = false;
             if (enemy.GetComponent<Collider>() == null) { var c = enemy.AddComponent<CapsuleCollider>(); c.center = Vector3.up*.6f; c.height=1.2f; c.radius=.5f; }
             if (enemy.GetComponent<NetworkTransformBase>() == null) enemy.AddComponent<NetworkTransformReliable>();
             Number(enemy.GetComponent<EnemyStats>(), "_attack", 35);
@@ -393,4 +394,3 @@ namespace TOP.EditorTools
         }
     }
 }
-

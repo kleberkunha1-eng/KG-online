@@ -20,17 +20,22 @@ namespace TOP.Player
         [Command]
         public void CmdUseItem(ushort slotIndex)
         {
-            // Validação de segurança no Servidor
-            if (_inventory == null) return;
+            UseItemOnServer(slotIndex);
+        }
+
+        [Server]
+        public bool UseItemOnServer(ushort slotIndex)
+        {
+            if (_inventory == null || _stats == null) return false;
 
             InventoryItem item = _inventory.GetItem(slotIndex);
-            if (item == null) return;
+            if (item == null || item.IsEmpty || item.IsEquipped) return false;
 
             ItemData itemData = ItemDatabase.Instance?.GetItem(item.ItemId);
-            if (itemData == null || itemData.itemType != ItemType.Consumable) return;
+            if (itemData == null || itemData.itemType != ItemType.Consumable) return false;
 
             ConsumableData consumable = itemData as ConsumableData;
-            if (consumable == null) return;
+            if (consumable == null) return false;
 
             // Aplicação dos efeitos nos Stats
             if (consumable.restoreHP > 0)
@@ -61,6 +66,7 @@ namespace TOP.Player
             {
                 controller.RpcShowMessage($"Usou {itemData.itemName}", PlayerMessageType.Success);
             }
+            return true;
         }
     }
 }

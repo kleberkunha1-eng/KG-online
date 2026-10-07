@@ -125,6 +125,13 @@ GameObject:
   - component: {fileID: 2696167852740226992}
   - component: {fileID: 2399199098862848566}
   - component: {fileID: 108415994520408426}
+  - component: {fileID: 3392784012781849925}
+  - component: {fileID: 3839383565560170425}
+  - component: {fileID: 6875285352617299839}
+  - component: {fileID: 60775299938674556}
+  - component: {fileID: 8038990920828760552}
+  - component: {fileID: 1993193203516384457}
+  - component: {fileID: 7942013771286735908}
   m_Layer: 3
   m_Name: Player
   m_TagString: Player
@@ -234,7 +241,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
   sceneId: 0
-  _assetId: 1464074552
+  _assetId: 0
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
@@ -634,6 +641,122 @@ MonoBehaviour:
   syncInterval: 0
   inventorySlots: 48
   showDebugLogs: 1
+--- !u!114 &3392784012781849925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 82b94ea73e18ae34d8b6331aa7eaff08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerParty
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  PartyId: 0
+  IsLeader: 0
+--- !u!114 &3839383565560170425
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 47d3416836349994cb7974545ee18964, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerFriends
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+--- !u!114 &6875285352617299839
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d23123529df833144a574def43631763, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerMail
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+--- !u!114 &60775299938674556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e68bf4ab16c8b0349a89da0c95ada890, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerGuild
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  GuildName: 
+--- !u!114 &8038990920828760552
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ec7cbfc4dab024d4db72bae7e5476c8b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerTrade
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  InTrade: 0
+--- !u!114 &1993193203516384457
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f14ede0158521fc4bbda1a40322dbffd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerQuests
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+--- !u!114 &7942013771286735908
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a068324979bcb744195a2f59581c9c25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerForge
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
 --- !u!1 &180819209368657504
 GameObject:
   m_ObjectHideFlags: 0

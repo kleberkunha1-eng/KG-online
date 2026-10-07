@@ -25,6 +25,7 @@ namespace TOP.Inventory
         private int slotIndex;
         private InventoryUI inventoryUI;
         private bool isDragging = false;
+        private ItemData currentItem;
         private Vector3 originalIconPosition;
         private Transform originalIconParent;
         private CanvasGroup iconCanvasGroup;
@@ -35,7 +36,7 @@ namespace TOP.Inventory
 
         public int SlotIndex => slotIndex;
         public Image IconImage => iconImage;
-        public bool HasItem => iconImage != null && iconImage.sprite != null && iconImage.enabled;
+        public bool HasItem => currentItem != null;
 
         public void Initialize(int index, InventoryUI ui)
         {
@@ -63,11 +64,12 @@ namespace TOP.Inventory
                 return;
             }
 
+            currentItem = item;
             Debug.Log($"[ItemSlotUI] Slot {slotIndex}: SetItem({item.itemName}, qty:{quantity})");
 
             iconImage.sprite = item.icon;
-            iconImage.color = Color.white;
-            iconImage.enabled = true;
+            iconImage.color = item.icon != null ? Color.white : Color.clear;
+            iconImage.enabled = item.icon != null;
             iconImage.raycastTarget = true;
 
             if (quantityText != null)
@@ -86,6 +88,7 @@ namespace TOP.Inventory
 
         public void Clear()
         {
+            currentItem = null;
             if (iconImage != null)
             {
                 iconImage.sprite = null;

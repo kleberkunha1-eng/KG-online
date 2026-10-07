@@ -21,7 +21,7 @@ namespace PKOAssetBatchExporter
         private static int Main(string[] args)
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            if (args.Length < 3 || (args[2] != "--all" && args[2] != "--file" && args[2] != "--raw" && args[2] != "--missing-models" && args[2] != "--scene-models" && args[2] != "--skinned" && args[2] != "--charparts" && args[2] != "--charextra" && args[2] != "--effects"))
+            if (args.Length < 3 || (args[2] != "--all" && args[2] != "--file" && args[2] != "--raw" && args[2] != "--missing-models" && args[2] != "--scene-models" && args[2] != "--skinned" && args[2] != "--wing-skinned" && args[2] != "--charparts" && args[2] != "--charextra" && args[2] != "--effects"))
             {
                 Console.Error.WriteLine("Usage: PKOAssetBatchExporter <clientRoot> <outputRoot> --all|--file <modelPath>");
                 return 2;
@@ -63,11 +63,11 @@ namespace PKOAssetBatchExporter
                 try { ExportExtraParts(args[3], File.ReadAllLines(args[4])); }
                 catch (Exception ex) { failed++; Console.Error.WriteLine("CHAREXTRA_FAILED {0}: {1}", args[3], ex.Message); }
             }
-            else if (args[2] == "--skinned")
+            else if (args[2] == "--skinned" || args[2] == "--wing-skinned")
             {
                 for (int i = 3; i < args.Length; i++)
                 {
-                    try { ExportSkinned(args[i]); }
+                    try { ExportSkinned(args[i], args[2] == "--wing-skinned"); }
                     catch (Exception ex) { failed++; Console.Error.WriteLine("SKINNED_FAILED {0}: {1}", args[i], ex.Message); }
                 }
             }

@@ -57,6 +57,7 @@ namespace TOP.UI.Pko
         int selSlot, createSlot = -1, race, hair, face, cityIdx;
         bool listRequested, handlersOn;
         float nextTry;
+        float selectRequestedAt, loginRequestedAt;
         StartCity[] cities;
         Text desc;
 
@@ -78,7 +79,7 @@ namespace TOP.UI.Pko
         // ---------- ciclo de vida ----------
         void Start()
         {
-            ui = PkoUi.Ensure();
+            ui = scene == LoginSceneName ? PkoUi.Instance : PkoUi.Ensure();
             DisableLegacyUi();
             BuildBackdrop();
             if (scene == LoginSceneName) SetupLogin(); else SetupSelect();
@@ -89,7 +90,7 @@ namespace TOP.UI.Pko
             if (loginClient != null) { loginClient.OnLoginSuccess -= OnLoginOk; loginClient.OnRegisterSuccess -= OnRegisterOk; loginClient.OnError -= OnLoginError; }
             if (handlersOn)
             {
-                NetworkClient.UnregisterHandler<CharacterListResponse>();
+                CharacterListClient.Received -= OnList;
                 NetworkClient.UnregisterHandler<CreateCharacterResponse>();
                 NetworkClient.UnregisterHandler<DeleteCharacterResponse>();
                 NetworkClient.UnregisterHandler<SelectCharacterResponse>();
@@ -108,7 +109,7 @@ namespace TOP.UI.Pko
         void DisableLegacyUi()
         {
             foreach (var c in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-                if (c.gameObject != ui.Canvas.gameObject) c.enabled = false;
+                if (ui == null || c.gameObject != ui.Canvas.gameObject) c.enabled = false;
             if (FindAnyObjectByType<EventSystem>() == null)
                 new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
         }
@@ -206,13 +207,12 @@ namespace TOP.UI.Pko
             loginCanvas = MakeCanvas("LoginCanvas", 50);
 
             BuildLoginCard();
-            BuildRegisterCard();
-            registerCard.SetActive(false);
 
             var savedUser = PlayerPrefs.GetString(PrefUser, "");
             if (!string.IsNullOrEmpty(savedUser)) idField.text = savedUser;
 
             Say("Informe sua conta para entrar.");
+            FocusField(string.IsNullOrEmpty(savedUser) ? idField : pwField);
         }
 
         // Dimensoes exatas do modelo fornecido (login_exact_pixel_v2): painel de referencia 313x329px.
@@ -342,12 +342,14 @@ namespace TOP.UI.Pko
             createBtn.onClick.AddListener(DoRegister);
 
             var backBtn = MakeButton(cardRt, "Voltar", ButtonSlate, 260, 40, -326);
-            backBtn.onClick.AddListener(() => { registerCard.SetActive(false); loginCard.SetActive(true); Say("Informe sua conta para entrar."); });
+            backBtn.onClick.AddListener(() => { registerCard.SetActive(false); loginCard.SetActive(true); FocusField(idField); Say("Informe sua conta para entrar."); });
         }
 
         void OpenRegister()
         {
+            if (registerCard == null) BuildRegisterCard();
             loginCard.SetActive(false); registerCard.SetActive(true);
+            FocusField(regIdField);
             Say("Preencha os dados para criar sua conta.");
         }
 
@@ -357,6 +359,7 @@ namespace TOP.UI.Pko
             var id = idField.text.Trim(); var pw = pwField.text;
             if (id.Length == 0 || pw.Length == 0) { Say("Informe conta e senha.", true); return; }
             busy = true; Say("Autenticando...");
+            loginRequestedAt = Time.realtimeSinceStartup;
             loginClient.Login(id, pw);
         }
 
@@ -372,6 +375,7 @@ namespace TOP.UI.Pko
 
         void OnLoginOk(string token, long accountId)
         {
+            Debug.Log($"[Loading] REST login response: {Time.realtimeSinceStartup - loginRequestedAt:F2}s.");
             PlayerPrefs.SetString(PrefUser, idField.text.Trim());
             Say("Login ok. Conectando ao servidor...");
             if (TOPNetworkManager.Instance == null)
@@ -499,7 +503,7 @@ namespace TOP.UI.Pko
         void SetupSelect()
         {
             cities = StartCities.All;
-            NetworkClient.RegisterHandler<CharacterListResponse>(OnList);
+            CharacterListClient.Received += OnList;
             NetworkClient.RegisterHandler<CreateCharacterResponse>(OnCreated);
             NetworkClient.RegisterHandler<DeleteCharacterResponse>(OnDeleted);
             NetworkClient.RegisterHandler<SelectCharacterResponse>(OnSelected);
@@ -529,6 +533,7 @@ namespace TOP.UI.Pko
             for (int i = 1; i <= 3; i++) select.SetText("labCha" + i, "");
             nextTry = 0;
             Say("Carregando personagens...");
+            if (CharacterListClient.HasResponse) OnList(CharacterListClient.Response);
         }
 
         // So as cameras de preview (RenderTexture) desenham o 3D; evita objetos soltos aparecendo no fundo.
@@ -558,10 +563,16 @@ namespace TOP.UI.Pko
 
         void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Tab))
+                FocusNextField(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
             if (scene == SelectSceneName && !listRequested && Time.unscaledTime >= nextTry)
             {
                 nextTry = Time.unscaledTime + .5f;
-                if (NetworkClient.connection != null && NetworkClient.connection.isReady) { listRequested = true; NetworkClient.Send(new CharacterListRequest()); }
+                if (CanRequestCharacterList())
+                {
+                    listRequested = true;
+                    CharacterListClient.Request();
+                }
             }
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
@@ -570,6 +581,33 @@ namespace TOP.UI.Pko
                 else if (pwd != null && pwd.IsOpen) ConfirmDelete();
             }
             if (Input.GetKeyDown(KeyCode.F2) && loginCard != null && loginCard.activeSelf) OpenRegister();
+        }
+
+        void FocusNextField(bool reverse)
+        {
+            InputField[] fields = loginCard != null && loginCard.activeSelf
+                ? new[] { idField, pwField }
+                : registerCard != null && registerCard.activeSelf
+                    ? new[] { regIdField, regPwField, regPw2Field, regEmailField } : null;
+            if (fields == null || EventSystem.current == null) return;
+            int current = System.Array.FindIndex(fields, f => f != null
+                && f.gameObject == EventSystem.current.currentSelectedGameObject);
+            int next = current < 0 ? (reverse ? fields.Length - 1 : 0)
+                : (current + (reverse ? -1 : 1) + fields.Length) % fields.Length;
+            FocusField(fields[next]);
+        }
+
+        static void FocusField(InputField field)
+        {
+            if (field == null || EventSystem.current == null) return;
+            EventSystem.current.SetSelectedGameObject(field.gameObject);
+            field.ActivateInputField();
+        }
+
+        static bool CanRequestCharacterList()
+        {
+            // Ready is reserved for GameScene; selection requests only need the connected session.
+            return NetworkClient.isConnected && NetworkClient.connection != null;
         }
 
         void Pick(int slot) { selSlot = slot; Refresh(false); }
@@ -609,7 +647,9 @@ namespace TOP.UI.Pko
             if (r.Characters != null)
                 foreach (var c in r.Characters) if (c.SlotIndex < 3) { chars[c.SlotIndex] = c; has[c.SlotIndex] = true; }
             if (!has[selSlot]) for (int i = 0; i < 3; i++) if (has[i]) { selSlot = i; break; }
+            float previewStarted = Time.realtimeSinceStartup;
             Refresh(true);
+            Debug.Log($"[Loading] Character previews: {Time.realtimeSinceStartup - previewStarted:F2}s.");
             Say(AnyChar() ? "Escolha um personagem e pressione OK." : "Nenhum personagem. Clique em Create para criar o seu.");
         }
 
@@ -620,14 +660,16 @@ namespace TOP.UI.Pko
             if (busy) return;
             if (!has[selSlot]) { Say("Selecione um personagem.", true); return; }
             busy = true; Say("Entrando no mundo...");
+            selectRequestedAt = Time.realtimeSinceStartup;
             NetworkClient.Send(new SelectCharacterRequest { CharacterId = chars[selSlot].Id });
         }
 
         void OnSelected(SelectCharacterResponse r)
         {
+            Debug.Log($"[Loading] Character selection response: {Time.realtimeSinceStartup - selectRequestedAt:F2}s.");
             if (!r.Success) { busy = false; Say("Erro ao entrar: " + r.Error, true); return; }
             if (GameFlowManager.Instance != null) GameFlowManager.Instance.EnterGameWorld(r.MapName);
-            else SceneManager.LoadScene("GameScene");
+            else SceneManager.LoadSceneAsync("GameScene");
         }
 
         // ---- criacao ----

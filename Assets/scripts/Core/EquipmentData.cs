@@ -22,9 +22,12 @@ namespace TOP.Core
         public int bonusMagicDefense;
         public int bonusSTR;
         public int bonusAGI;
+        public int bonusCON;
+        public int bonusSPR;
         public int bonusINT;
         public int bonusHP;
         public int bonusMP;
+        public int bonusSP;
         public int bonusSpeed;
 
         [Header("Durabilidade")]

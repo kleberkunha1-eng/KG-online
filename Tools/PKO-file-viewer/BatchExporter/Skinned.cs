@@ -11,11 +11,11 @@ namespace PKOAssetBatchExporter
     internal static partial class Program
     {
         // Exports skeleton, skinned mesh and per-frame bone matrices for one character type (e.g. 0087).
-        private static void ExportSkinned(string typeId)
+        private static void ExportSkinned(string typeId, bool wing = false)
         {
-            string modelPath = Path.Combine(clientRoot, "model", "character", typeId + "000000.lgo");
+            string modelPath = Path.Combine(clientRoot, "model", wing ? "effect" : "character", typeId + (wing ? "" : "000000") + ".lgo");
             string animPath = Path.Combine(clientRoot, "animation", typeId + ".lab");
-            if (!File.Exists(modelPath) || !File.Exists(animPath))
+            if (!File.Exists(modelPath) || (!wing && !File.Exists(animPath)))
             {
                 Console.Error.WriteLine("SKINNED_SKIPPED {0}: missing model or animation", typeId);
                 failed++;
@@ -25,8 +25,8 @@ namespace PKOAssetBatchExporter
             var geometry = new lwGeomObjInfo();
             if (geometry.Load(modelPath) != 0 || geometry.mesh.vertex_seq == null)
                 throw new InvalidDataException("Unable to parse LGO " + typeId);
-            var bone = new lwAnimDataBone();
-            if (bone.Load(animPath) != 0)
+            var bone = wing ? geometry.anim_data?.anim_bone : new lwAnimDataBone();
+            if (bone == null || (!wing && bone.Load(animPath) != 0))
                 throw new InvalidDataException("Unable to parse LAB " + typeId);
 
             string dir = Path.Combine(outputRoot, "Skinned");
@@ -111,7 +111,8 @@ namespace PKOAssetBatchExporter
             if (bone._dummy_seq != null)
                 sb.Append(string.Join(",", bone._dummy_seq.Select(d => "{\"id\":" + d.id + ",\"bone\":" + (ids.ContainsKey(d.parent_bone_id) ? ids[d.parent_bone_id] : 0) + ",\"mat\":[" + string.Join(",", d.mat.m.Select(v => v.ToString("R", CultureInfo.InvariantCulture))) + "]}")));
             sb.Append("],\"actions\":[");
-            sb.Append(string.Join(",", ReadActions(typeId).Select(a => "{\"id\":" + a[0] + ",\"start\":" + a[1] + ",\"end\":" + a[2] + "}")));
+            var actions = wing ? new[] { new[] { 1, 0, frameNum - 1 } } : ReadActions(typeId);
+            sb.Append(string.Join(",", actions.Select(a => "{\"id\":" + a[0] + ",\"start\":" + a[1] + ",\"end\":" + a[2] + "}")));
             sb.Append("]}");
             File.WriteAllText(Path.Combine(dir, typeId + ".json"), sb.ToString(), new UTF8Encoding(false));
             converted++;

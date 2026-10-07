@@ -227,6 +227,7 @@ namespace TOP.Core
         SkillMaster,
         StableMaster,
         Teleporter,
+        Hairdresser,
         Other
     }
 

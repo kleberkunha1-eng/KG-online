@@ -73,9 +73,9 @@ namespace TOP.UI.Pko
         public bool Filled; public PkoWindow Window; public bool Draggable = true;
         GameObject ghost;
 
-        public void SetIcon(Texture tex, string count = null)
+        public void SetIcon(Texture tex, string count = null, bool filled = false)
         {
-            Filled = tex != null; Icon.texture = tex; Icon.enabled = Filled;
+            Filled = filled || tex != null; Icon.texture = tex; Icon.enabled = tex != null;
             Count.text = Filled && !string.IsNullOrEmpty(count) ? count : "";
         }
 
@@ -111,6 +111,7 @@ namespace TOP.UI.Pko
     {
         public PkoForm Def; public RectTransform Rect;
         public readonly Dictionary<string, RectTransform> Named = new Dictionary<string, RectTransform>();
+        public readonly HashSet<string> BoundButtons = new HashSet<string>();
         public readonly Dictionary<string, List<PkoSlot>> Grids = new Dictionary<string, List<PkoSlot>>();
         // Alguns formularios (ex.: frmGame) reutilizam o mesmo nome de componente em varios grupos
         // de checkbox (ex.: "chkHelpmodel1"/"chkHelpmodel2" repetidos 9x). Named so guarda a 1a
@@ -133,7 +134,13 @@ namespace TOP.UI.Pko
         public Text Label(string name) { return Get<Text>(name); }
         public void SetText(string name, string text) { var t = Label(name); if (t != null) t.text = text; }
         public void SetProgress(string name, float v, string text = null) { Get<PkoProgress>(name)?.Set(v, text); }
-        public void OnClick(string name, UnityEngine.Events.UnityAction a) { var b = Get<Button>(name); if (b != null) b.onClick.AddListener(a); }
+        public void OnClick(string name, UnityEngine.Events.UnityAction a)
+        {
+            var b = Get<Button>(name);
+            if (b == null) return;
+            BoundButtons.Add(name);
+            b.onClick.AddListener(a);
+        }
         public void SetVisible(string name, bool on) { if (Named.TryGetValue(name, out var rt)) rt.gameObject.SetActive(on); }
         /// <summary>Retorna o toggle de indice "idx" (0, 1, ...) dentro de um grupo CHECK_GROUP_TYPE.</summary>
         public Toggle GroupToggle(int group, int idx) { return Groups.TryGetValue(group, out var list) && idx >= 0 && idx < list.Count ? list[idx] : null; }

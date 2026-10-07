@@ -2,6 +2,7 @@
 using Mirror;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using TOP.Data;        // ✅ ADICIONADO: InventoryItemData está aqui
 using TOP.Inventory;
 using TOP.Systems;
@@ -156,11 +157,13 @@ namespace TOP.Player
                 slotIndex = (ushort)empty;
             }
 
+            TOP.Data.PkoTables.Items.TryGetValue(itemId, out var pkoItem);
             _slots[slotIndex] = new InventoryItem
             {
                 ItemId = itemId,
                 Quantity = quantity,
-                SlotIndex = slotIndex
+                SlotIndex = slotIndex,
+                Durability = pkoItem != null && pkoItem.Durability > 0 ? pkoItem.Durability : 0
             };
 
             SerializeInventory();
@@ -179,6 +182,53 @@ namespace TOP.Player
             SerializeInventory();
         }
 
+        // Quantidade total de um item (somando todos os slots nao equipados), usado por sistemas
+        // que precisam pre-validar requisitos antes de consumir (ex.: forja).
+        [Server]
+        public int GetItemCount(int itemId)
+        {
+            int total = 0;
+            for (int i = 0; i < _slots.Length; i++)
+                if (_slots[i] != null && _slots[i].ItemId == itemId && !_slots[i].IsEquipped) total += _slots[i].Quantity;
+            return total;
+        }
+
+        // Ajusta o nivel de refino/forja de um slot especifico e resserializa o inventario.
+        // Usado pelo sistema de forja (PlayerForge).
+        [Server]
+        public bool SetItemRefine(int slotIndex, int refineLevel)
+        {
+            if (slotIndex < 0 || slotIndex >= _slots.Length || _slots[slotIndex] == null) return false;
+            _slots[slotIndex].RefineLevel = Mathf.Clamp(refineLevel, 0, TOP.Data.PkoGems.MaxRefine);
+            SerializeInventory();
+            return true;
+        }
+
+        // Remove 'quantity' unidades de um item (podendo abranger varios slots empilhados).
+        // Usado por sistemas que tiram itens do inventario sem UI (correio, comercio).
+        // Retorna false (sem remover nada) se o jogador nao tiver a quantidade total exigida.
+        [Server]
+        public bool RemoveItemById(int itemId, int quantity)
+        {
+            if (quantity <= 0) return true;
+            int total = 0;
+            for (int i = 0; i < _slots.Length; i++)
+                if (_slots[i] != null && _slots[i].ItemId == itemId && !_slots[i].IsEquipped) total += _slots[i].Quantity;
+            if (total < quantity) return false;
+
+            int remaining = quantity;
+            for (int i = 0; i < _slots.Length && remaining > 0; i++)
+            {
+                if (_slots[i] == null || _slots[i].ItemId != itemId || _slots[i].IsEquipped) continue;
+                int take = Mathf.Min(remaining, _slots[i].Quantity);
+                _slots[i].Quantity -= take;
+                remaining -= take;
+                if (_slots[i].Quantity <= 0) _slots[i] = null;
+            }
+            SerializeInventory();
+            return true;
+        }
+
         // =================================================================================
         // COMMANDS
         // =================================================================================
@@ -191,35 +241,131 @@ namespace TOP.Player
         }
 
         // Entrega de itens pelo painel admin: o servidor confere is_admin da conta no banco.
+        public event System.Action<int, bool, string> AdminGenerationCompleted;
+        int nextAdminRequestId;
+
+        public int NewAdminGenerationRequestId()
+        {
+            nextAdminRequestId = nextAdminRequestId == int.MaxValue ? 1 : nextAdminRequestId + 1;
+            return nextAdminRequestId;
+        }
+
+        [TargetRpc]
+        void TargetAdminGenerationResult(bool success, string message)
+        {
+            AdminGenerationCompleted?.Invoke(0, success, message);
+            if (!success) Debug.LogWarning("[Admin] " + message);
+        }
+
+        [TargetRpc]
+        void TargetAdminRequestResult(int requestId, bool success, string message)
+        {
+            AdminGenerationCompleted?.Invoke(requestId, success, message);
+            if (!success) Debug.LogWarning("[Admin] " + message);
+        }
+
+        void ReplyAdminGeneration(int requestId, bool success, string message)
+        {
+            if (!success) Debug.LogWarning("[Admin] " + message);
+            if (requestId > 0) TargetAdminRequestResult(requestId, success, message);
+            else TargetAdminGenerationResult(success, message);
+        }
+
+        async System.Threading.Tasks.Task<bool> AuthorizeAdminGeneration(int requestId)
+        {
+            var pc = GetComponent<TOP.Player.PlayerController>();
+            var manager = TOP.Network.TOPNetworkManager.Instance;
+            if (pc == null || manager == null || connectionToClient == null)
+            {
+                ReplyAdminGeneration(requestId, false, "Sessao do servidor indisponivel. Entre pelo login.");
+                return false;
+            }
+            string token = manager.GetSessionToken(connectionToClient.connectionId);
+            if (string.IsNullOrEmpty(token))
+            {
+                ReplyAdminGeneration(requestId, false, "Sessao expirada. Entre novamente pelo login.");
+                return false;
+            }
+            var database = TOP.Services.DatabaseService.Instance;
+            if (database == null)
+            {
+                Debug.LogError("[Admin] Servico de dados indisponivel no servidor.");
+                ReplyAdminGeneration(requestId, false, "Servico de dados indisponivel no servidor. Verifique sua inicializacao.");
+                return false;
+            }
+            bool authorized = await database.IsAdminAsync(pc.AccountId, token);
+            if (this == null || connectionToClient == null || !connectionToClient.isAuthenticated) return false;
+            if (!authorized)
+                ReplyAdminGeneration(requestId, false, "Permissao admin nao confirmada pela API. Verifique a conta e a conexao.");
+            return authorized;
+        }
+
         [Command]
         public async void CmdAdminGive(int itemId, int quantity)
         {
-            var pc = GetComponent<TOP.Player.PlayerController>();
-            if (pc == null || quantity < 1 || !TOP.Data.PkoTables.Items.ContainsKey(itemId)) return;
-            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
-            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
+            await GiveAdminItems(0, itemId, quantity);
+        }
+
+        [Command]
+        public async void CmdRequestAdminGive(int requestId, int itemId, int quantity)
+        {
+            if (requestId <= 0) { Debug.LogWarning("[Admin] Identificador de pedido invalido."); return; }
+            await GiveAdminItems(requestId, itemId, quantity);
+        }
+
+        async System.Threading.Tasks.Task GiveAdminItems(int requestId, int itemId, int quantity)
+        {
+            if (quantity < 1 || !TOP.Data.PkoTables.Items.TryGetValue(itemId, out var definition)
+                || quantity > (long)Mathf.Max(1, definition.Stack) * _slots.Length)
+            {
+                ReplyAdminGeneration(requestId, false, "Item ou quantidade invalida no servidor.");
+                return;
+            }
+            if (!await AuthorizeAdminGeneration(requestId)) return;
+            int requested = quantity;
             int max = Mathf.Max(1, TOP.Data.PkoTables.Items[itemId].Stack);
             while (quantity > 0)
             {
                 int slot = FindEmptySlot();
                 if (slot == -1) break;
                 int n = Mathf.Min(max, quantity);
-                AddItem(itemId, n, (ushort)slot);
+                if (!AddItem(itemId, n, (ushort)slot)) break;
                 quantity -= n;
             }
+            ReplyAdminGeneration(requestId, quantity == 0, quantity == 0
+                ? $"Recebido: item #{itemId} x{requested}."
+                : $"Inventario cheio: recebidos {requested - quantity} de {requested} itens.");
         }
 
         // Gera um equipamento ja refinado/engastado no primeiro slot vazio. O servidor revalida tudo.
         [Command]
         public async void CmdAdminGenerate(int itemId, int refine, int sockets, int gem1, int gem2, int gem3)
         {
-            var pc = GetComponent<TOP.Player.PlayerController>();
-            if (pc == null || !TOP.Data.PkoTables.Items.TryGetValue(itemId, out var it)) return;
-            string token = TOP.Network.TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId);
-            if (!await TOP.Services.DatabaseService.Instance.IsAdminAsync(pc.AccountId, token)) { Debug.LogWarning("[Admin] Conta " + pc.AccountId + " nao e admin."); return; }
+            await GenerateAdminEquipment(0, itemId, refine, sockets, gem1, gem2, gem3);
+        }
+
+        [Command]
+        public async void CmdRequestAdminGenerate(int requestId, int itemId, int refine, int sockets, int gem1, int gem2, int gem3)
+        {
+            if (requestId <= 0) { Debug.LogWarning("[Admin] Identificador de pedido invalido."); return; }
+            await GenerateAdminEquipment(requestId, itemId, refine, sockets, gem1, gem2, gem3);
+        }
+
+        async System.Threading.Tasks.Task GenerateAdminEquipment(int requestId, int itemId, int refine, int sockets,
+            int gem1, int gem2, int gem3)
+        {
+            if (!TOP.Data.PkoTables.Items.TryGetValue(itemId, out var it))
+            {
+                ReplyAdminGeneration(requestId, false, "Item nao encontrado no catalogo do servidor.");
+                return;
+            }
+            if (!await AuthorizeAdminGeneration(requestId)) return;
             int slot = FindEmptySlot();
-            if (slot == -1) return;
-            if (!AddItem(itemId, 1, (ushort)slot)) return;
+            if (slot == -1 || !AddItem(itemId, 1, (ushort)slot))
+            {
+                ReplyAdminGeneration(requestId, false, "Inventario cheio. Libere um slot.");
+                return;
+            }
             var item = _slots[slot];
             if (TOP.Data.PkoGems.CanSocket(it))
             {
@@ -230,6 +376,7 @@ namespace TOP.Player
                     item.Gems[i] = gems[i] > 0 && TOP.Data.PkoGems.Accepts(it, gems[i]) ? gems[i] : 0;
             }
             SerializeInventory();
+            ReplyAdminGeneration(requestId, true, $"Recebido: item #{itemId} (+{item.RefineLevel}).");
         }
 
         // Apaga um item da bolsa (itens equipados precisam ser removidos antes).
@@ -295,8 +442,14 @@ namespace TOP.Player
         [Command]
         public void CmdMoveItem(ushort fromSlot, ushort toSlot)
         {
-            if (fromSlot >= _slots.Length || toSlot >= _slots.Length) return;
-            if ((_slots[fromSlot] != null && _slots[fromSlot].IsEquipped) || (_slots[toSlot] != null && _slots[toSlot].IsEquipped)) return;
+            MoveItemOnServer(fromSlot, toSlot);
+        }
+
+        [Server]
+        public bool MoveItemOnServer(ushort fromSlot, ushort toSlot)
+        {
+            if (fromSlot >= _slots.Length || toSlot >= _slots.Length) return false;
+            if ((_slots[fromSlot] != null && _slots[fromSlot].IsEquipped) || (_slots[toSlot] != null && _slots[toSlot].IsEquipped)) return false;
 
             InventoryItem temp = _slots[toSlot];
             _slots[toSlot] = _slots[fromSlot];
@@ -306,37 +459,39 @@ namespace TOP.Player
             if (_slots[fromSlot] != null) _slots[fromSlot].SlotIndex = fromSlot;
 
             SerializeInventory();
+            return true;
         }
 
         [Command]
         public void CmdEquipItem(ushort inventorySlot, EquipmentSlot targetSlot)
         {
             PlayerEquipment equipment = GetComponent<PlayerEquipment>();
-            if (equipment == null) return;
-
-            InventoryItem item = _slots[inventorySlot];
-            if (item == null) return;
-
-            equipment.CmdEquipItem(inventorySlot, targetSlot);
+            equipment?.EquipFromInventory(inventorySlot, targetSlot);
         }
 
         [Command]
         public void CmdDropItem(ushort slotIndex, int quantity, Vector3 dropPosition)
         {
-            InventoryItem item = _slots[slotIndex];
-            if (item == null || item.Quantity < quantity) return;
+            DropItemOnServer(slotIndex, quantity, dropPosition);
+        }
 
+        [Server]
+        public bool DropItemOnServer(ushort slotIndex, int quantity, Vector3 dropPosition)
+        {
+            if (slotIndex >= _slots.Length || quantity <= 0) return false;
+            InventoryItem item = _slots[slotIndex];
+            if (item == null || item.IsEquipped || item.Quantity < quantity) return false;
             WorldItemManager worldItemManager = GameObject.FindAnyObjectByType<WorldItemManager>();
-            if (worldItemManager != null)
-            {
-                worldItemManager.SpawnWorldItem(item.ItemId, quantity, dropPosition);
-            }
+            if (worldItemManager == null) return false;
+
+            worldItemManager.SpawnWorldItem(item.ItemId, quantity, dropPosition);
 
             item.Quantity -= quantity;
             if (item.Quantity <= 0)
                 _slots[slotIndex] = null;
 
             SerializeInventory();
+            return true;
         }
 
         [Command]
@@ -344,7 +499,7 @@ namespace TOP.Player
         {
             PlayerConsumables consumables = GetComponent<PlayerConsumables>();
             if (consumables != null)
-                consumables.CmdUseItem(slotIndex);
+                consumables.UseItemOnServer(slotIndex);
         }
 
         [Command]
@@ -359,15 +514,27 @@ namespace TOP.Player
         [Command]
         public void CmdUnequipItemTo(EquipmentSlot slot, ushort toSlot)
         {
+            UnequipItemToSlotOnServer(slot, toSlot);
+        }
+
+        [Server]
+        public bool UnequipItemToSlotOnServer(EquipmentSlot slot, ushort toSlot)
+        {
             PlayerEquipment equipment = GetComponent<PlayerEquipment>();
-            if (equipment == null) return;
-            int id = equipment.GetEquippedItem(slot)?.ItemId ?? 0;
+            if (equipment == null || toSlot >= _slots.Length) return false;
+            InventoryItem equippedItem = equipment.GetEquippedItem(slot);
+            int id = equippedItem?.ItemId ?? 0;
+            if (id == 0) return false;
+            int from = equippedItem != null ? equippedItem.SlotIndex : -1;
+            if (from < 0 || from >= _slots.Length || _slots[from] == null || !_slots[from].IsEquipped || _slots[from].ItemId != id)
+                from = FindItemSlot(id);
+            if (from < 0 || (toSlot != from && _slots[toSlot] != null)) return false;
+
             equipment.UnequipItem(slot);
-            if (id == 0 || toSlot >= _slots.Length || _slots[toSlot] != null) return;
-            int from = FindItemSlot(id);
-            if (from < 0) return;
+            if (toSlot == from) return true;
             _slots[toSlot] = _slots[from]; _slots[toSlot].SlotIndex = toSlot; _slots[from] = null;
             SerializeInventory();
+            return true;
         }
 
         // The bag record of a worn item stays reserved (so it persists) until it is taken off.
@@ -379,12 +546,25 @@ namespace TOP.Player
             SerializeInventory();
         }
 
+        [Server]
+        public void ReleaseEquippedSlot(ushort slotIndex, int itemId)
+        {
+            if (slotIndex < _slots.Length && _slots[slotIndex] != null && _slots[slotIndex].IsEquipped && _slots[slotIndex].ItemId == itemId)
+            {
+                _slots[slotIndex].IsEquipped = false;
+                SerializeInventory();
+                return;
+            }
+
+            ReleaseEquipped(itemId);
+        }
+
         [Command]
         public void CmdPickupWorldItem(NetworkIdentity worldItemIdentity)
         {
             WorldItem worldItem = worldItemIdentity?.GetComponent<WorldItem>();
             if (worldItem != null)
-                worldItem.CmdPickup();
+                worldItem.Pickup(this);
         }
 
         // =================================================================================
@@ -398,7 +578,7 @@ namespace TOP.Player
             {
                 if (_slots[i] != null)
                 {
-                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}");
+                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}:{_slots[i].Durability}");
                 }
             }
             _inventoryData = string.Join(";", list);
@@ -406,7 +586,50 @@ namespace TOP.Player
 
         void OnInventoryDataChanged(string oldValue, string newValue)
         {
+            DeserializeInventory(newValue);
             OnInventoryChanged?.Invoke();
+        }
+
+        void DeserializeInventory(string data)
+        {
+            Array.Clear(_slots, 0, _slots.Length);
+            if (string.IsNullOrEmpty(data)) return;
+
+            foreach (string entry in data.Split(';'))
+            {
+                if (string.IsNullOrEmpty(entry)) continue;
+
+                string[] fields = entry.Split(':');
+                // O campo de durabilidade (indice 8) foi adicionado depois; entradas antigas com 8 campos
+                // ainda sao aceitas e assumem durabilidade cheia (tratada como 0 => 100% na UI).
+                if ((fields.Length != 8 && fields.Length != 9) ||
+                    !int.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot) ||
+                    !int.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int itemId) ||
+                    !int.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int quantity) ||
+                    !int.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out int equipped) ||
+                    !int.TryParse(fields[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out int refine) ||
+                    !int.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out int gem1) ||
+                    !int.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out int gem2) ||
+                    !int.TryParse(fields[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out int gem3) ||
+                    slot < 0 || slot >= _slots.Length || itemId <= 0 || quantity <= 0)
+                {
+                    Debug.LogWarning("[PlayerInventory] Ignorando entrada de inventario invalida: " + entry);
+                    continue;
+                }
+                int durability = 0;
+                if (fields.Length == 9) int.TryParse(fields[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out durability);
+
+                _slots[slot] = new InventoryItem
+                {
+                    ItemId = itemId,
+                    Quantity = quantity,
+                    SlotIndex = (ushort)slot,
+                    IsEquipped = equipped != 0,
+                    RefineLevel = refine,
+                    Gems = new[] { gem1, gem2, gem3 },
+                    Durability = durability
+                };
+            }
         }
 
         // =================================================================================

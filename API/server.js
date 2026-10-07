@@ -309,6 +309,61 @@ async function migrate() {
     await dbPool.query(`CREATE TABLE IF NOT EXISTS news (id INT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(16) NOT NULL DEFAULT 'News', title VARCHAR(160) NOT NULL, excerpt VARCHAR(600) NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     const [[n]] = await dbPool.query('SELECT COUNT(*) AS c FROM news');
     if (!n.c) await dbPool.query("INSERT INTO news (category, title, excerpt) VALUES ('News', 'Servidor aberto para testes', 'Crie sua conta, baixe o cliente e entre no mundo de GAME PROJECT - K/G.')");
+
+    // ---- Sistemas sociais: amigos, correio, guildas ----
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS friendships (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id BIGINT NOT NULL,
+        friend_character_id BIGINT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_pair (character_id, friend_character_id)
+    )`);
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS mails (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sender_id BIGINT NOT NULL,
+        sender_name VARCHAR(32) NOT NULL,
+        recipient_id BIGINT NOT NULL,
+        subject VARCHAR(80) NOT NULL DEFAULT '',
+        body VARCHAR(1000) NOT NULL DEFAULT '',
+        gold BIGINT NOT NULL DEFAULT 0,
+        item_id INT NOT NULL DEFAULT -1,
+        item_quantity INT NOT NULL DEFAULT 0,
+        item_refine INT NOT NULL DEFAULT 0,
+        is_read TINYINT(1) NOT NULL DEFAULT 0,
+        is_claimed TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_recipient (recipient_id)
+    )`);
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS guilds (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(32) NOT NULL UNIQUE,
+        leader_character_id BIGINT NOT NULL,
+        notice VARCHAR(400) NOT NULL DEFAULT '',
+        level INT NOT NULL DEFAULT 1,
+        gold BIGINT NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS guild_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        guild_id INT NOT NULL,
+        character_id BIGINT NOT NULL,
+        character_name VARCHAR(32) NOT NULL,
+        rank_name VARCHAR(16) NOT NULL DEFAULT 'Membro',
+        joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_member (character_id)
+    )`);
+
+    // ---- Quests (progresso por personagem) ----
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS quest_progress (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id BIGINT NOT NULL,
+        quest_id INT NOT NULL,
+        progress INT NOT NULL DEFAULT 0,
+        completed_at DATETIME NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_char_quest (character_id, quest_id),
+        INDEX idx_char (character_id)
+    )`);
 }
 
 require('./routes')(app, dbPool);

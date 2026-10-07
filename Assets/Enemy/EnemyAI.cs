@@ -34,6 +34,7 @@ public class EnemyAI : NetworkBehaviour
     {
         stats = GetComponent<EnemyStats>();
         agent = GetComponent<NavMeshAgent>();
+        agent.enabled = false;
 
         anim = GetComponent<Animator>();
         if (anim == null)
@@ -42,21 +43,28 @@ public class EnemyAI : NetworkBehaviour
         spawnPosition = transform.position;
     }
 
-    void Start()
+    public override void OnStartServer()
     {
+        base.OnStartServer();
         // ✅ CORRIGIDO: Configura NavMeshAgent corretamente
         if (agent != null)
         {
             agent.speed = stats != null ? stats.MoveSpeed : 3.5f;
-            agent.stoppingDistance = attackRange * 0.8f;  // ✅ Para um pouco antes do attackRange
+            agent.stoppingDistance = attackRange * 0.8f;
             agent.acceleration = 8f;
             agent.angularSpeed = rotationSpeed * 36f;
             agent.autoBraking = true;
+            if (!NavMesh.SamplePosition(transform.position, out var spawnHit, 5f, NavMesh.AllAreas))
+            {
+                Debug.LogError($"[EnemyAI] {gameObject.name}: sem NavMesh para iniciar navegacao no servidor.");
+                return;
+            }
+            transform.position = spawnHit.position;
+            spawnPosition = spawnHit.position;
 
             // ✅ CORRIGIDO: Garante que o agent está ativo
             if (!agent.isActiveAndEnabled)
             {
-                Debug.LogWarning("[EnemyAI] NavMeshAgent não está ativo! Ativando...");
                 agent.enabled = true;
             }
 
@@ -93,12 +101,17 @@ public class EnemyAI : NetworkBehaviour
         }
 
         // ✅ CORRIGIDO: Verifica se o agent está em NavMesh antes de atualizar
-        if (agent != null && !agent.isOnNavMesh)
+        if (agent != null && (!agent.isActiveAndEnabled || !agent.isOnNavMesh))
         {
             // Tenta recolocar no NavMesh
             NavMeshHit hit;
             if (NavMesh.SamplePosition(transform.position, out hit, 3f, NavMesh.AllAreas))
             {
+                if (!agent.enabled)
+                {
+                    transform.position = hit.position;
+                    agent.enabled = true;
+                }
                 agent.Warp(hit.position);
             }
             return;  // Sai do Update até conseguir estar no NavMesh

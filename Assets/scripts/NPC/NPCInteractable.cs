@@ -24,6 +24,10 @@ namespace TOP.NPC
         [SerializeField] private string[] availableQuests;
         [SerializeField] private string[] completesQuests;
 
+        [Header("Teleporter (apenas NPCType.Teleporter)")]
+        [SerializeField] private string teleportDestinationMap = "";
+        [SerializeField] private Vector3 teleportDestinationPosition;
+
         public void Interact(uint interactorId) 
         {
             if (NetworkServer.spawned.TryGetValue(interactorId, out NetworkIdentity identity))
@@ -62,15 +66,21 @@ namespace TOP.NPC
 
             OnPlayerInteract?.Invoke(player);
 
+            RpcPlayGreeting();
+
+            transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
+
+            OpenNPCInterface(player);
+        }
+
+        [ClientRpc]
+        void RpcPlayGreeting()
+        {
             if (npcAnimator != null)
             {
                 npcAnimator.SetTrigger(greetAnimation);
                 npcAnimator.SetTrigger(talkAnimation);
             }
-
-            transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
-
-            OpenNPCInterface(player);
         }
 
         public string GetInteractionName()
@@ -86,6 +96,7 @@ namespace TOP.NPC
                 NPCType.SkillMaster => $"Skills - {npcName}",
                 NPCType.StableMaster => $"Estábulo - {npcName}",
                 NPCType.Teleporter => $"Teleporte - {npcName}",
+                NPCType.Hairdresser => $"Salão de Beleza - {npcName}",
                 NPCType.Other => $"Falar - {npcName}",
                 _ => $"Interagir - {npcName}"
             };
@@ -102,7 +113,57 @@ namespace TOP.NPC
 
         private void OpenNPCInterface(PlayerMovement player)
         {
-            // Implementação de UI de NPC
+            var controller = player.GetComponent<PlayerController>();
+            if (npcType == NPCType.Hairdresser)
+            {
+                controller?.RpcOpenHairSalon();
+                return;
+            }
+            if (npcType == NPCType.Blacksmith)
+            {
+                controller?.RpcOpenForge();
+                return;
+            }
+            if (npcType == NPCType.Teleporter)
+            {
+                if (controller != null && !string.IsNullOrEmpty(teleportDestinationMap))
+                {
+                    controller.Teleport(teleportDestinationMap, teleportDestinationPosition);
+                    controller.RpcShowMessage("Voce foi transportado para " + teleportDestinationMap + ".", PlayerMessageType.Info);
+                }
+                return;
+            }
+
+            HandleQuestInteraction(player);
+
+            // Feedback minimo ate a UI de loja/dialogo completa ser implementada (ver todo "npc-shop-ui").
+            controller?.RpcShowMessage(GetInteractionName(), PlayerMessageType.Info);
+        }
+
+        // Conecta este NPC ao sistema de quests: marca progresso de objetivos "falar com",
+        // entrega automaticamente quests completaveis aqui, e oferece as quests disponiveis
+        // listadas em availableQuests (ids numericos de QuestTable).
+        [Server]
+        private void HandleQuestInteraction(PlayerMovement player)
+        {
+            var pq = player.GetComponent<TOP.Player.PlayerQuests>();
+            if (pq == null || string.IsNullOrEmpty(npcId)) return;
+
+            pq.ServerNotifyTalk(npcId);
+
+            if (completesQuests != null)
+                foreach (var idStr in completesQuests)
+                    if (int.TryParse(idStr, out int qid) && pq.HasActiveQuest(qid) && pq.CanTurnIn(qid))
+                        pq.ServerTurnInQuest(qid);
+
+            if (availableQuests != null && availableQuests.Length > 0)
+            {
+                var ids = new System.Collections.Generic.List<int>();
+                foreach (var idStr in availableQuests)
+                    if (int.TryParse(idStr, out int qid)) ids.Add(qid);
+                foreach (var qid in pq.GetOfferableQuestsFor(ids))
+                    pq.ServerOfferQuest(qid);
+            }
         }
 
         private void HealPlayer(PlayerMovement player)

@@ -305,6 +305,7 @@ public class EnemyStats : NetworkBehaviour, ICharacterStats
                 if (showDebugLogs)
                     Debug.Log("[EnemyStats] Recompensa: " + _experienceReward + " XP, " + _goldReward + " Gold para " + killer.name);
             }
+            killer.GetComponent<TOP.Player.PlayerQuests>()?.ServerNotifyKill(_enemyName);
         }
 
         // Desativa IA e colisão imediatamente (servidor)

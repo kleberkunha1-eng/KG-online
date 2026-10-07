@@ -63,13 +63,13 @@ public static class SkinnedCharacterBuilder
         rot = fwd.sqrMagnitude < 1e-8f || up.sqrMagnitude < 1e-8f ? Quaternion.identity : Quaternion.LookRotation(fwd, up);
     }
 
-    public static bool Build(string id)
+    public static bool Build(string id, bool wing = false)
     {
         string jsonPath = $"{SourceDir}/{id}.json", binPath = $"{SourceDir}/{id}.frames.bin";
         if (!File.Exists(jsonPath) || !File.Exists(binPath)) return false;
         var data = JsonUtility.FromJson<Data>(File.ReadAllText(jsonPath));
-        Directory.CreateDirectory(OutDir + "/" + id);
-        string baseDir = $"{OutDir}/{id}";
+        string baseDir = wing ? $"Assets/Resources/Wings/Animated/{id}" : $"{OutDir}/{id}";
+        Directory.CreateDirectory(baseDir);
 
         int boneCount = data.bones.Length;
         var root = new GameObject(id);
@@ -134,7 +134,7 @@ public static class SkinnedCharacterBuilder
         if (data.normals.Length != vc * 3) mesh.RecalculateNormals();
         mesh.boneWeights = weights; mesh.bindposes = bindPoses;
         mesh.RecalculateBounds();
-        AssetDatabase.CreateAsset(mesh, $"{baseDir}/{id}_mesh.asset");
+        mesh = SaveAsset(mesh, $"{baseDir}/{id}_mesh.asset");
 
         var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
         var mats = new Material[data.subsets.Length];
@@ -144,8 +144,7 @@ public static class SkinnedCharacterBuilder
             var tex = string.IsNullOrEmpty(data.subsets[s].texture) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/ImportedClient/" + data.subsets[s].texture);
             if (tex != null) { mat.mainTexture = tex; if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", tex); }
             if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 0);
-            AssetDatabase.CreateAsset(mat, $"{baseDir}/{id}_mat{s}.asset".Replace(".asset", ".mat"));
-            mats[s] = mat;
+            mats[s] = SaveAsset(mat, $"{baseDir}/{id}_mat{s}.mat");
         }
 
         var smr = new GameObject("Mesh").AddComponent<SkinnedMeshRenderer>();
@@ -165,20 +164,23 @@ public static class SkinnedCharacterBuilder
             if (seen.TryGetValue(key, out int canonical)) { aliases.Add(act.id + " " + canonical); continue; }
             seen[key] = act.id;
             var clip = BuildClip(bin, boneCount, paths, act, $"action_{act.id}");
-            AssetDatabase.CreateAsset(clip, $"{baseDir}/{id}_action{act.id}.anim");
+            clip = SaveAsset(clip, $"{baseDir}/{id}_action{act.id}.anim");
             anim.AddClip(clip, clip.name);
             if (first == null || act.id == 1) first = clip;
         }
         if (first != null) anim.clip = first;
         // Several poses share the same frame range (e.g. sword wait = fist wait); the runtime resolves them through this table.
-        Directory.CreateDirectory("Assets/Resources/PkoChar");
-        File.WriteAllText($"Assets/Resources/PkoChar/Alias_{id}.txt", string.Join("\n", aliases));
+        if (!wing)
+        {
+            Directory.CreateDirectory("Assets/Resources/PkoChar");
+            File.WriteAllText($"Assets/Resources/PkoChar/Alias_{id}.txt", string.Join("\n", aliases));
+        }
         anim.playAutomatically = true;
-        root.AddComponent<LegacyAnimDriver>();
+        if (!wing) root.AddComponent<LegacyAnimDriver>();
 
-        PrefabUtility.SaveAsPrefabAsset(root, $"{OutDir}/{id}.prefab");
+        PrefabUtility.SaveAsPrefabAsset(root, wing ? $"Assets/Resources/Wings/Animated/{id}.prefab" : $"{OutDir}/{id}.prefab");
         UnityEngine.Object.DestroyImmediate(root);
-        AssetDatabase.SaveAssets();
+        if (!wing) AssetDatabase.SaveAssets();
         return true;
     }
 
@@ -215,7 +217,24 @@ public static class SkinnedCharacterBuilder
         clip.SetCurve(path, typeof(Transform), prop, new AnimationCurve(keys));
     }
 
+    public static T SaveAsset<T>(T asset, string path) where T : UnityEngine.Object
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<T>(path);
+        if (existing == null) { AssetDatabase.CreateAsset(asset, path); return asset; }
+        EditorUtility.CopySerialized(asset, existing);
+        if (asset is Mesh sourceMesh && existing is Mesh targetMesh)
+        {
+            targetMesh.vertices = sourceMesh.vertices;
+            targetMesh.normals = sourceMesh.normals;
+            targetMesh.boneWeights = sourceMesh.boneWeights;
+            targetMesh.bindposes = sourceMesh.bindposes;
+            targetMesh.bounds = sourceMesh.bounds;
+        }
+        UnityEngine.Object.DestroyImmediate(asset);
+        EditorUtility.SetDirty(existing);
+        return existing;
+    }
+
     [MenuItem("TOP/Build Skinned Sample (0087)")]
     static void Sample() { Debug.Log("Skinned 0087: " + Build("0087")); }
 }
-

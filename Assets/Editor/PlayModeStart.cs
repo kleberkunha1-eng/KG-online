@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Sockets;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using TOP.Services;
 
 namespace TOP.EditorTools
 {
@@ -23,13 +24,15 @@ namespace TOP.EditorTools
 
         static void Apply()
         {
-            string scene = Mode == 0 ? "LoginScene" : "GameScene";
+            string scene = Mode == 0 && !SessionState.GetBool("TOP.WorldEntrySmokeActive", false)
+                ? "LoginScene" : "GameScene";
             EditorSceneManager.playModeStartScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(Scenes + scene + ".unity");
         }
 
         static void OnState(PlayModeStateChange s)
         {
-            if (s == PlayModeStateChange.ExitingEditMode && Mode == 0) EnsureApi();
+            if (s == PlayModeStateChange.ExitingEditMode && Mode == 0
+                && !SessionState.GetBool("TOP.WorldEntrySmokeActive", false)) EnsureApi();
         }
 
         [MenuItem("TOP/Iniciar jogo (fluxo completo) %#p", false, 0)]
@@ -53,6 +56,7 @@ namespace TOP.EditorTools
 
         static void EnsureApi()
         {
+            if (!string.Equals(ApiConfig.Root, "http://127.0.0.1:3000", System.StringComparison.OrdinalIgnoreCase)) return;
             if (ApiUp()) return;
             string dir = Path.GetFullPath("API");
             if (!File.Exists(Path.Combine(dir, "server.js"))) { UnityEngine.Debug.LogWarning("[PlayMode] API/server.js nao encontrado."); return; }

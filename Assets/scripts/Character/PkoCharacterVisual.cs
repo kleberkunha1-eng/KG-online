@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using TOP.Core;
 using TOP.Data;
 using UnityEngine;
 
@@ -24,7 +25,12 @@ namespace TOP.Character
         Transform[] bones;
         readonly Dictionary<string, Transform> dummies = new Dictionary<string, Transform>();
         readonly GameObject[] parts = new GameObject[PartCount];
-        GameObject rightWeapon, leftWeapon;
+        GameObject rightWeapon, leftWeapon, wingVisual;
+        Vector3 wingBasePosition;
+        Quaternion wingBaseRotation;
+        float wingBodyHeight;
+        public int WingItemId { get; private set; }
+        public Transform WingMount => wingVisual != null ? wingVisual.transform : null;
         public PkoPoseDriver Pose { get; private set; }
 
         public static PkoCharacterVisual Create(Transform parent, int race, int face, int hair, IEnumerable<int> items)
@@ -51,7 +57,7 @@ namespace TOP.Character
             models[PartBody] = Name(race, 0, 2);
             models[PartGloves] = Name(race, 0, 3);
             models[PartBoots] = Name(race, 0, 4);
-            string right = null, left = null; int rightType = 0, leftType = 0;
+            string right = null, left = null; PkoItem wing = null; int rightType = 0, leftType = 0;
 
             // Aparencia vence o equipamento real: processada por ultimo.
             var ordered = new List<int>(Equipped);
@@ -59,6 +65,11 @@ namespace TOP.Character
             foreach (int id in ordered)
             {
                 if (!PkoTables.Items.TryGetValue(id, out var it)) continue;
+                if (PkoTables.SlotOf(it) == EquipmentSlot.Wing)
+                {
+                    wing = it;
+                    continue;
+                }
                 string m = it.RaceModels != null && race < it.RaceModels.Length ? (it.RaceModels[race] ?? "").TrimEnd('_') : "";
                 if (m.Length == 0 || m == "0") continue;
                 switch (it.Type)
@@ -78,6 +89,7 @@ namespace TOP.Character
             for (int i = 0; i < PartCount; i++) SetPart(i, models[i]);
             SetWeapon(ref rightWeapon, right, DummyRightHand);
             SetWeapon(ref leftWeapon, left, DummyLeftHand);
+            SetWing(wing);
             if (Pose != null) Pose.SetWield(PkoPoses.WieldOf(leftType, rightType));
         }
 
@@ -106,7 +118,7 @@ namespace TOP.Character
             bones = new Transform[found.Count];
             foreach (var (i, t) in found) if (i < bones.Length) bones[i] = t;
             for (int i = 0; i < parts.Length; i++) parts[i] = null;
-            rightWeapon = leftWeapon = null;
+            rightWeapon = leftWeapon = wingVisual = null;
         }
 
         void SetPart(int slot, string name)
@@ -128,6 +140,7 @@ namespace TOP.Character
         void LateUpdate()
         {
             ApplyWeaponPose(rightWeapon, 0); ApplyWeaponPose(leftWeapon, 1);
+            ApplyWingPose();
         }
 
         void ApplyWeaponPose(GameObject wrap, int hand)
@@ -151,6 +164,164 @@ namespace TOP.Character
             var inst = Instantiate(prefab, wrap);
             inst.transform.localPosition = Vector3.zero;
             slot = wrap.gameObject;
+        }
+
+        void SetWing(PkoItem item)
+        {
+            if (wingVisual != null) { wingVisual.SetActive(false); Destroy(wingVisual); }
+            wingVisual = null;
+            WingItemId = 0;
+            if (rig == null || item == null) return;
+
+            string model = item.Model;
+            string resource = item.Id == PkoTables.MeshyMageWingsItemId
+                ? "Wings/Animated/MageWings"
+                : "Wings/Items/" + item.Id;
+            var prefab = Resources.Load<GameObject>(resource);
+            if (prefab == null)
+            {
+                Debug.LogError($"[PkoCharacterVisual] Wing visual for '{item.Name}' ({item.Id}) is missing at Resources/{resource}. Run Tools/PKO/Build Animated Wings.");
+                return;
+            }
+
+            var mount = new GameObject("wing_" + model).transform;
+            mount.SetParent(rig.transform, false);
+            var bodyAsset = parts[PartBody] != null ? parts[PartBody].GetComponent<SkinnedMeshRenderer>() : null;
+            int chestIndex = System.Array.FindIndex(bones, b => b != null && b.name.EndsWith(" Spine1", System.StringComparison.Ordinal));
+            if (chestIndex < 0 || bodyAsset == null || chestIndex >= bodyAsset.sharedMesh.bindposes.Length)
+            {
+                Debug.LogError($"[PkoCharacterVisual] Cannot attach wing {item.Id}: chest bone or body bind pose is missing.");
+                Destroy(mount.gameObject);
+                return;
+            }
+            var bind = bodyAsset.sharedMesh.bindposes[chestIndex].inverse;
+            var restBounds = bodyAsset.sharedMesh.bounds;
+            Vector3 chest = bind.GetColumn(3);
+            // Use the torso's bind pose, not the animated skeleton's changing bounds.
+            // Original character models face -Z, so the rear of the torso is +Z.
+            Vector3 back = new Vector3(chest.x, chest.y, restBounds.max.z);
+            wingBodyHeight = GetBindHeight(bodyAsset.sharedMesh.bindposes);
+            mount.SetParent(bones[chestIndex], false);
+            wingBasePosition = bind.inverse.MultiplyPoint3x4(back);
+            wingBaseRotation = Quaternion.Inverse(bind.rotation);
+            mount.localPosition = wingBasePosition;
+            mount.localRotation = wingBaseRotation;
+
+            bool originalWing = item.Id != PkoTables.MeshyMageWingsItemId;
+            if (originalWing)
+            {
+                if (!dummies.TryGetValue("dummy_" + item.VisualEffectDummy, out var attachment))
+                {
+                    Debug.LogError($"[PkoCharacterVisual] Original wing {item.Id} requires missing dummy {item.VisualEffectDummy}.");
+                    Destroy(mount.gameObject);
+                    return;
+                }
+                mount.SetParent(attachment, false);
+                wingBasePosition = Vector3.zero;
+                wingBaseRotation = Quaternion.identity;
+                mount.localPosition = wingBasePosition;
+                mount.localRotation = wingBaseRotation;
+            }
+
+            var instance = Instantiate(prefab, mount);
+            instance.name = "model_" + model;
+            var renderers = instance.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+            {
+                Debug.LogError($"[PkoCharacterVisual] Wing model '{model}' has no renderers.");
+                Destroy(mount.gameObject);
+                return;
+            }
+
+            if (!originalWing)
+            {
+                Bounds modelBounds = WingLocalBounds(instance, mount);
+                float targetWidth = wingBodyHeight * 0.9f;
+                float scale = targetWidth / Mathf.Max(0.0001f, modelBounds.size.x);
+                instance.transform.localScale = Vector3.one * scale;
+                instance.transform.localPosition = -modelBounds.center * scale;
+            }
+            wingVisual = mount.gameObject;
+            WingItemId = item.Id;
+            ApplyWingPose();
+        }
+
+        void ApplyWingPose()
+        {
+            if (wingVisual == null) return;
+            var pose = PkoWingPose.Get(Race, WingItemId);
+            wingVisual.transform.localPosition = wingBasePosition
+                + wingBaseRotation * (pose.position * wingBodyHeight);
+            wingVisual.transform.localRotation = wingBaseRotation * Quaternion.Euler(pose.euler);
+            wingVisual.transform.localScale = Vector3.one * pose.scale;
+        }
+
+        static float GetBindHeight(Matrix4x4[] bindposes)
+        {
+            float min = float.PositiveInfinity, max = float.NegativeInfinity;
+            foreach (var pose in bindposes)
+            {
+                float y = pose.inverse.GetColumn(3).y;
+                min = Mathf.Min(min, y); max = Mathf.Max(max, y);
+            }
+            return Mathf.Max(.0001f, max - min);
+        }
+
+        static Bounds WingLocalBounds(GameObject instance, Transform mount)
+        {
+            var savedScale = instance.transform.localScale;
+            var scaledMatrix = mount.worldToLocalMatrix * instance.transform.localToWorldMatrix;
+            // BakeMesh can include inherited scale; measure unscaled and apply it once.
+            instance.transform.localScale = Vector3.one;
+            var unscaledMatrix = mount.worldToLocalMatrix * instance.transform.localToWorldMatrix;
+            var correction = scaledMatrix * unscaledMatrix.inverse;
+            Bounds bounds = new Bounds();
+            bool found = false;
+            try
+            {
+                foreach (var renderer in instance.GetComponentsInChildren<Renderer>())
+                {
+                    Mesh baked = null;
+                    try
+                    {
+                        Bounds local;
+                        if (renderer is SkinnedMeshRenderer skin)
+                        {
+                            baked = new Mesh();
+                            skin.BakeMesh(baked);
+                            baked.RecalculateBounds();
+                            local = baked.bounds;
+                        }
+                        else
+                        {
+                            var filter = renderer.GetComponent<MeshFilter>();
+                            if (filter == null || filter.sharedMesh == null)
+                                throw new System.InvalidOperationException("Wing renderer has no mesh: " + renderer.name);
+                            local = filter.sharedMesh.bounds;
+                        }
+                        var matrix = mount.worldToLocalMatrix * renderer.transform.localToWorldMatrix;
+                        for (int i = 0; i < 8; i++)
+                        {
+                            Vector3 point = correction.MultiplyPoint3x4(matrix.MultiplyPoint3x4(new Vector3(
+                                (i & 1) == 0 ? local.min.x : local.max.x,
+                                (i & 2) == 0 ? local.min.y : local.max.y,
+                                (i & 4) == 0 ? local.min.z : local.max.z)));
+                            if (!found) { bounds = new Bounds(point, Vector3.zero); found = true; }
+                            else bounds.Encapsulate(point);
+                        }
+                    }
+                    finally
+                    {
+                        if (baked != null)
+                        {
+                            if (Application.isPlaying) Destroy(baked);
+                            else DestroyImmediate(baked);
+                        }
+                    }
+                }
+                return bounds;
+            }
+            finally { instance.transform.localScale = savedScale; }
         }
 
         // Height of the skeleton (feet to head) in world units, for camera framing.

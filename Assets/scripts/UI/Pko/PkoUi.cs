@@ -15,6 +15,14 @@ namespace TOP.UI.Pko
         public Canvas Canvas;
         public readonly Dictionary<string, PkoForm> Defs = new Dictionary<string, PkoForm>();
         public readonly Dictionary<string, PkoWindow> Windows = new Dictionary<string, PkoWindow>();
+        static readonly Dictionary<KeyCode, Func<bool>> GameplayShortcuts = new Dictionary<KeyCode, Func<bool>>
+        {
+            { KeyCode.G, TOP.UI.GuildUI.ToggleLocal },
+            { KeyCode.N, TOP.UI.FriendsUI.ToggleLocal },
+            { KeyCode.M, TOP.UI.MailUI.ToggleLocal },
+            { KeyCode.J, TOP.UI.QuestLogUI.ToggleLocal },
+            { KeyCode.Y, TOP.UI.TradeUI.ToggleLocal }
+        };
         readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
         readonly Dictionary<string, Texture2D> icons = new Dictionary<string, Texture2D>();
         Font font; GameObject tip; Text tipText; RectTransform tipRect;
@@ -128,6 +136,9 @@ namespace TOP.UI.Pko
                 confirm.transform.SetParent(Canvas.transform, false);
                 var rt = (RectTransform)confirm.transform; rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(.5f, .5f); rt.sizeDelta = new Vector2(300, 110);
                 confirm.GetComponent<Image>().color = new Color(.04f, .09f, .2f, .97f);
+                var window = confirm.AddComponent<PkoWindow>();
+                window.Rect = rt; window.Draggable = true;
+                AddCloseButton(window);
                 var ol = confirm.AddComponent<Outline>(); ol.effectColor = new Color(.5f, .8f, 1f, .9f);
                 confirmText = NewText(confirm.transform, "Msg", 12, Color.white, TextAnchor.MiddleCenter);
                 var tr = confirmText.rectTransform; tr.anchorMin = new Vector2(0, .35f); tr.anchorMax = Vector2.one; tr.offsetMin = new Vector2(8, 0); tr.offsetMax = new Vector2(-8, -6);
@@ -168,6 +179,7 @@ namespace TOP.UI.Pko
             string p = path.Replace('\\', '/').ToLowerInvariant(); int dot = p.LastIndexOf('.');
             if (dot > p.LastIndexOf('/')) p = p.Substring(0, dot);
             t = Resources.Load<Texture2D>("PKOUI/tex/" + p);
+            if (t == null) Debug.LogWarning("[PkoUi] Missing UI texture: Resources/PKOUI/tex/" + p);
             textures[path] = t; return t;
         }
 
@@ -188,7 +200,27 @@ namespace TOP.UI.Pko
         }
 
         public void Open(string name) { Get(name)?.Open(); }
-        public void Toggle(string name) { Get(name)?.Toggle(); }
+        public void Toggle(string name)
+        {
+            if (TryFunctionalWindow(name, out bool available))
+            {
+                if (!available) Confirm("Entre no mundo para usar esta janela.", () => { });
+                return;
+            }
+            Get(name)?.Toggle();
+        }
+
+        static bool TryFunctionalWindow(string name, out bool available)
+        {
+            switch (name)
+            {
+                case "frmManage": available = TOP.UI.GuildUI.ToggleLocal(); return true;
+                case "frmQQ": available = TOP.UI.FriendsUI.ToggleLocal(); return true;
+                case "frmMission": available = TOP.UI.QuestLogUI.ToggleLocal(); return true;
+                case "frmTeamMenber1": available = TOP.UI.PartyUI.ToggleLocal(); return true;
+                default: available = false; return false;
+            }
+        }
         public void Close(string name) { if (Windows.TryGetValue(name, out var w)) w.Close(); }
 
         PkoWindow BuildWindow(PkoForm f)
@@ -207,7 +239,10 @@ namespace TOP.UI.Pko
             float oy = ay == 1 ? -(cy - RefH * .5f) : ay == 2 ? (RefH - (f.y + f.h)) : -f.y;
             rt.anchoredPosition = new Vector2(ox, oy);
 
-            var win = go.AddComponent<PkoWindow>(); win.Def = f; win.Rect = rt; win.Draggable = f.drag;
+            var win = go.AddComponent<PkoWindow>(); win.Def = f; win.Rect = rt; win.Draggable = true;
+            var hitArea = go.AddComponent<Image>();
+            hitArea.color = Color.clear;
+            hitArea.raycastTarget = true;
             var groups = new Dictionary<int, ToggleGroup>();
             foreach (var c in f.comps) if (c.type == "PAGE_TAB") continue; else BuildComp(win, c, groups);
             BuildTabs(win, f);
@@ -215,8 +250,35 @@ namespace TOP.UI.Pko
             // formulario nao tem nenhuma logica propria associada a esses botoes.
             win.OnClick("btnClose", win.Close);
             win.OnClick("btnNo", win.Close);
+            AddCloseButton(win);
+            foreach (var button in win.GetComponentsInChildren<Button>(true))
+            {
+                string buttonName = button.gameObject.name;
+                if (buttonName == "WindowClose") continue;
+                button.onClick.AddListener(() =>
+                {
+                    if (!win.BoundButtons.Contains(buttonName))
+                        Confirm($"A funcao '{buttonName}' de '{f.name}' ainda nao esta implementada neste cliente.",
+                            () => { });
+                });
+            }
             go.SetActive(false);
             return win;
+        }
+
+        public void AddCloseButton(PkoWindow window)
+        {
+            if (window.transform.Find("WindowClose") != null) return;
+            var go = new GameObject("WindowClose", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(window.transform, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = Vector2.one;
+            rt.sizeDelta = new Vector2(22, 22);
+            rt.anchoredPosition = new Vector2(-2, -2);
+            go.GetComponent<Image>().color = new Color(.55f, .12f, .12f, .95f);
+            go.GetComponent<Button>().onClick.AddListener(window.Close);
+            var text = NewText(go.transform, "Label", 14, Color.white, TextAnchor.MiddleCenter);
+            text.text = "X"; text.raycastTarget = false; Stretch(text.rectTransform);
         }
 
         // Componentes de aba cujas coordenadas so cabem dentro da pagina sao relativos a ela (ex.: slots do frmInv).
@@ -318,6 +380,7 @@ namespace TOP.UI.Pko
                 case "IMAGE_TYPE": case "IMAGE_FRAME_TYPE": case "IMAGE_FLASH_TYPE":
                 {
                     var r = go.AddComponent<RawImage>(); var i = ImgOf(c, "NORMAL", "COMPENT_BACK"); var t = i != null ? Tex(i.t) : null;
+                    r.raycastTarget = false;
                     if (t == null) r.color = new Color(1, 1, 1, 0); else { r.texture = t; r.uvRect = Uv(t, i); }
                     break;
                 }
@@ -360,7 +423,13 @@ namespace TOP.UI.Pko
                     }
                     if (c.type == "CHECK_GROUP_TYPE" && c.group >= 0)
                     {
-                        if (!groups.TryGetValue(c.group, out var g)) { g = win.gameObject.AddComponent<ToggleGroup>(); groups[c.group] = g; }
+                        if (!groups.TryGetValue(c.group, out var g))
+                        {
+                            var groupGo = new GameObject("ToggleGroup_" + c.group);
+                            groupGo.transform.SetParent(win.transform, false);
+                            g = groupGo.AddComponent<ToggleGroup>();
+                            groups[c.group] = g;
+                        }
                         tg.group = g;
                         if (!win.Groups.TryGetValue(c.group, out var list)) { list = new List<Toggle>(); win.Groups[c.group] = list; }
                         list.Add(tg);
@@ -451,6 +520,7 @@ namespace TOP.UI.Pko
             content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             var sr = go.AddComponent<ScrollRect>(); sr.viewport = (RectTransform)view.transform; sr.content = crt; sr.horizontal = false; sr.scrollSensitivity = 18f;
             var body = NewText(content.transform, "Body", 11, Color.white, TextAnchor.UpperLeft);
+            body.supportRichText = false;
             body.horizontalOverflow = HorizontalWrapMode.Wrap; body.verticalOverflow = VerticalWrapMode.Overflow;
             var log = go.AddComponent<PkoLog>(); log.Body = body; log.Scroll = sr;
             body.gameObject.SetActive(c.type != "SKILL_LIST_TYPE");
@@ -476,31 +546,69 @@ namespace TOP.UI.Pko
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 PkoWindow top = null;
-                foreach (var w in Windows.Values) if (w.IsOpen && w.Def.esc && (top == null || w.transform.GetSiblingIndex() > top.transform.GetSiblingIndex())) top = w;
+                foreach (var w in Windows.Values) if (w.IsOpen && w.Def != null && w.Def.esc && (top == null || w.transform.GetSiblingIndex() > top.transform.GetSiblingIndex())) top = w;
                 if (top != null) top.Close();
                 else if (typing) EventSystem.current.SetSelectedGameObject(null);
                 // Nenhuma janela "esc" aberta: ESC abre o menu de configuracoes (frmSystem), como no cliente original.
                 else if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene" && Defs.ContainsKey("frmSystem")) Toggle("frmSystem");
                 return;
             }
-            if (typing || UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "GameScene") return;
-            foreach (var def in Defs.Values)
+            if (typing || GUIUtility.keyboardControl != 0
+                || UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "GameScene") return;
+            bool alt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            if (!ctrl && !shift)
+                foreach (var key in GameplayShortcuts.Keys)
+                    if (Input.GetKeyDown(key)) { ActivateShortcut(key, alt, ctrl, shift); return; }
+            if (alt && !ctrl && !shift && Input.GetKeyDown(KeyCode.B))
             {
-                if (string.IsNullOrEmpty(def.hotKey) || def.file == "login.clu" || def.file == "select.clu" || def.file == "selectcha.clu") continue;
-                if (!KeyDown(def.hotKey)) continue;
-                bool alt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
-                bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-                bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-                bool want = def.hotMod == "ALT_KEY" ? alt && !ctrl : def.hotMod == "CTRL_KEY" ? ctrl && !alt : def.hotMod == "SHIFT_KEY" ? shift && !alt && !ctrl : !alt && !ctrl && !shift;
-                if (want) Toggle(def.name);
+                ActivateShortcut(KeyCode.B, alt, ctrl, shift);
+                return;
+            }
+            foreach (var entry in Defs)
+            {
+                var def = entry.Value;
+                if (entry.Key != def.name || !TryShortcutKey(def.hotKey, out var key) || !Input.GetKeyDown(key)) continue;
+                if (ActivateShortcut(key, alt, ctrl, shift)) return;
             }
         }
 
-        static bool KeyDown(string hot)
+        public bool ActivateShortcut(KeyCode key, bool alt, bool ctrl, bool shift)
         {
+            if (!ctrl && !shift && GameplayShortcuts.TryGetValue(key, out var action))
+            {
+                if (!action()) Confirm("Entre no mundo para usar esta janela.", () => { });
+                return true;
+            }
+            if (key == KeyCode.B && alt && !ctrl && !shift)
+            {
+                Open("frmInv");
+                Get("frmInv")?.Get<Button>("btnLock")?.onClick.Invoke();
+                return true;
+            }
+            foreach (var entry in Defs)
+            {
+                var def = entry.Value;
+                if (entry.Key != def.name || def.name == "frmGM" || def.file == "login.clu" || def.file == "selectcha.clu"
+                    || !TryShortcutKey(def.hotKey, out var mapped) || mapped != key) continue;
+                bool want = def.hotMod == "ALT_KEY" ? alt && !ctrl && !shift
+                    : def.hotMod == "CTRL_KEY" ? ctrl && !alt && !shift
+                    : def.hotMod == "SHIFT_KEY" ? shift && !alt && !ctrl : !alt && !ctrl && !shift;
+                if (!want) continue;
+                Toggle(def.name);
+                return true;
+            }
+            return false;
+        }
+
+        static bool TryShortcutKey(string hot, out KeyCode key)
+        {
+            key = KeyCode.None;
+            if (string.IsNullOrEmpty(hot)) return false;
             string n = hot.Replace("HOTKEY_", "");
             if (n.Length == 1 && char.IsDigit(n[0])) n = "Alpha" + n;
-            return Enum.TryParse(n, true, out KeyCode k) && Input.GetKeyDown(k);
+            return Enum.TryParse(n, true, out key);
         }
     }
 }

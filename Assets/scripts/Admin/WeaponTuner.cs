@@ -82,7 +82,7 @@ namespace TOP.Admin
             var v = Visual(); if (v == null) return;
             float s = Scale;
             GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            win = GUI.Window(94001, win, id => Draw(id, v), "Ajuste de armas (F9)");
+            win = TOP.UI.GameWindowControls.Window(94001, win, id => Draw(id, v), "Ajuste de armas (F9)", () => { open = false; SetFree(false); });
         }
 
         void Draw(int id, PkoCharacterVisual v)

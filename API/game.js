@@ -174,6 +174,266 @@ module.exports = function register(app, db) {
         res.json(r.affectedRows > 0 ? { success: true } : { success: false, error: 'DELETE_FAILED' });
     }));
 
+    // =================================================================
+    // AMIGOS
+    // =================================================================
+    app.get(`${g}/friends/:charId`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [rows] = await db.execute(
+            `SELECT c.id, c.name, c.level, c.job, UNIX_TIMESTAMP(c.last_online) AS last_online
+             FROM friendships f JOIN characters c ON c.id = f.friend_character_id
+             WHERE f.character_id = ? AND c.is_deleted = 0`, [charId]);
+        res.json({ success: true, Friends: rows.map(r => ({ Id: Number(r.id), Name: r.name, Level: r.level, Job: r.job, LastOnline: Number(r.last_online || 0) })) });
+    }));
+
+    app.post(`${g}/friends/:charId/add`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        const targetName = String((req.body || {}).name || '').trim();
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [[target]] = [await db.execute('SELECT id, name FROM characters WHERE name = ? AND is_deleted = 0', [targetName])];
+        if (!target || !target.length) return res.json({ success: false, error: 'PLAYER_NOT_FOUND' });
+        const targetId = target[0].id;
+        if (targetId === charId) return res.json({ success: false, error: 'CANNOT_ADD_SELF' });
+        try {
+            await db.execute('INSERT INTO friendships (character_id, friend_character_id) VALUES (?, ?)', [charId, targetId]);
+            await db.execute('INSERT IGNORE INTO friendships (character_id, friend_character_id) VALUES (?, ?)', [targetId, charId]);
+            res.json({ success: true });
+        } catch (e) {
+            if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, error: 'ALREADY_FRIENDS' });
+            throw e;
+        }
+    }));
+
+    app.post(`${g}/friends/:charId/remove`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        const targetId = int((req.body || {}).friendId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        await db.execute('DELETE FROM friendships WHERE character_id = ? AND friend_character_id = ?', [charId, targetId]);
+        await db.execute('DELETE FROM friendships WHERE character_id = ? AND friend_character_id = ?', [targetId, charId]);
+        res.json({ success: true });
+    }));
+
+    // =================================================================
+    // CORREIO (MAIL)
+    // =================================================================
+    app.get(`${g}/mail/:charId`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [rows] = await db.execute(
+            `SELECT id, sender_name, subject, body, gold, item_id, item_quantity, item_refine, is_read, is_claimed,
+                    UNIX_TIMESTAMP(created_at) AS created_at
+             FROM mails WHERE recipient_id = ? ORDER BY created_at DESC LIMIT 100`, [charId]);
+        res.json({
+            success: true,
+            Mails: rows.map(r => ({
+                Id: Number(r.id), SenderName: r.sender_name, Subject: r.subject, Body: r.body, Gold: Number(r.gold),
+                ItemId: r.item_id, ItemQuantity: r.item_quantity, ItemRefine: r.item_refine,
+                IsRead: !!r.is_read, IsClaimed: !!r.is_claimed, CreatedAt: Number(r.created_at || 0),
+            })),
+        });
+    }));
+
+    app.post(`${g}/mail/:charId/send`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const b = req.body || {};
+        const targetName = String(b.targetName || '').trim();
+        const [senderRows] = await db.execute('SELECT name, gold FROM characters WHERE id = ?', [charId]);
+        if (!senderRows.length) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const gold = Math.max(0, num(b.gold, 0));
+        if (gold > senderRows[0].gold) return res.json({ success: false, error: 'INSUFFICIENT_GOLD' });
+        const [targetRows] = await db.execute('SELECT id FROM characters WHERE name = ? AND is_deleted = 0', [targetName]);
+        if (!targetRows.length) return res.json({ success: false, error: 'PLAYER_NOT_FOUND' });
+        if (gold > 0) await db.execute('UPDATE characters SET gold = gold - ? WHERE id = ?', [gold, charId]);
+        await db.execute(
+            `INSERT INTO mails (sender_id, sender_name, recipient_id, subject, body, gold, item_id, item_quantity, item_refine)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [charId, senderRows[0].name, targetRows[0].id, String(b.subject || '').slice(0, 80), String(b.body || '').slice(0, 1000),
+                gold, opt(b.itemId) ?? -1, int(b.itemQuantity, 0), int(b.itemRefine, 0)]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/mail/:charId/:mailId/claim`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        const mailId = int(req.params.mailId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [rows] = await db.execute('SELECT * FROM mails WHERE id = ? AND recipient_id = ? AND is_claimed = 0', [mailId, charId]);
+        if (!rows.length) return res.json({ success: false, error: 'MAIL_NOT_FOUND' });
+        const mail = rows[0];
+        if (mail.gold > 0) await db.execute('UPDATE characters SET gold = gold + ? WHERE id = ?', [mail.gold, charId]);
+        await db.execute('UPDATE mails SET is_claimed = 1, is_read = 1 WHERE id = ?', [mailId]);
+        res.json({
+            success: true, Gold: Number(mail.gold), ItemId: mail.item_id,
+            ItemQuantity: mail.item_quantity, ItemRefine: mail.item_refine,
+        });
+    }));
+
+    app.post(`${g}/mail/:charId/:mailId/read`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        const mailId = int(req.params.mailId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        await db.execute('UPDATE mails SET is_read = 1 WHERE id = ? AND recipient_id = ?', [mailId, charId]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/mail/:charId/:mailId/delete`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        const mailId = int(req.params.mailId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        await db.execute('DELETE FROM mails WHERE id = ? AND recipient_id = ? AND (is_claimed = 1 OR item_id < 0)', [mailId, charId]);
+        res.json({ success: true });
+    }));
+
+    // =================================================================
+    // GUILDA
+    // =================================================================
+    app.get(`${g}/guild/:charId`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [memberRows] = await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId]);
+        if (!memberRows.length) return res.json({ success: true, InGuild: false });
+        const guildId = memberRows[0].guild_id;
+        const [[guild]] = [await db.execute('SELECT * FROM guilds WHERE id = ?', [guildId])];
+        if (!guild || !guild.length) return res.json({ success: true, InGuild: false });
+        const [members] = await db.execute('SELECT character_id, character_name, rank_name FROM guild_members WHERE guild_id = ? ORDER BY rank_name = "Lider" DESC, character_name', [guildId]);
+        res.json({
+            success: true, InGuild: true, GuildId: guildId, Name: guild[0].name, Notice: guild[0].notice,
+            Level: guild[0].level, LeaderCharacterId: Number(guild[0].leader_character_id), MyRank: memberRows[0].rank_name,
+            Members: members.map(m => ({ CharacterId: Number(m.character_id), Name: m.character_name, Rank: m.rank_name })),
+        });
+    }));
+
+    app.post(`${g}/guild/:charId/create`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const name = String((req.body || {}).name || '').trim();
+        if (name.length < 3 || name.length > 32) return res.json({ success: false, error: 'INVALID_NAME' });
+        const [[existing]] = [await db.execute('SELECT id FROM guild_members WHERE character_id = ?', [charId])];
+        if (existing.length) return res.json({ success: false, error: 'ALREADY_IN_GUILD' });
+        const [[charRow]] = [await db.execute('SELECT name, gold FROM characters WHERE id = ?', [charId])];
+        if (!charRow.length) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const COST = 100000;
+        if (charRow[0].gold < COST) return res.json({ success: false, error: 'INSUFFICIENT_GOLD' });
+        try {
+            const [ins] = await db.execute('INSERT INTO guilds (name, leader_character_id) VALUES (?, ?)', [name, charId]);
+            await db.execute('INSERT INTO guild_members (guild_id, character_id, character_name, rank_name) VALUES (?, ?, ?, "Lider")', [ins.insertId, charId, charRow[0].name]);
+            await db.execute('UPDATE characters SET gold = gold - ? WHERE id = ?', [COST, charId]);
+            res.json({ success: true, GuildId: ins.insertId });
+        } catch (e) {
+            if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, error: 'NAME_TAKEN' });
+            throw e;
+        }
+    }));
+
+    app.post(`${g}/guild/:charId/invite`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const targetName = String((req.body || {}).targetName || '').trim();
+        const [[membership]] = [await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId])];
+        if (!membership.length || (membership[0].rank_name !== 'Lider' && membership[0].rank_name !== 'Oficial'))
+            return res.json({ success: false, error: 'NOT_AUTHORIZED' });
+        const [[target]] = [await db.execute('SELECT id, name FROM characters WHERE name = ? AND is_deleted = 0', [targetName])];
+        if (!target.length) return res.json({ success: false, error: 'PLAYER_NOT_FOUND' });
+        const [[alreadyIn]] = [await db.execute('SELECT id FROM guild_members WHERE character_id = ?', [target[0].id])];
+        if (alreadyIn.length) return res.json({ success: false, error: 'TARGET_IN_GUILD' });
+        try {
+            await db.execute('INSERT INTO guild_members (guild_id, character_id, character_name, rank_name) VALUES (?, ?, ?, "Membro")', [membership[0].guild_id, target[0].id, target[0].name]);
+            res.json({ success: true });
+        } catch (e) {
+            if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, error: 'TARGET_IN_GUILD' });
+            throw e;
+        }
+    }));
+
+    app.post(`${g}/guild/:charId/leave`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [[membership]] = [await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId])];
+        if (!membership.length) return res.json({ success: false, error: 'NOT_IN_GUILD' });
+        const guildId = membership[0].guild_id;
+        if (membership[0].rank_name === 'Lider') {
+            const [[others]] = [await db.execute('SELECT character_id FROM guild_members WHERE guild_id = ? AND character_id != ? ORDER BY joined_at LIMIT 1', [guildId, charId])];
+            await db.execute('DELETE FROM guild_members WHERE character_id = ?', [charId]);
+            if (others.length) {
+                await db.execute('UPDATE guild_members SET rank_name = "Lider" WHERE character_id = ?', [others[0].character_id]);
+                await db.execute('UPDATE guilds SET leader_character_id = ? WHERE id = ?', [others[0].character_id, guildId]);
+            } else {
+                await db.execute('DELETE FROM guilds WHERE id = ?', [guildId]);
+            }
+        } else {
+            await db.execute('DELETE FROM guild_members WHERE character_id = ?', [charId]);
+        }
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/guild/:charId/kick`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const targetName = String((req.body || {}).targetName || '').trim();
+        const [[membership]] = [await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId])];
+        if (!membership.length || (membership[0].rank_name !== 'Lider' && membership[0].rank_name !== 'Oficial'))
+            return res.json({ success: false, error: 'NOT_AUTHORIZED' });
+        await db.execute('DELETE FROM guild_members WHERE guild_id = ? AND character_name = ? AND rank_name != "Lider"', [membership[0].guild_id, targetName]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/guild/:charId/notice`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [[membership]] = [await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId])];
+        if (!membership.length || membership[0].rank_name !== 'Lider') return res.json({ success: false, error: 'NOT_AUTHORIZED' });
+        await db.execute('UPDATE guilds SET notice = ? WHERE id = ?', [String((req.body || {}).notice || '').slice(0, 400), membership[0].guild_id]);
+        res.json({ success: true });
+    }));
+
+    // ---- Quests ----
+    app.get(`${g}/quests/:charId`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const [rows] = await db.execute('SELECT quest_id, progress, completed_at FROM quest_progress WHERE character_id = ?', [charId]);
+        res.json({
+            success: true,
+            active: rows.filter(r => !r.completed_at).map(r => ({ questId: r.quest_id, progress: r.progress })),
+            completed: rows.filter(r => r.completed_at).map(r => r.quest_id),
+        });
+    }));
+
+    app.post(`${g}/quests/:charId/accept`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const questId = int((req.body || {}).questId);
+        const [[existing]] = [await db.execute('SELECT id FROM quest_progress WHERE character_id = ? AND quest_id = ?', [charId, questId])];
+        if (existing.length) return res.json({ success: false, error: 'ALREADY_HAVE_QUEST' });
+        await db.execute('INSERT INTO quest_progress (character_id, quest_id, progress) VALUES (?, ?, 0)', [charId, questId]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/quests/:charId/abandon`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const questId = int((req.body || {}).questId);
+        await db.execute('DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, questId]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/quests/:charId/progress`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const questId = int((req.body || {}).questId);
+        const progress = int((req.body || {}).progress);
+        await db.execute('UPDATE quest_progress SET progress = ? WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [progress, charId, questId]);
+        res.json({ success: true });
+    }));
+
+    app.post(`${g}/quests/:charId/complete`, wrap(async (req, res) => {
+        const charId = int(req.params.charId);
+        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        const questId = int((req.body || {}).questId);
+        await db.execute('UPDATE quest_progress SET completed_at = NOW() WHERE character_id = ? AND quest_id = ?', [charId, questId]);
+        res.json({ success: true });
+    }));
+
     app.post(`${g}/audit`, wrap(async (req, res) => {
         const b = req.body || {};
         let data = typeof b.detail === 'string' ? b.detail.slice(0, 4000) : '{}';

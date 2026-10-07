@@ -169,6 +169,9 @@ namespace TOP.Bootstrap
 #if UNITY_EDITOR
         private static bool IsSmokeTestRunning()
         {
+            if (SessionState.GetBool("TOP.WorldEntrySmokeActive", false))
+                return true;
+
             if (SessionState.GetBool("TOP.RunSmokeTest", false))
                 return true;
 

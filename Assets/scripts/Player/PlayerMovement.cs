@@ -2,6 +2,8 @@
 using System;
 using Mirror;
 using UnityEngine.EventSystems;
+using TOP.Core;
+using TOP.Data;
 
 namespace TOP.Player
 {
@@ -35,6 +37,26 @@ namespace TOP.Player
 
         // Lazy load do PlayerController
         private PlayerController _playerController;
+        private PlayerEquipment _equipment;
+        private PlayerEquipment EquipmentRef
+        {
+            get
+            {
+                if (_equipment == null) _equipment = GetComponent<PlayerEquipment>() ?? GetComponentInParent<PlayerEquipment>();
+                return _equipment;
+            }
+        }
+
+        // mountinfo.txt: montaria equipada no slot Mount concede bonus de velocidade de deslocamento
+        // (o modelo 3D da montaria ainda nao foi convertido para o Unity, ver PkoMount).
+        float MountSpeedMultiplier()
+        {
+            var eq = EquipmentRef;
+            if (eq == null) return 1f;
+            var mountItem = eq.GetEquippedItem(EquipmentSlot.Mount);
+            if (mountItem == null || mountItem.ItemId <= 0) return 1f;
+            return PkoTables.MountsByItemId.ContainsKey(mountItem.ItemId) ? 1.5f : 1f;
+        }
         private PlayerController PlayerControllerRef
         {
             get
@@ -113,7 +135,22 @@ namespace TOP.Player
                         return;
                     }
 
-                    // PRIORIDADE 2: Clicou no chao → move e para o ataque atual
+                    // PRIORIDADE 2: Clicou em um NPC interativo (vendedor, ferreiro, etc.)
+                    IInteractable interactable = hit.collider.GetComponent<IInteractable>();
+                    if (interactable == null)
+                        interactable = hit.collider.GetComponentInParent<IInteractable>();
+
+                    NetworkIdentity npcIdentity = hit.collider.GetComponent<NetworkIdentity>();
+                    if (npcIdentity == null)
+                        npcIdentity = hit.collider.GetComponentInParent<NetworkIdentity>();
+
+                    if (interactable != null && npcIdentity != null)
+                    {
+                        CmdInteractWithNpc(npcIdentity);
+                        return;
+                    }
+
+                    // PRIORIDADE 3: Clicou no chao → move e para o ataque atual
                     Debug.Log($"[PlayerMovement] Movendo para: {hit.point}");
 
                     var ctrl = PlayerControllerRef;
@@ -132,6 +169,16 @@ namespace TOP.Player
         {
             GetComponent<PlayerCombat>()?.StopAttack();
             SetDestination(destination);
+        }
+
+        [Command]
+        public void CmdInteractWithNpc(NetworkIdentity npcIdentity)
+        {
+            if (npcIdentity == null) return;
+            IInteractable interactable = npcIdentity.GetComponent<IInteractable>();
+            if (interactable == null) return;
+            if (Vector3.Distance(transform.position, npcIdentity.transform.position) > interactable.InteractionRange + 1f) return;
+            interactable.Interact(netId);
         }
 
         [Server]
@@ -161,7 +208,7 @@ namespace TOP.Player
                     // Ground check — mantém o player no chão
                     if (Physics.Raycast(transform.position + direction * 0.5f + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 12f, LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore))
                     {
-                        Vector3 movePos = transform.position + direction * Mathf.Min(distance, (running ? runSpeed : walkSpeed) * Time.deltaTime);
+                        Vector3 movePos = transform.position + direction * Mathf.Min(distance, (running ? runSpeed : walkSpeed) * MountSpeedMultiplier() * Time.deltaTime);
                         Vector3 cur = transform.position;
                         if (WorldBlockGrid.IsBlocked(movePos))
                         {

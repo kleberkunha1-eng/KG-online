@@ -4,6 +4,7 @@ using TMPro;
 using TOP.Player;
 using TOP.Network;
 using Mirror;
+using TOP.Services;
 
 namespace TOP.UI
 {
@@ -43,8 +44,13 @@ namespace TOP.UI
                 return;
             }
             Instance = this;
-            NetworkClient.RegisterHandler<ChatMessage>(msg => AddChatMessage(msg.Text, msg.Channel));
+        }
 
+        void OnEnable() { ChatService.Received += OnNetworkChat; }
+        void OnDisable() { ChatService.Received -= OnNetworkChat; }
+        void OnNetworkChat(ChatMessage message)
+        {
+            AddChatMessage(string.IsNullOrEmpty(message.SenderName) ? message.Text : message.SenderName + ": " + message.Text, message.Channel);
         }
 
 // UIManager.cs - Método Start()
@@ -191,10 +197,13 @@ public void ShowPanel(GameObject panel)
             string prefix = channel switch
             {
                 ChatChannel.World => "[Mundo]",
+                ChatChannel.Local => "[Local]",
                 ChatChannel.Party => "[Grupo]",
                 ChatChannel.Guild => "[Guilda]",
                 ChatChannel.Whisper => "[Sussurro]",
                 ChatChannel.System => "[Sistema]",
+                ChatChannel.Shout => "[Grito]",
+                ChatChannel.Trade => "[Comercio]",
                 _ => ""
             };
 
@@ -206,17 +215,8 @@ public void ShowPanel(GameObject panel)
         public void OnChatSubmit()
         {
             if (chatInput == null || string.IsNullOrWhiteSpace(chatInput.text)) return;
-
-            if (NetworkClient.connection != null)
-            {
-                NetworkClient.connection.Send(new ChatMessage
-                {
-                    Channel = ChatChannel.World,
-                    Text = chatInput.text.Trim()
-                });
-            }
-
-            chatInput.text = "";
+            if (ChatService.TrySend(chatInput.text, ChatChannel.Local, out string error)) chatInput.text = "";
+            else AddChatMessage(error, ChatChannel.System);
         }
 
         // =================================================================================

@@ -10,6 +10,8 @@ using TOP.Data;
 using TOP.Inventory;
 using TOP.Player;
 using TOP.Systems;
+using TOP.Services;
+using TOP.Network;
 
 namespace TOP.UI.Pko
 {
@@ -86,7 +88,11 @@ namespace TOP.UI.Pko
                 if (w != null && w.IsOpen) w.Close();
         }
 
-        void OnDestroy() => CloseAllWindows();
+        void OnDestroy()
+        {
+            ChatService.Received -= OnNetworkChat;
+            CloseAllWindows();
+        }
 
         void Start()
         {
@@ -96,8 +102,10 @@ namespace TOP.UI.Pko
             allNames.AddRange(ui.Defs.Keys); allNames.Sort();
             HideLegacyHud();
             SetupHud();
+            ChatService.Received += OnNetworkChat;
+            ui.Get("frmInv")?.OnClick("btnLock", () =>
+                ui.Confirm("O bloqueio por senha do inventario ainda nao esta disponivel neste servidor.", () => { }));
             SetupSystem();
-            foreach (var kv in ui.Defs) ui.Get(kv.Key); // todas as janelas existem (fechadas) e navegaveis pelo F10
             SetupInventory(); SetupState(); SetupSkills();
             foreach (var n in Startup) ui.Open(n);
             ApplySavedGameSettings();
@@ -159,7 +167,9 @@ namespace TOP.UI.Pko
             }
             var edit = chat.Get<InputField>("edtSay");
             if (edit != null) edit.onEndEdit.AddListener(SubmitChat);
-            var combo = chat.Get<PkoCombo>("cboChannel"); if (combo != null) { combo.Items = new[] { "All", "Local", "Team", "Guild" }; combo.Set(0); }
+            var combo = chat.Get<PkoCombo>("cboChannel"); if (combo != null) { combo.Items = new[] { "All", "Local", "Team", "Guild" }; combo.Set(1); }
+            var editLimit = chat.Get<InputField>("edtSay");
+            if (editLimit != null) editLimit.characterLimit = ChatService.MaxLength;
             chat.Get<PkoLog>("lstOnSay")?.Add("Welcome to Tales of Pirates.");
             if (pc == null) return;
         }
@@ -173,10 +183,20 @@ namespace TOP.UI.Pko
         void SubmitChat(string text)
         {
             if (!(Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) || string.IsNullOrWhiteSpace(text)) return;
+            int index = chat.Get<PkoCombo>("cboChannel")?.Index ?? 1;
+            ChatChannel channel = index switch { 0 => ChatChannel.World, 2 => ChatChannel.Party, 3 => ChatChannel.Guild, _ => ChatChannel.Local };
+            if (!ChatService.TrySend(text, channel, out string error))
+            {
+                chat.Get<PkoLog>("lstOnSay")?.Add("[Sistema] " + error);
+                return;
+            }
             var edit = chat.Get<InputField>("edtSay"); edit.text = "";
-            string who = pc != null ? pc.CharacterName : "Me";
-            chat.Get<PkoLog>("lstOnSay")?.Add($"[{who}] {text}");
             EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        void OnNetworkChat(ChatMessage message)
+        {
+            chat?.Get<PkoLog>("lstOnSay")?.Add(ChatService.Format(message));
         }
 
         // ---------- sistema ----------
@@ -506,13 +526,14 @@ namespace TOP.UI.Pko
                 {
                     var item = s.Index < inv.totalSlots ? inv.GetSlot(s.Index) : null;
                     int id = item != null && !item.IsEmpty && !item.IsEquipped ? item.ItemId : 0;
-                    s.SetIcon(ItemIcon(id), item != null && item.Quantity > 1 ? item.Quantity.ToString() : null);
+                    s.SetIcon(ItemIcon(id), item != null && item.Quantity > 1 ? item.Quantity.ToString() : null, id > 0);
                 }
             foreach (var kv in EquipMap)
             {
                 var s = invW.Get<PkoSlot>(kv.Key); if (s == null) continue;
                 var it = eq != null ? eq.GetEquippedItem(kv.Value) : null;
-                s.SetIcon(it != null && !it.IsEmpty ? ItemIcon(it.ItemId) : null);
+                int id = it != null && !it.IsEmpty ? it.ItemId : 0;
+                s.SetIcon(ItemIcon(id), null, id > 0);
             }
             invW.SetText("labItemgoldnumber", pc != null ? pc.Gold.ToString("N0") : "0");
             invW.SetText("labItemIMPnumber", "0");
@@ -690,7 +711,7 @@ namespace TOP.UI.Pko
                 var h = hb.GetSlot(i); Texture tex = null;
                 if (h.type == HotbarSlotType.Skill && PkoTables.Skills.TryGetValue(h.id, out var ps)) tex = SkillIcon(ps);
                 else if (h.type == HotbarSlotType.Item) tex = ItemIcon(h.id);
-                slot.SetIcon(tex, i < 9 ? "" : "");
+                slot.SetIcon(tex, i < 9 ? "" : "", h.type != HotbarSlotType.Empty);
             }
         }
 
@@ -705,8 +726,9 @@ namespace TOP.UI.Pko
 
         void Update()
         {
-            if (pc == null) { FindPlayer(); if (pc == null) return; }
-            if (Input.GetKeyDown(KeyCode.F10)) browser = !browser;
+            if (pc == null || inv == null || eq == null) { FindPlayer(); if (pc == null || inv == null || eq == null) return; }
+            if (Input.GetKeyDown(KeyCode.F10) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+                && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) browser = !browser;
             if (Input.GetKeyDown(KeyCode.Return) && !(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null))
             {
                 var e = chat.Get<InputField>("edtSay"); if (e != null) { EventSystem.current.SetSelectedGameObject(e.gameObject); e.ActivateInputField(); }
@@ -737,11 +759,14 @@ namespace TOP.UI.Pko
         {
             if (!browser) return;
             GUILayout.BeginArea(new Rect(10, 10, 230, Screen.height - 20), GUI.skin.box);
-            GUILayout.Label("Janelas PKO (F10 fecha)");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Janelas PKO (Ctrl+Shift+F10)");
+            if (GUILayout.Button("X", GUILayout.Width(22))) browser = false;
+            GUILayout.EndHorizontal();
             browserScroll = GUILayout.BeginScrollView(browserScroll);
             foreach (var n in allNames)
             {
-                var w = ui.Get(n);
+                ui.Windows.TryGetValue(n, out var w);
                 if (GUILayout.Button((w != null && w.IsOpen ? "* " : "") + n + "  (" + ui.Defs[n].file.Replace(".clu", "") + ")")) ui.Toggle(n);
             }
             GUILayout.EndScrollView(); GUILayout.EndArea();

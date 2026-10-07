@@ -175,11 +175,13 @@ public struct NetworkCharacterPreview : NetworkMessage
         public ChatChannel Channel;
         public string Text;
         public string TargetName;
+        public uint SenderNetId;
+        public string SenderName;
     }
 
     public enum ChatChannel
     {
-        World, Party, Guild, Whisper, System, Trade, Shout
+        World, Party, Guild, Whisper, System, Trade, Shout, Local
     }
 
     // ============================================================

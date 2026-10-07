@@ -20,6 +20,7 @@ namespace TOP.Admin
             (1, "Espada"), (2, "Espada 2M"), (3, "Arco"), (4, "Arma de fogo"), (7, "Adaga"), (9, "Cajado"),
             (25, "Colar"), (26, "Anel"), (44, "Asas"), (59, "Pet"), (49, "Gemas"), (50, "Refino")
         };
+        static readonly string[] CategoryNames = System.Array.ConvertAll(Categories, c => c.name);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -29,7 +30,8 @@ namespace TOP.Admin
 
         public static bool IsAdmin => LoginNetworkClient.IsAdmin;
         // Usado pelo click-to-move: clique sobre o painel nao deve mover o personagem.
-        public static bool BlocksMouse => panelBlocks || WeaponTuner.Blocks;
+        public static bool BlocksMouse => panelBlocks || WeaponTuner.Blocks || WingTuner.BlocksMouse
+            || TOP.UI.GameWindowControls.BlocksMouse;
         static bool panelBlocks;
 
         bool open;
@@ -38,15 +40,21 @@ namespace TOP.Admin
         int category, classFilter = -1, selectedId, refine, sockets, pickSocket = -1, qty = 1;
         readonly int[] gems = new int[3];
         string search = "", status = "";
+        PlayerInventory pendingInventory;
+        int pendingRequestId;
+        float pendingSince;
         List<PkoItem> all, shown;
         int[] classIds;
+        string[] classNames;
         bool dirty = true;
 
         float Scale => Mathf.Max(1f, Screen.height / 900f);
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F10) && IsAdmin) open = !open;
+            if (Input.GetKeyDown(KeyCode.F10) && IsAdmin && !Input.GetKey(KeyCode.LeftControl)
+                && !Input.GetKey(KeyCode.RightControl) && !Input.GetKey(KeyCode.LeftShift)
+                && !Input.GetKey(KeyCode.RightShift)) open = !open;
             if (!IsAdmin) open = false;
             panelBlocks = false;
             if (!open) return;
@@ -59,6 +67,9 @@ namespace TOP.Admin
         {
             all = PkoTables.Items.Values.Where(i => Categories.Any(c => c.type == i.Type && c.type != 0) && !string.IsNullOrEmpty(i.Name)).OrderBy(i => i.Level).ThenBy(i => i.Id).ToList();
             classIds = all.SelectMany(i => i.Classes).Distinct().OrderBy(x => x).ToArray();
+            classNames = new string[classIds.Length + 1];
+            classNames[0] = "Todas";
+            for (int i = 0; i < classIds.Length; i++) classNames[i + 1] = PkoClasses.Name(classIds[i]);
             Filter();
         }
 
@@ -79,7 +90,7 @@ namespace TOP.Admin
             if (dirty) Filter();
             float s = Scale;
             var old = GUI.matrix; GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            win = GUI.Window(7710, win, Draw, "Painel Admin - Gerar item (F10)");
+            win = TOP.UI.GameWindowControls.Window(7710, win, Draw, "Painel Admin - Gerar item (F10)", () => open = false);
             win.x = Mathf.Clamp(win.x, 0, Screen.width / s - 100); win.y = Mathf.Clamp(win.y, 0, Screen.height / s - 40);
             GUI.matrix = old;
         }
@@ -106,12 +117,11 @@ namespace TOP.Admin
         {
             GUILayout.BeginVertical(GUILayout.Width(380));
             GUILayout.Label("Tipo");
-            int newCat = GUILayout.SelectionGrid(category, Categories.Select(c => c.name).ToArray(), 4);
+            int newCat = GUILayout.SelectionGrid(category, CategoryNames, 4);
             if (newCat != category) { category = newCat; dirty = true; }
 
             GUILayout.Label("Classe");
-            var names = new List<string> { "Todas" }; names.AddRange(classIds.Select(PkoClasses.Name));
-            int ci = GUILayout.SelectionGrid(classFilter < 0 ? 0 : System.Array.IndexOf(classIds, classFilter) + 1, names.ToArray(), 4);
+            int ci = GUILayout.SelectionGrid(classFilter < 0 ? 0 : System.Array.IndexOf(classIds, classFilter) + 1, classNames, 4);
             int nf = ci == 0 ? -1 : classIds[ci - 1];
             if (nf != classFilter) { classFilter = nf; dirty = true; }
 
@@ -292,13 +302,53 @@ namespace TOP.Admin
 
         void Generate(PkoItem it)
         {
+            if (pendingInventory != null) { status = "Aguarde a geracao anterior."; return; }
             PlayerInventory inv = null;
             foreach (var i in FindObjectsByType<PlayerInventory>(FindObjectsSortMode.None)) if (i.isLocalPlayer) inv = i;
             if (inv == null) { status = "Entre no mundo com um personagem para receber itens."; return; }
             if (inv.FindEmptySlot() < 0) { status = "Inventario cheio."; return; }
-            if (PkoGems.CanSocket(it)) inv.CmdAdminGenerate(it.Id, refine, sockets, gems[0], gems[1], gems[2]);
-            else inv.CmdAdminGive(it.Id, qty);
-            status = "Gerado: " + it.Name + (PkoGems.CanSocket(it) ? "" : " x" + qty) + " -> primeiro slot vazio.";
+            if (!Mirror.NetworkClient.isConnected || !inv.isOwned)
+            {
+                status = "Sem conexao ou controle do personagem. Entre novamente no mundo.";
+                return;
+            }
+            pendingInventory = inv;
+            pendingRequestId = inv.NewAdminGenerationRequestId();
+            pendingSince = Time.realtimeSinceStartup;
+            inv.AdminGenerationCompleted += OnGenerationCompleted;
+            status = "Aguardando confirmacao do servidor...";
+            if (PkoGems.CanSocket(it)) inv.CmdRequestAdminGenerate(pendingRequestId, it.Id, refine, sockets, gems[0], gems[1], gems[2]);
+            else inv.CmdRequestAdminGive(pendingRequestId, it.Id, qty);
         }
+
+        void OnGenerationCompleted(int requestId, bool success, string message)
+        {
+            if (requestId != pendingRequestId)
+            {
+                Debug.LogWarning("[Admin] Ignorando resposta de pedido antigo: " + requestId);
+                return;
+            }
+            status = message;
+            ClearPending();
+        }
+
+        void LateUpdate()
+        {
+            if (pendingInventory == null) return;
+            if (!Mirror.NetworkClient.isConnected || Time.realtimeSinceStartup - pendingSince > 25f)
+            {
+                status = "Geracao nao confirmada. Verifique conexao, permissao admin e espaco na mochila.";
+                Debug.LogWarning("[Admin] " + status);
+                ClearPending();
+            }
+        }
+
+        void ClearPending()
+        {
+            if (pendingInventory != null) pendingInventory.AdminGenerationCompleted -= OnGenerationCompleted;
+            pendingInventory = null;
+        }
+
+        void OnDestroy() { ClearPending(); }
     }
 }

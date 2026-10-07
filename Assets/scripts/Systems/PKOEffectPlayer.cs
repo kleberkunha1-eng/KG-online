@@ -48,6 +48,16 @@ public class PKOEffectPlayer : MonoBehaviour
         return new Quaternion(-q.x, q.z, q.y, q.w);
     }
 
+    public static Vector3 ModelPosition(float[] values)
+    {
+        return values != null && values.Length >= 3 ? D(values[0], values[1], values[2]) : Vector3.zero;
+    }
+
+    public static Quaternion ModelRotation(float[] values)
+    {
+        return values != null && values.Length >= 3 ? DQ(values[0], values[1], values[2]) : Quaternion.identity;
+    }
+
     Texture2D FindTex(string n)
     {
         if (textures == null || string.IsNullOrEmpty(n)) return null;
@@ -125,7 +135,7 @@ public class PKOEffectPlayer : MonoBehaviour
     }
 
     // D3DBLEND -> UnityEngine.Rendering.BlendMode; DESTALPHA is treated as ONE because the framebuffer has no alpha here.
-    static float UnityBlend(int d3d, bool src)
+    public static float UnityBlend(int d3d, bool src)
     {
         switch (d3d)
         {

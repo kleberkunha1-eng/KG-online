@@ -30,14 +30,20 @@ public static class GameBuild
 
     public static string Build()
     {
+        if (EditorUtility.scriptCompilationFailed)
+        {
+            Debug.LogError("[GameBuild] Corrija os erros de compilacao antes de gerar a build. A build existente foi preservada.");
+            return "Failed | script compilation errors";
+        }
         PlayerSettings.companyName = "KG";
         PlayerSettings.productName = "GameProjectKG";
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
-        if (Directory.Exists(Out)) Directory.Delete(Out, true);
+        string staging = Out + ".building";
+        if (Directory.Exists(staging)) Directory.Delete(staging, true);
         var opts = new BuildPlayerOptions
         {
             scenes = scenes,
-            locationPathName = Out + "/GameProjectKG.exe",
+            locationPathName = staging + "/GameProjectKG.exe",
             target = BuildTarget.StandaloneWindows64,
             options = BuildOptions.None,
         };
@@ -49,8 +55,16 @@ public static class GameBuild
         if (r.summary.result == BuildResult.Succeeded)
         {
             var (host, port) = ReadServerAddress();
-            File.WriteAllText(Out + "/api.json",
-                "{\"apiUrl\":\"https://gamekg.pages.dev\",\"gameServerHost\":\"" + host + "\",\"gameServerPort\":" + port + "}");
+            File.WriteAllText(staging + "/api.json",
+                "{\"apiUrl\":\"" + TOP.Services.ApiConfig.PublishedApiUrl + "\",\"gameServerHost\":\"" + host + "\",\"gameServerPort\":" + port + "}");
+            string previous = Out + ".previous." + System.DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            if (Directory.Exists(Out)) Directory.Move(Out, previous);
+            try { Directory.Move(staging, Out); }
+            catch
+            {
+                if (Directory.Exists(previous) && !Directory.Exists(Out)) Directory.Move(previous, Out);
+                throw;
+            }
         }
         return r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | " + r.summary.totalErrors + " errors | " + r.summary.totalTime;
     }

@@ -22,35 +22,38 @@ namespace TOP.Network
 
         void OnEnable()
         {
-            NetworkClient.OnConnectedEvent += OnConnected;
             NetworkClient.RegisterHandler<AuthResponseMessage>(OnAuthResponse);
         }
 
         void OnDisable()
         {
-            NetworkClient.OnConnectedEvent -= OnConnected;
+            CancelInvoke(nameof(SendAuthToken));
+            _authSent = false;
             NetworkClient.UnregisterHandler<AuthResponseMessage>();
         }
 
         void Update()
         {
             // Fallback: se conectou mas ainda nao enviou auth, tenta enviar
-            if (!_authSent && NetworkClient.isConnected && Time.time > _connectTime + sendDelay)
+            if (!_authSent && NetworkClient.isConnected && Time.unscaledTime > _connectTime + sendDelay)
             {
                 Debug.Log("[ClientAuth] Fallback: enviando JWT apos delay...");
                 SendAuthToken();
             }
         }
 
-        private void OnConnected()
+        public void BeginAuthentication()
         {
-            _connectTime = Time.time;
+            CancelInvoke(nameof(SendAuthToken));
+            _connectTime = Time.unscaledTime;
             _authSent = false;
+            CharacterListClient.Reset();
+            NetworkClient.RegisterHandler<AuthResponseMessage>(OnAuthResponse);
 
-            Debug.Log("[ClientAuth] Conectado ao Mirror. Aguardando delay para enviar JWT...");
-
-            // Em Host mode, precisamos esperar um frame para tudo inicializar
-            Invoke(nameof(SendAuthToken), sendDelay);
+            if (Application.isPlaying && !NetworkServer.active)
+                SendAuthToken();
+            else
+                Debug.Log("[ClientAuth] Conectado ao Mirror. Aguardando delay para enviar JWT...");
         }
 
         private void SendAuthToken()

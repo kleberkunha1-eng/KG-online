@@ -18,6 +18,7 @@ namespace TOP.Player
         public EquipmentSlot Slot;
         public int ItemId;
         public int ItemDatabaseId;
+        public ushort InventorySlot;
         public int Durability;
         public TOP.Data.ItemBonus Extra;
     }
@@ -56,6 +57,7 @@ namespace TOP.Player
                 Slot = slot,
                 ItemId = item.ItemId,
                 ItemDatabaseId = item.ItemId,
+                InventorySlot = item.SlotIndex,
                 Durability = item.Durability,
                 Extra = TOP.Data.PkoGems.InstanceBonus(item)
             };
@@ -72,7 +74,7 @@ namespace TOP.Player
             if (!_equippedItems.ContainsKey(slot)) return;
 
             EquipmentEntry equipped = _equippedItems[slot];
-            _inventory?.ReleaseEquipped(equipped.ItemId);
+            _inventory?.ReleaseEquippedSlot(equipped.InventorySlot, equipped.ItemId);
             EquipmentData itemData = ItemDatabase.Instance?.GetEquipment(equipped.ItemDatabaseId);
 
             if (itemData != null)
@@ -97,11 +99,11 @@ namespace TOP.Player
 
             _stats.AddBonusStrength(data.bonusSTR * multiplier);
             _stats.AddBonusAgility(data.bonusAGI * multiplier);
-            _stats.AddBonusConstitution(data.bonusINT * multiplier);
-            _stats.AddBonusSpirit(data.bonusINT * multiplier);
+            _stats.AddBonusConstitution(data.bonusCON * multiplier);
+            _stats.AddBonusSpirit((data.bonusSPR != 0 ? data.bonusSPR : data.bonusINT) * multiplier);
             _stats.AddBonusHp(data.bonusHP * multiplier);
             _stats.AddBonusMp(data.bonusMP * multiplier);
-            _stats.AddBonusSp(0 * multiplier);
+            _stats.AddBonusSp(data.bonusSP * multiplier);
             _stats.AddBonusAttack(data.bonusAttack * multiplier);
             _stats.AddBonusDefense(data.bonusDefense * multiplier);
         }
@@ -168,7 +170,7 @@ namespace TOP.Player
                 else continue;
                 if (slot == EquipmentSlot.Weapon && _equippedItems.ContainsKey(slot) && IsOffhandSword(it.ItemId)) slot = EquipmentSlot.Shield;
                 else if (IsRing(slot) && _equippedItems.ContainsKey(slot)) slot = slot == EquipmentSlot.Ring1 ? EquipmentSlot.Ring2 : slot;
-                _equippedItems[slot] = new EquipmentEntry { Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.ItemId, Durability = (int)it.Durability };
+                _equippedItems[slot] = new EquipmentEntry { Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.ItemId, InventorySlot = it.SlotIndex, Durability = (int)it.Durability };
             }
             SerializeEquipment();
         }
@@ -199,21 +201,47 @@ namespace TOP.Player
 
         public InventoryItem GetEquippedItem(EquipmentSlot slot)
         {
+            int itemId;
             if (_equippedItems.TryGetValue(slot, out EquipmentEntry equipped))
+                itemId = equipped.ItemId;
+            else if (!TryGetSerializedItemId(slot, out itemId))
+                return null;
+
+            if (_inventory != null)
             {
-                if (_inventory != null)
-                    for (int i = 0; i < _inventory.totalSlots; i++)
-                    {
-                        var bag = _inventory.GetSlot(i);
-                        if (bag != null && bag.IsEquipped && bag.ItemId == equipped.ItemId) return bag;
-                    }
-                return new InventoryItem 
-                { 
-                    ItemId = equipped.ItemId, 
-                    Quantity = 1 
-                };
+                if (_equippedItems.TryGetValue(slot, out equipped) && equipped.InventorySlot < _inventory.totalSlots)
+                {
+                    var exact = _inventory.GetSlot(equipped.InventorySlot);
+                    if (exact != null && exact.ItemId == itemId) return exact;
+                }
+
+                for (int i = 0; i < _inventory.totalSlots; i++)
+                {
+                    var bag = _inventory.GetSlot(i);
+                    if (bag != null && bag.IsEquipped && bag.ItemId == itemId) return bag;
+                }
             }
-            return null;
+
+            return new InventoryItem { ItemId = itemId, Quantity = 1, IsEquipped = true };
+        }
+
+        bool TryGetSerializedItemId(EquipmentSlot slot, out int itemId)
+        {
+            itemId = 0;
+            if (string.IsNullOrEmpty(_equipmentData)) return false;
+
+            foreach (string entry in _equipmentData.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int separator = entry.LastIndexOf(':');
+                if (separator <= 0 ||
+                    !Enum.TryParse(entry.Substring(0, separator), out EquipmentSlot serializedSlot) ||
+                    serializedSlot != slot ||
+                    !int.TryParse(entry.Substring(separator + 1), out itemId))
+                    continue;
+                return itemId > 0;
+            }
+
+            return false;
         }
 
         static bool IsRing(EquipmentSlot s) { return s == EquipmentSlot.Ring1 || s == EquipmentSlot.Ring2; }
@@ -250,15 +278,34 @@ namespace TOP.Player
         [Command]
         public void CmdEquipItem(ushort inventorySlot, EquipmentSlot targetSlot)
         {
-            if (_inventory == null) return;
+            EquipFromInventory(inventorySlot, targetSlot);
+        }
+
+        [Server]
+        public bool EquipFromInventory(ushort inventorySlot, EquipmentSlot targetSlot)
+        {
+            if (_inventory == null || inventorySlot >= _inventory.totalSlots) return false;
 
             InventoryItem item = _inventory.GetSlot(inventorySlot);
-            if (item == null || item.IsEquipped) return;
+            if (item == null || item.IsEmpty || item.IsEquipped) return false;
             var data = ItemDatabase.Instance?.GetEquipment(item.ItemId);
-            if (data == null) return;
+            if (data == null)
+            {
+                ShowEquipWarning("This item cannot be equipped.");
+                return false;
+            }
+            if (_stats == null)
+            {
+                ShowEquipWarning("Character stats are not ready.");
+                return false;
+            }
             // A second sword goes to the off hand (where the shield would be) instead of replacing the first one.
             if (targetSlot == EquipmentSlot.Weapon && IsOffhandSword(item.ItemId) && TypeOf(EquipmentSlot.Weapon) == 1 && !_equippedItems.ContainsKey(EquipmentSlot.Shield)) targetSlot = EquipmentSlot.Shield;
-            if (!CanWear(item.ItemId, data, targetSlot, out var slot)) return;
+            if (!CanWear(item.ItemId, data, targetSlot, out var slot))
+            {
+                ShowEquipWarning("This item does not fit that slot or your character does not meet its requirements.");
+                return false;
+            }
 
             TOP.Data.PkoTables.Items.TryGetValue(item.ItemId, out var pi);
             int type = pi != null ? pi.Type : 0;
@@ -270,6 +317,12 @@ namespace TOP.Player
             EquipItem(item, slot);
             item.IsEquipped = true;
             _inventory.SerializeInventory();
+            return true;
+        }
+
+        void ShowEquipWarning(string message)
+        {
+            GetComponent<PlayerController>()?.RpcShowMessage(message, PlayerMessageType.Warning);
         }
     }
 }

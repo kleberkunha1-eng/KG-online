@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
@@ -17,10 +18,13 @@ namespace TOP.Network
     [DefaultExecutionOrder(-150)]
     public class TOPNetworkManager : NetworkManager
     {
+        const float ClientPingInterval = 3f;
+
         public static TOPNetworkManager Instance { get; private set; }
 
         [Header("Tales of Pirates - Config")]
-        [SerializeField] private float autoSaveInterval = 60f;
+        [SerializeField] private float autoSaveInterval = 30f;
+        private bool savingPlayers;
         [SerializeField] private string serverInstanceId = "server_01";
 
         [Header("Development Connection")]
@@ -40,6 +44,7 @@ namespace TOP.Network
         private readonly Dictionary<long, NetworkConnectionToClient> _accountConnections = new Dictionary<long, NetworkConnectionToClient>();
         private readonly Dictionary<int, RateLimiter> _rateLimiters = new Dictionary<int, RateLimiter>();
         private readonly Dictionary<int, PendingAuth> _pendingAuths = new Dictionary<int, PendingAuth>();
+        private float nextClientPingTime;
 
         private class PendingAuth
         {
@@ -99,6 +104,7 @@ namespace TOP.Network
 
             networkAddress = host;
             ConfigureTransportPort(port);
+            Debug.Log($"[TOPNetworkManager] Conectando ao servidor Mirror em {host}:{port}.");
             StartClient();
             return true;
         }
@@ -179,7 +185,6 @@ namespace TOP.Network
 
         public override void OnStopServer()
         {
-            base.OnStopServer();
             CancelInvoke();
 
             Debug.Log("[TOPNetworkManager] Servidor fechando — salvando todos os jogadores...");
@@ -190,6 +195,7 @@ namespace TOP.Network
                     _ = SavePlayerAsync(playerConn);
                 }
             }
+            base.OnStopServer();
         }
 
         public override void OnServerConnect(NetworkConnectionToClient conn)
@@ -229,6 +235,8 @@ namespace TOP.Network
                 {
                     Debug.Log($"[Server] Salvando personagem {playerConn.PlayerController.CharacterName} antes de desconectar...");
                     _ = SaveAndDisconnectAsync(playerConn);
+                    if (conn.identity == null)
+                        Destroy(playerConn.PlayerController.gameObject);
                 }
                 else
                 {
@@ -246,8 +254,70 @@ namespace TOP.Network
 
         public override void OnClientConnect()
         {
-            base.OnClientConnect();
+            nextClientPingTime = Time.unscaledTime + ClientPingInterval;
             Debug.Log("[TOPNetworkManager] Cliente conectado ao servidor Mirror");
+            if (!Application.isPlaying) return;
+            var authHandler = FindAnyObjectByType<ClientAuthHandler>();
+            if (authHandler == null)
+            {
+                Debug.LogError("[TOPNetworkManager] ClientAuthHandler ausente: nao e possivel autenticar.");
+                StopClient();
+                return;
+            }
+            authHandler.BeginAuthentication();
+        }
+
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            NetworkClient.RegisterHandler<ServerPong>(_ => { });
+            NetworkClient.RegisterHandler<ChatMessage>(ChatService.Receive);
+            SceneManager.sceneLoaded += OnClientWorldLoaded;
+        }
+
+        public override void OnStopClient()
+        {
+            NetworkClient.UnregisterHandler<ServerPong>();
+            NetworkClient.UnregisterHandler<ChatMessage>();
+            SceneManager.sceneLoaded -= OnClientWorldLoaded;
+            base.OnStopClient();
+        }
+
+        private void OnClientWorldLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (scene.name != gameScene || !NetworkClient.isConnected) return;
+            NetworkClient.PrepareToSpawnSceneObjects();
+            if (!NetworkClient.ready) NetworkClient.Ready();
+            Debug.Log("[TOPNetworkManager] Cena do mundo carregada. Cliente pronto para receber objetos.");
+        }
+
+        public override void OnServerReady(NetworkConnectionToClient conn)
+        {
+            if (!_connections.TryGetValue(conn.connectionId, out var player)
+                || player.State != ConnectionState.InGame || player.PlayerController == null)
+            {
+                Debug.LogWarning($"[Server] Ready prematuro ignorado para conn={conn.connectionId}.");
+                return;
+            }
+            if (conn.identity == null)
+            {
+                if (!NetworkServer.AddPlayerForConnection(conn, player.PlayerController.gameObject))
+                {
+                    Debug.LogError($"[Server] Falha ao associar jogador para conn={conn.connectionId}.");
+                    conn.Disconnect();
+                }
+            }
+            else
+                base.OnServerReady(conn);
+        }
+
+        public override void Update()
+        {
+            base.Update();
+
+            if (!NetworkClient.isConnected || Time.unscaledTime < nextClientPingTime) return;
+            nextClientPingTime = Time.unscaledTime + ClientPingInterval;
+            NetworkClient.Send(new ClientPing { ClientTime = Time.unscaledTime });
         }
 
         public override void OnClientDisconnect()
@@ -618,8 +688,12 @@ namespace TOP.Network
                 return;
             }
 
-            playerConn.State = ConnectionState.InGame;
-            playerConn.CharacterId = msg.CharacterId;
+            if (!_connections.TryGetValue(conn.connectionId, out var currentConnection)
+                || currentConnection != playerConn)
+            {
+                Debug.LogWarning($"[EnterWorld] Conn={conn.connectionId} desconectou durante o carregamento.");
+                return;
+            }
 
             // ===== SPAWN DO PLAYER (ÚNICO) =====
             GameObject playerObj;
@@ -667,13 +741,15 @@ namespace TOP.Network
             if (controller == null)
             {
                 Debug.LogError("[EnterWorld] ERRO: PlayerPrefab sem PlayerController!");
+                if (conn.identity == null) Destroy(playerObj);
                 conn.Send(new SelectCharacterResponse { Success = false, Error = "SERVER_ERROR" });
                 return;
             }
 
             controller.InitializeFromCharacterData(charData);
-            if (conn.identity == null) NetworkServer.AddPlayerForConnection(conn, playerObj);
             playerConn.PlayerController = controller;
+            playerConn.CharacterId = msg.CharacterId;
+            playerConn.State = ConnectionState.InGame;
 
             // ===== RESPOSTA AO CLIENTE =====
             conn.Send(new SelectCharacterResponse
@@ -708,7 +784,7 @@ namespace TOP.Network
             if (!CheckRateLimit(conn.connectionId)) return;
             if (conn.identity == null) return;
             PlayerInventory inv = conn.identity.GetComponent<PlayerInventory>();
-            if (inv != null) inv.CmdMoveItem(msg.FromSlot, msg.ToSlot);
+            if (inv != null) inv.MoveItemOnServer(msg.FromSlot, msg.ToSlot);
         }
 
         void OnEquipItemRequest(NetworkConnectionToClient conn, EquipItemRequest msg)
@@ -716,7 +792,7 @@ namespace TOP.Network
             if (!CheckRateLimit(conn.connectionId)) return;
             if (conn.identity == null) return;
             PlayerEquipment equip = conn.identity.GetComponent<PlayerEquipment>();
-            if (equip != null) equip.CmdEquipItem(msg.InventorySlot, msg.TargetSlot);
+            if (equip != null) equip.EquipFromInventory(msg.InventorySlot, msg.TargetSlot);
         }
 
         void OnDropItemRequest(NetworkConnectionToClient conn, DropItemRequest msg)
@@ -724,7 +800,7 @@ namespace TOP.Network
             if (!CheckRateLimit(conn.connectionId)) return;
             if (conn.identity == null) return;
             PlayerInventory inv = conn.identity.GetComponent<PlayerInventory>();
-            if (inv != null) inv.CmdDropItem(msg.SlotIndex, msg.Quantity, msg.DropPosition);
+            if (inv != null) inv.DropItemOnServer(msg.SlotIndex, msg.Quantity, msg.DropPosition);
         }
 
         void OnUseItemRequest(NetworkConnectionToClient conn, UseItemRequest msg)
@@ -732,7 +808,7 @@ namespace TOP.Network
             if (!CheckRateLimit(conn.connectionId)) return;
             if (conn.identity == null) return;
             PlayerConsumables consumables = conn.identity.GetComponent<PlayerConsumables>();
-            if (consumables != null) consumables.CmdUseItem(msg.SlotIndex);
+            if (consumables != null) consumables.UseItemOnServer(msg.SlotIndex);
         }
 
         // =================================================================================
@@ -741,13 +817,88 @@ namespace TOP.Network
         void OnChatMessage(NetworkConnectionToClient conn, ChatMessage msg)
         {
             if (!CheckRateLimit(conn.connectionId)) return;
-            if (string.IsNullOrWhiteSpace(msg.Text) || msg.Text.Length > 200) return;
-
-            NetworkServer.SendToAll(new ChatMessage
+            if (string.IsNullOrWhiteSpace(msg.Text) || msg.Text.Length > ChatService.MaxLength)
             {
-                Channel = ChatChannel.World,
-                Text = msg.Text
-            });
+                conn.Send(new ChatMessage { Channel = ChatChannel.System, Text = "Mensagem de chat invalida." });
+                return;
+            }
+            if (conn.identity == null) return;
+            if (!Enum.IsDefined(typeof(ChatChannel), msg.Channel) || msg.Channel == ChatChannel.System)
+            {
+                conn.Send(new ChatMessage { Channel = ChatChannel.System, Text = "Canal de chat invalido." });
+                return;
+            }
+
+            var senderPc = conn.identity.GetComponent<PlayerController>();
+            string senderName = senderPc != null ? senderPc.CharacterName : "???";
+
+            switch (msg.Channel)
+            {
+                case ChatChannel.Local:
+                    var local = new ChatMessage
+                    {
+                        Channel = ChatChannel.Local, Text = msg.Text.Trim(),
+                        SenderName = senderName, SenderNetId = conn.identity.netId
+                    };
+                    foreach (var recipient in NetworkServer.connections.Values)
+                    {
+                        if (recipient?.identity == null) continue;
+                        var player = recipient.identity.GetComponent<PlayerController>();
+                        if (player == null || senderPc == null) continue;
+                        if (ChatService.IsLocalRecipient(senderPc.MapName, conn.identity.transform.position,
+                            player.MapName, recipient.identity.transform.position))
+                            recipient.Send(local);
+                    }
+                    break;
+                case ChatChannel.Whisper:
+                    SendWhisper(conn, senderName, msg);
+                    break;
+
+                case ChatChannel.Party:
+                    SendToParty(conn, senderName, msg);
+                    break;
+
+                case ChatChannel.Guild:
+                    // Ainda nao ha sistema de guilda; avisa apenas quem enviou.
+                    conn.Send(new ChatMessage { Channel = ChatChannel.System, Text = "Sistema de guilda ainda nao disponivel." });
+                    break;
+
+                default:
+                    // World, Shout, Trade, System: todos tratados como broadcast global por enquanto.
+                    NetworkServer.SendToAll(new ChatMessage
+                    {
+                        Channel = msg.Channel,
+                        Text = $"{senderName}: {msg.Text}"
+                    });
+                    break;
+            }
+        }
+
+        void SendWhisper(NetworkConnectionToClient sender, string senderName, ChatMessage msg)
+        {
+            if (string.IsNullOrWhiteSpace(msg.TargetName)) return;
+            foreach (var kv in NetworkServer.connections)
+            {
+                var pc = kv.Value?.identity != null ? kv.Value.identity.GetComponent<PlayerController>() : null;
+                if (pc == null || pc.CharacterName != msg.TargetName) continue;
+
+                kv.Value.Send(new ChatMessage { Channel = ChatChannel.Whisper, Text = $"{senderName} sussurra: {msg.Text}", TargetName = senderName });
+                sender.Send(new ChatMessage { Channel = ChatChannel.Whisper, Text = $"Para {msg.TargetName}: {msg.Text}", TargetName = msg.TargetName });
+                return;
+            }
+            sender.Send(new ChatMessage { Channel = ChatChannel.System, Text = $"Jogador '{msg.TargetName}' nao encontrado." });
+        }
+
+        void SendToParty(NetworkConnectionToClient sender, string senderName, ChatMessage msg)
+        {
+            var party = sender.identity.GetComponent<PlayerParty>();
+            if (party == null || party.PartyId == 0)
+            {
+                sender.Send(new ChatMessage { Channel = ChatChannel.System, Text = "Voce nao esta em um grupo." });
+                return;
+            }
+            foreach (var targetConn in PlayerParty.ConnectionsInPartyOf(party))
+                targetConn.Send(new ChatMessage { Channel = ChatChannel.Party, Text = $"{senderName}: {msg.Text}" });
         }
 
         // =================================================================================
@@ -770,14 +921,20 @@ namespace TOP.Network
         // =================================================================================
         async void AutoSaveAll()
         {
-            foreach (PlayerConnection conn in _connections.Values)
+            if (savingPlayers) return;
+            savingPlayers = true;
+            try
             {
-                if (conn.State == ConnectionState.InGame && conn.PlayerController != null)
+                foreach (PlayerConnection conn in _connections.Values.ToArray())
                 {
-                    try { await SavePlayerAsync(conn); }
-                    catch (Exception ex) { Debug.LogError($"[AutoSave] Erro: {ex}"); }
+                    if (conn.State == ConnectionState.InGame && conn.PlayerController != null)
+                    {
+                        try { await SavePlayerAsync(conn); }
+                        catch (Exception ex) { Debug.LogError($"[AutoSave] Erro: {ex}"); }
+                    }
                 }
             }
+            finally { savingPlayers = false; }
         }
 
         async Task SavePlayerAsync(PlayerConnection playerConn)
@@ -795,6 +952,8 @@ namespace TOP.Network
                 bool saved = await DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
                 if (saved)
                     Debug.Log($"[SavePlayer] ✅ {data.Name} salvo em {data.MapName} ({data.PosX:F1}, {data.PosY:F1}, {data.PosZ:F1})");
+                else
+                    Debug.LogError($"[SavePlayer] Falha ao salvar {data.Name}; verifique a API de persistencia.");
             }
         }
 
