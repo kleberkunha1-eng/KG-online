@@ -9,6 +9,7 @@ namespace TOP.Character
     public static class PkoPoses
     {
         public const int Wait = 1, Cool = 2, Funny = 3, Guard = 4, Run = 5, GuardRun = 6, Attack1 = 7, Skill1 = 11, Sit = 16, Death = 17, SitWait = 38;
+        public const int FlyWait = 42, FlyRun = 43, FlyShow = 44, FlySit = 45;
         // Columns of characterposeinfo: fists, 1H, 2H, dual, gun, bow, dagger.
         public const int WieldFists = 0, Wield1H = 1, Wield2H = 2, WieldDual = 3, WieldGun = 4, WieldBow = 5, WieldDagger = 6;
 
@@ -19,6 +20,15 @@ namespace TOP.Character
             if (table == null) Load();
             return table.TryGetValue(pose, out var row) && wield >= 0 && wield < row.Length ? row[wield] : 0;
         }
+
+        public static int FlyingPose(int pose) => pose switch
+        {
+            Wait or Guard => FlyWait,
+            Run or GuardRun => FlyRun,
+            Cool => FlyShow,
+            Sit => FlySit,
+            _ => pose
+        };
 
         // Same rule as CCharacterModel::__wield_state in the original client (item type of left/right hand).
         public static int WieldOf(int left, int right)
@@ -64,10 +74,15 @@ namespace TOP.Character
         Vector3 last;
         string current;
         int attackIndex;
+        Animation wingAnimation;
+        AnimationState wingState;
+        float flightStarted;
+        bool flightLoop;
 
         public int Wield => wield;
         public bool IsDead => dead;
         public string CurrentClip => current;
+        public bool IsFlying => wingState != null;
 
         public void Init(Animation animation, string rigId0)
         {
@@ -84,10 +99,31 @@ namespace TOP.Character
 
         public void SetWield(int w) { if (w == wield) return; wield = w; current = null; }
 
+        public void SetFlight(Animation wings)
+        {
+            wingAnimation = null;
+            wingState = null;
+            flightLoop = false;
+            current = null;
+            if (wings == null) return;
+            if (wings.clip == null || wings.clip.length <= 0f
+                || ClipFor(PkoPoses.FlyWait) == null || ClipFor(PkoPoses.FlyRun) == null)
+            {
+                Debug.LogError("[PkoPoseDriver] Cannot enable wing flight: wing loop or character flight clips are missing for " + rigId);
+                return;
+            }
+            wingAnimation = wings;
+            wingState = wings[wings.clip.name];
+            flightStarted = Time.time;
+            wingState.wrapMode = WrapMode.Loop;
+            wings.Play(wings.clip.name);
+        }
+
         public bool Has(int pose) => ClipFor(pose) != null;
         string ClipFor(int pose)
         {
             if (anim == null) return null;
+            if (IsFlying) pose = PkoPoses.FlyingPose(pose);
             foreach (int w in new[] { wield, PkoPoses.WieldFists })
             {
                 int real = PkoPoses.Real(pose, w);
@@ -100,7 +136,14 @@ namespace TOP.Character
         }
 
         // Loops until replaced (idle, run, sit...).
-        public void Loop(int pose) { string n = ClipFor(pose); if (n != null) PlayClip(n, WrapMode.Loop, 0.15f); }
+        public void Loop(int pose) { string n = ClipFor(pose); if (n != null) PlayClip(n, WrapMode.Loop, 0.15f, IsFlightPose(pose)); }
+
+        bool IsFlightPose(int pose)
+        {
+            if (!IsFlying) return false;
+            int flying = PkoPoses.FlyingPose(pose);
+            return flying == PkoPoses.FlyWait || flying == PkoPoses.FlyRun || flying == PkoPoses.FlySit;
+        }
 
         // Plays once and returns to the locomotion pose; returns the duration (0 if the action does not exist).
         public float Once(int pose, bool clamp = false)
@@ -113,10 +156,12 @@ namespace TOP.Character
             return len;
         }
 
-        void PlayClip(string clip, WrapMode mode, float fade)
+        void PlayClip(string clip, WrapMode mode, float fade, bool synchronizedFlight = false)
         {
+            flightLoop = synchronizedFlight;
             anim[clip].wrapMode = mode;
             anim[clip].time = 0f;
+            anim[clip].speed = synchronizedFlight ? anim[clip].length / wingState.length : 1f;
             anim.CrossFade(clip, fade);
             current = clip;
         }
@@ -139,7 +184,22 @@ namespace TOP.Character
             if (moving) sitting = false;
             int pose = moving ? (combat ? PkoPoses.GuardRun : PkoPoses.Run) : sitting ? PkoPoses.Sit : combat ? PkoPoses.Guard : PkoPoses.Wait;
             string n = ClipFor(pose);
-            if (n != null && n != current) PlayClip(n, WrapMode.Loop, 0.15f);
+            if (n != null && n != current) PlayClip(n, WrapMode.Loop, 0.15f, IsFlightPose(pose));
+        }
+
+        void LateUpdate()
+        {
+            SynchronizeFlight(Time.time - flightStarted);
+        }
+
+        void SynchronizeFlight(float elapsed)
+        {
+            if (!IsFlying || !flightLoop || dead || current == null) return;
+            float phase = Mathf.Repeat(elapsed / wingState.length, 1f);
+            wingState.normalizedTime = phase;
+            anim[current].normalizedTime = phase;
+            wingAnimation.Sample();
+            anim.Sample();
         }
     }
 }

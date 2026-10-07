@@ -68,6 +68,8 @@ O arquivo de posicionamento `garner.obj` não foi encontrado no cliente fornecid
 
 Mage Wings inclui ajustes para as quatro raças na build: Lance, Carsise e Phyllis usam posição `(0.06, -0.18, -15.21)` e escala 60; Ami usa `(0.05, -0.17, -12.70)` e escala 50. Todas usam rotação zero. Ajustes locais substituem apenas a combinação raça/item correspondente, sem apagar os padrões publicados das outras raças. Um arquivo local inválido é registrado como erro e os padrões da build são preservados.
 
+Mage Wings e Rebirth Wings ativam as poses de voo originais do personagem: espera 42, movimento 43, pose 44 e sentado 45. Espera e movimento em combate também usam voo; ataques, habilidades e morte mantêm suas ações. Os ciclos de espera, movimento e sentado compartilham a fase da animação da asa, preservando a duração do loop da asa e evitando deriva entre as duas animações. Remover a asa restaura as poses terrestres, sem alterar a posição de rede ou a colisão do jogador.
+
 As janelas do jogo podem ser arrastadas pelo fundo, sem impedir o arraste de itens ou o uso de controles. As telas de seleção/criação que fixam sua posição continuam fixas.
 
 As asas originais usam o efeito indicado na coluna 90 de `iteminfo.txt`, não o modelo genérico `10130005`. `Tools > PKO > Build Animated Wings` gera os visuais em `Assets/Resources/Wings`, usando as animações esqueléticas embutidas nos modelos originais. Antes de regenerar, exporte os modelos necessários com `PKOAssetBatchExporter <cliente> <Assets/ImportedClient> --wing-skinned <modelos>`.

@@ -130,6 +130,52 @@ public static class WingAttachmentValidation
                             followingBone.localRotation = boneRotation;
                         }
                         finally { pose.position = oldPosition; pose.euler = oldEuler; pose.scale = oldScale; }
+                        bool flightWing = item.Id == PkoTables.MeshyMageWingsItemId
+                            || (item.Id >= 128 && item.Id <= 140 && item.Id != 135);
+                        var poseDriver = visual.Pose;
+                        check(poseDriver.IsFlying == flightWing,
+                            $"Race {race} wing {item.Id} enables flight only for Mage and Rebirth");
+                        if (flightWing)
+                        {
+                            check(poseDriver.Has(PkoPoses.FlyWait) && poseDriver.Has(PkoPoses.FlyRun)
+                                && poseDriver.Has(PkoPoses.FlySit),
+                                $"Race {race} wing {item.Id} includes original flight clips");
+                            var clipFor = typeof(PkoPoseDriver).GetMethod("ClipFor", BindingFlags.Instance | BindingFlags.NonPublic);
+                            check((string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.Wait })
+                                == (string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.FlyWait })
+                                && (string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.GuardRun })
+                                == (string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.FlyRun }),
+                                $"Race {race} wing {item.Id} maps idle and combat movement to flight");
+                            var wingAnimation = mount.GetComponentInChildren<Animation>();
+                            var characterAnimation = poseDriver.GetComponent<Animation>();
+                            poseDriver.Loop(PkoPoses.Wait);
+                            var synchronize = typeof(PkoPoseDriver).GetMethod("SynchronizeFlight", BindingFlags.Instance | BindingFlags.NonPublic);
+                            synchronize.Invoke(poseDriver, new object[] { wingAnimation.clip.length * 2.25f });
+                            check(Mathf.Abs(wingAnimation[wingAnimation.clip.name].normalizedTime - .25f) < .001f
+                                && Mathf.Abs(characterAnimation[poseDriver.CurrentClip].normalizedTime - .25f) < .001f,
+                                $"Race {race} wing {item.Id} shares character phase after multiple cycles");
+                            poseDriver.Loop(PkoPoses.Run);
+                            synchronize.Invoke(poseDriver, new object[] { wingAnimation.clip.length * 3.75f });
+                            check(Mathf.Abs(wingAnimation[wingAnimation.clip.name].normalizedTime - .75f) < .001f
+                                && Mathf.Abs(characterAnimation[poseDriver.CurrentClip].normalizedTime - .75f) < .001f
+                                && Mathf.Abs(characterAnimation[poseDriver.CurrentClip].speed
+                                    - characterAnimation[poseDriver.CurrentClip].length / wingAnimation.clip.length) < .001f,
+                                $"Race {race} wing {item.Id} keeps phase and duration when switching flight locomotion");
+                            poseDriver.Attack();
+                            float attackTime = characterAnimation[poseDriver.CurrentClip].time;
+                            synchronize.Invoke(poseDriver, new object[] { wingAnimation.clip.length * 4.5f });
+                            check(characterAnimation[poseDriver.CurrentClip].time == attackTime
+                                && characterAnimation[poseDriver.CurrentClip].speed == 1f,
+                                $"Race {race} wing {item.Id} preserves attack playback without flight synchronization");
+                            poseDriver.Die();
+                            check(poseDriver.IsDead && characterAnimation[poseDriver.CurrentClip].wrapMode == WrapMode.ClampForever,
+                                $"Race {race} wing {item.Id} preserves death action");
+                            poseDriver.SetFlight(null);
+                            check(!poseDriver.IsFlying
+                                && (string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.Wait })
+                                != (string)clipFor.Invoke(poseDriver, new object[] { PkoPoses.FlyWait }),
+                                $"Race {race} wing {item.Id} restores grounded poses when flight is removed");
+                        }
                     }
                     finally { UnityEngine.Object.DestroyImmediate(visual.gameObject); }
                 }

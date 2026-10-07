@@ -171,6 +171,7 @@ namespace TOP.Character
             if (wingVisual != null) { wingVisual.SetActive(false); Destroy(wingVisual); }
             wingVisual = null;
             WingItemId = 0;
+            if (Pose != null) Pose.SetFlight(null);
             if (rig == null || item == null) return;
 
             string model = item.Model;
@@ -244,6 +245,15 @@ namespace TOP.Character
             wingVisual = mount.gameObject;
             WingItemId = item.Id;
             ApplyWingPose();
+            bool flightWing = item.Id == PkoTables.MeshyMageWingsItemId
+                || (item.Id >= 128 && item.Id <= 140 && item.Id != 135);
+            if (flightWing && Pose != null)
+            {
+                var wingAnimation = instance.GetComponentInChildren<Animation>();
+                if (wingAnimation == null)
+                    Debug.LogError($"[PkoCharacterVisual] Flight wing {item.Id} has no legacy animation.");
+                else Pose.SetFlight(wingAnimation);
+            }
         }
 
         void ApplyWingPose()
