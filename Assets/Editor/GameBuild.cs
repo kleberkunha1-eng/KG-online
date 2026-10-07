@@ -57,6 +57,8 @@ public static class GameBuild
             var (host, port) = ReadServerAddress();
             File.WriteAllText(staging + "/api.json",
                 "{\"apiUrl\":\"" + TOP.Services.ApiConfig.PublishedApiUrl + "\",\"gameServerHost\":\"" + host + "\",\"gameServerPort\":" + port + "}");
+            File.WriteAllText(Path.Combine(staging, ".itch.toml"),
+                "[[actions]]\nname = \"Jogar KG Online\"\npath = \"GameProjectKG.exe\"\nplatform = \"windows\"\n");
             string previous = Out + ".previous." + System.DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
             if (Directory.Exists(Out)) Directory.Move(Out, previous);
             try { Directory.Move(staging, Out); }

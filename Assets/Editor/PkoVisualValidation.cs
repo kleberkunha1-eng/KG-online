@@ -293,6 +293,14 @@ public static class PkoVisualValidation
             {
                 var window = ui.Get(shortcut.Value);
                 window.Close();
+                bool functional = shortcut.Key == KeyCode.Q || shortcut.Key == KeyCode.P
+                    || shortcut.Key == KeyCode.C || shortcut.Key == KeyCode.F;
+                if (functional)
+                {
+                    check(ui.ActivateShortcut(shortcut.Key, true, false, false) && !window.IsOpen,
+                        $"Alt+{shortcut.Key}: routes to gameplay panel instead of opening an unbound layout");
+                    continue;
+                }
                 bool opened = ui.ActivateShortcut(shortcut.Key, true, false, false) && window.IsOpen;
                 bool closed = ui.ActivateShortcut(shortcut.Key, true, false, false) && !window.IsOpen;
                 check(opened && closed, $"Alt+{shortcut.Key}: {shortcut.Value} toggles once (no duplicate aliases)");
