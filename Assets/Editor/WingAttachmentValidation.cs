@@ -147,6 +147,24 @@ public static class WingAttachmentValidation
             entries = (System.Collections.Generic.List<PkoWingPose.Entry>)maximum.GetType().GetField("entries").GetValue(maximum);
             check(entries[0].scale == 150000f && PkoWingPose.MaxScale == 150000f,
                 "Scale up to 150000 is accepted and survives JSON reload");
+            var packaged = parse.Invoke(null, new object[] { Resources.Load<TextAsset>("PkoChar/WingPose").text });
+            entries = (System.Collections.Generic.List<PkoWingPose.Entry>)packaged.GetType().GetField("entries").GetValue(packaged);
+            for (int race = 0; race < PkoCharacterVisual.Races; race++)
+            {
+                var entry = entries.Find(e => e.race == race && e.itemId == PkoTables.MeshyMageWingsItemId);
+                var position = race == 3 ? new Vector3(.05f, -.17f, -12.70f) : new Vector3(.06f, -.18f, -15.21f);
+                check(entry != null && Vector3.Distance(entry.position, position) < .0001f
+                    && entry.euler == Vector3.zero && entry.scale == (race == 3 ? 50f : 60f),
+                    $"Packaged Mage Wings race {race} contains approved position, rotation and scale");
+            }
+            var merge = typeof(PkoWingPose).GetMethod("Merge", BindingFlags.Static | BindingFlags.NonPublic);
+            merge.Invoke(null, new[] { packaged, saved });
+            entries = (System.Collections.Generic.List<PkoWingPose.Entry>)packaged.GetType().GetField("entries").GetValue(packaged);
+            check(entries.Find(e => e.race == 0 && e.itemId == 990001).scale == 1.75f,
+                "Local adjustments override only their matching race and item");
+            check(entries.Find(e => e.race == 3 && e.itemId == 990001).scale == 50f
+                && entries.Find(e => e.race == 2 && e.itemId == 990001).scale == 60f,
+                "Partial local settings retain packaged defaults for other races");
         }
         catch (Exception e) { Debug.LogException(e); check(false, e.ToString()); }
         finally { UnityEngine.Object.DestroyImmediate(parent); }

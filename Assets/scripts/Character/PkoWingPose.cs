@@ -44,12 +44,25 @@ namespace TOP.Character
             try
             {
                 var resource = Resources.Load<TextAsset>("PkoChar/WingPose");
-                string json = File.Exists(UserPath) ? File.ReadAllText(UserPath) : resource != null ? resource.text : null;
-                if (json == null) return;
-                var data = Parse(json);
-                store = data;
+                if (resource != null) store = Parse(resource.text);
             }
-            catch (Exception e) { Debug.LogError("[PkoWingPose] Cannot load adjustments: " + e); }
+            catch (Exception e) { Debug.LogError("[PkoWingPose] Cannot load packaged adjustments: " + e); }
+            try
+            {
+                if (File.Exists(UserPath)) store = Merge(store, Parse(File.ReadAllText(UserPath)));
+            }
+            catch (Exception e) { Debug.LogError("[PkoWingPose] Cannot load local adjustments: " + e); }
+        }
+
+        static Store Merge(Store defaults, Store overrides)
+        {
+            foreach (var entry in overrides.entries)
+            {
+                int index = defaults.entries.FindIndex(e => e.race == entry.race && e.itemId == entry.itemId);
+                if (index < 0) defaults.entries.Add(entry);
+                else defaults.entries[index] = entry;
+            }
+            return defaults;
         }
 
         static Store Parse(string json)
