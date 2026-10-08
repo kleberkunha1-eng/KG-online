@@ -29,11 +29,16 @@ public static class TOPMultiplayerValidation
         string report;
         try
         {
-            bool local = Connect("127.0.0.1", 7777, out string localError);
-            bool configured = ApiConfig.TryGetGameServer(out string host, out ushort port);
+            if (!ApiConfig.TryGetGameServer(out string editorHost, out ushort editorPort))
+            {
+                editorHost = "127.0.0.1";
+                editorPort = 7777;
+            }
+            bool local = Connect(editorHost, editorPort, out string localError);
+            bool configured = ApiConfig.TryGetPublishedGameServer(out string host, out ushort port);
             string publicError = "No configured public endpoint.";
             bool remote = configured && Connect(host, port, out publicError);
-            report = $"Local KCP reliable round-trip (12 seconds): {local} {localError}\nPublic KCP reliable round-trip ({host}:{port}, 12 seconds): {remote} {publicError}\n"
+            report = $"Editor KCP reliable round-trip ({editorHost}:{editorPort}, 12 seconds): {local} {localError}\nPublic KCP reliable round-trip ({host}:{port}, 12 seconds): {remote} {publicError}\n"
                 + "This checks sustained transport and Mirror message delivery, not JWT authentication or database persistence.";
             if (!local || !remote) UnityEngine.Debug.LogError(report); else UnityEngine.Debug.Log(report);
         }

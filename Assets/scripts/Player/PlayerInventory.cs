@@ -29,12 +29,10 @@ namespace TOP.Player
         // =================================================================================
         public void InitializeFromData(List<InventoryItemData> items)
         {
-            if (items == null) return;
-
             for (int i = 0; i < _slots.Length; i++)
                 _slots[i] = null;
 
-            foreach (var item in items)
+            if (items != null) foreach (var item in items)
             {
                 if (item.SlotIndex < _slots.Length)
                 {
@@ -53,7 +51,7 @@ namespace TOP.Player
 
             SerializeInventory();
             OnInventoryChanged?.Invoke();
-            Debug.Log($"[PlayerInventory] Inicializado com {items.Count} itens do banco.");
+            Debug.Log($"[PlayerInventory] Inicializado com {items?.Count ?? 0} itens do banco.");
         }
 
         public List<InventoryItemData> GetInventoryData()

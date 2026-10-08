@@ -22,7 +22,7 @@ namespace TOP.Network
 
         void OnEnable()
         {
-            NetworkClient.RegisterHandler<AuthResponseMessage>(OnAuthResponse);
+            NetworkClient.ReplaceHandler<AuthResponseMessage>(OnAuthResponse);
         }
 
         void OnDisable()
@@ -48,7 +48,8 @@ namespace TOP.Network
             _connectTime = Time.unscaledTime;
             _authSent = false;
             CharacterListClient.Reset();
-            NetworkClient.RegisterHandler<AuthResponseMessage>(OnAuthResponse);
+            // StartClient re-registers Mirror's default handlers; ReplaceHandler avoids the duplicate warning.
+            NetworkClient.ReplaceHandler<AuthResponseMessage>(OnAuthResponse);
 
             if (Application.isPlaying && !NetworkServer.active)
                 SendAuthToken();

@@ -73,7 +73,8 @@ namespace TOP.Testing
 
         static bool HasRaceModel(TOP.Data.PkoItem it, int race)
         {
-            string m = it.RaceModels != null && race >= 0 && race < it.RaceModels.Length ? (it.RaceModels[race] ?? "").TrimEnd('_') : "";
+            int baseRace = TOP.Data.PkoRaces.BaseRace(race);
+            string m = it.RaceModels != null && baseRace < it.RaceModels.Length ? (it.RaceModels[baseRace] ?? "").TrimEnd('_') : "";
             if (string.IsNullOrEmpty(m) || m == "0") return false;
             return it.Type >= 20 ? m.Length == 10 && Resources.Load<TOP.Character.PkoPartAsset>("PkoChar/Parts/" + m) != null
                                  : Resources.Load<GameObject>("PkoChar/Weapons/" + m) != null;

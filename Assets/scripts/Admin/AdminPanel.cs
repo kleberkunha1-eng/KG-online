@@ -18,7 +18,8 @@ namespace TOP.Admin
         {
             (0, "Todos"), (20, "Chapeu"), (22, "Armadura"), (23, "Luvas"), (24, "Botas"), (11, "Escudo"),
             (1, "Espada"), (2, "Espada 2M"), (3, "Arco"), (4, "Arma de fogo"), (7, "Adaga"), (9, "Cajado"),
-            (25, "Colar"), (26, "Anel"), (44, "Asas"), (59, "Pet"), (49, "Gemas"), (50, "Refino")
+            (25, "Colar"), (26, "Anel"), (44, "Asas"), (59, "Pet"), (49, "Gemas"), (50, "Refino"),
+            (82, "Cinto / Calcas")
         };
         static readonly string[] CategoryNames = System.Array.ConvertAll(Categories, c => c.name);
 

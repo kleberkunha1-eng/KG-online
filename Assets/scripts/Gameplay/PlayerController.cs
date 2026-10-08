@@ -122,13 +122,21 @@ namespace TOP.Player
             if (_playerInventory != null)
                 _playerInventory.InitializeFromData(data.Inventory);
 
-            if (_playerEquipment != null)
-                _playerEquipment.LoadEquippedFromInventory(data.Inventory);
-
             if (_playerStats != null)
                 _playerStats.InitializeFromData(data);
 
-            Debug.Log($"[PlayerController] {CharacterName} (Lv.{Level}) inicializado do banco.");
+            if (_playerEquipment != null)
+                _playerEquipment.LoadEquippedFromInventory(data.Inventory);
+
+            _playerStats?.SetCurrentHpMpSp(data.CurrentHp, data.CurrentMp, data.CurrentSp);
+            if (CurrentHp <= 0)
+            {
+                Debug.LogWarning($"[PlayerController] {CharacterName} loaded with HP={CurrentHp}; scheduling normal respawn.");
+                var respawn = GetComponent<PlayerRespawn>();
+                if (respawn != null) respawn.ScheduleRespawn();
+                else Debug.LogError("[PlayerController] Cannot recover a dead character: PlayerRespawn is missing.");
+            }
+            Debug.Log($"[PlayerController] {CharacterName} (Lv.{Level}) inicializado do banco. HP={CurrentHp}/{MaxHp}");
         }
 
         [Server]
@@ -140,6 +148,14 @@ namespace TOP.Player
             _characterData.CurrentHp = CurrentHp;
             _characterData.CurrentMp = CurrentMp;
             _characterData.CurrentSp = CurrentSp;
+            _characterData.MaxHp = MaxHp;
+            _characterData.MaxMp = MaxMp;
+            _characterData.MaxSp = MaxSp;
+            _characterData.BaseStr = BaseStr;
+            _characterData.BaseAgi = BaseAgi;
+            _characterData.BaseCon = BaseCon;
+            _characterData.BaseSpr = BaseSpr;
+            _characterData.BaseSta = BaseSta;
             _characterData.Level = Level;
             _characterData.Exp = Exp;
             _characterData.Gold = Gold;
@@ -245,7 +261,7 @@ namespace TOP.Player
             PkoHair chosen = null;
             foreach (var h in PkoTables.Hairs) if (h.Id == hairId) { chosen = h; break; }
             if (chosen == null) { RpcShowMessage("Penteado inválido.", PlayerMessageType.Error); return; }
-            int raceIdx = Mathf.Clamp(Job, 0, chosen.UsableRace.Length - 1);
+            int raceIdx = TOP.Data.PkoRaces.BaseRace(Job);
             if (!chosen.UsableRace[raceIdx]) { RpcShowMessage("Penteado não disponível para sua raça.", PlayerMessageType.Error); return; }
             if (!SpendGold(chosen.Cost)) { RpcShowMessage("Ouro insuficiente.", PlayerMessageType.Error); return; }
             HairStyle = (byte)chosen.ModelStyle;

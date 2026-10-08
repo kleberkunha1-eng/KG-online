@@ -47,13 +47,17 @@ public static class TOPWorldEntrySmokeRunner
             || EditorApplication.isPlayingOrWillChangePlaymode) return;
         const string request = "Tools/validate-world-entry.request";
         const string adminRequest = "Tools/validate-admin-generation.request";
+        const string characterRequest = "Tools/validate-new-character-gameplay.request";
         bool admin = File.Exists(adminRequest);
-        if (!File.Exists(request) && !admin) return;
+        bool newCharacter = File.Exists(characterRequest);
+        if (!File.Exists(request) && !admin && !newCharacter) return;
         if (File.Exists("Tools/build.request") || File.Exists("Tools/prepare-world-entry.request")
             || File.Exists("Tools/validate-visuals.request")) return;
         if (admin) File.Delete(adminRequest);
+        if (newCharacter) File.Delete(characterRequest);
         if (File.Exists(request)) File.Delete(request);
         SessionState.SetBool("TOP.AdminGenerationSmoke", admin);
+        SessionState.SetBool("TOP.NewCharacterSmoke", newCharacter);
         TOPAutoSave.SaveNow();
         SessionState.SetString(Restore, JsonUtility.ToJson(new SavedScenes
         {

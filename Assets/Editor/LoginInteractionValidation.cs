@@ -64,6 +64,18 @@ public static class LoginInteractionValidation
             var password = (InputField)Field(typeof(PkoFlow), "pwField").GetValue(flow);
             check(user.IsInteractable() && password.IsInteractable(), "Username and password accept input immediately");
             check(password.contentType == InputField.ContentType.Password, "Password remains concealed");
+            var connectionStatus = new GameObject("ConnectionStatus", typeof(Text));
+            connectionStatus.transform.SetParent(test.transform, false);
+            Field(typeof(PkoFlow), "status").SetValue(flow, connectionStatus.GetComponent<Text>());
+            Field(typeof(PkoFlow), "busy").SetValue(flow, true);
+            Method(typeof(PkoFlow), "OnGameConnectionFailed").Invoke(flow, new object[] { "Servidor do jogo indisponivel." });
+            check(!(bool)Field(typeof(PkoFlow), "busy").GetValue(flow),
+                "Transport failure releases login for a new attempt.");
+            check(connectionStatus.GetComponent<Text>().text == "Servidor do jogo indisponivel.",
+                "Transport failure is visible in login status, not only the Console.");
+            Method(typeof(PkoFlow), "OnGameConnectionFailed").Invoke(flow, new object[] { "Duplicate disconnect." });
+            check(connectionStatus.GetComponent<Text>().text == "Servidor do jogo indisponivel.",
+                "Duplicate disconnect does not replace the original connection error.");
             check(Field(typeof(PkoFlow), "registerCard").GetValue(flow) == null, "Registration UI is not constructed before requested");
             events.SetSelectedGameObject(user.gameObject);
             var tab = Method(typeof(PkoFlow), "FocusNextField");

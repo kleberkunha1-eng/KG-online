@@ -34,7 +34,7 @@ namespace TOP.UI
         void Show(PlayerController pc)
         {
             player = pc;
-            int raceIdx = Mathf.Clamp(pc.Job, 0, 3);
+            int raceIdx = PkoRaces.BaseRace(pc.Job);
             options = PkoTables.Hairs.Where(h => h.UsableRace[raceIdx]).OrderBy(h => h.Name).ThenBy(h => h.Color).ToList();
             open = true;
         }

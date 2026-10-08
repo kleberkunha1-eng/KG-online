@@ -1,0 +1,80 @@
+{
+  // Reduz o consumo de tokens/indice do Copilot e acelera buscas no VS Code,
+  // escondendo pastas pesadas/geradas do Unity e arquivos binarios/nao-codigo.
+  // Isso NAO afeta o funcionamento do projeto nem o que o Unity Editor enxerga
+  // em disco - afeta apenas o que o VS Code (Explorer/busca/indexador) mostra.
+  "files.exclude": {
+    "**/Library": true,
+    "**/Temp": true,
+    "**/Logs": true,
+    "**/Obj": true,
+    "**/obj": true,
+    "**/Build": true,
+    "**/Builds": true,
+    "**/UserSettings": true,
+    "**/MemoryCaptures": true,
+    "**/*.meta": true,
+    "**/*.asset": true,
+    "**/*.prefab": true,
+    "**/*.unity": true,
+    "**/*.fbx": true,
+    "**/*.obj": true,
+    "**/*.png": true,
+    "**/*.jpg": true,
+    "**/*.jpeg": true,
+    "**/*.tga": true,
+    "**/*.psd": true,
+    "**/*.wav": true,
+    "**/*.mp3": true,
+    "**/*.ogg": true,
+    "**/*.ttf": true,
+    "**/*.otf": true,
+    "**/*.anim": true,
+    "**/*.controller": true,
+    "**/*.mat": true
+  },
+  "search.exclude": {
+    "**/Library": true,
+    "**/Temp": true,
+    "**/Logs": true,
+    "**/Obj": true,
+    "**/obj": true,
+    "**/Build": true,
+    "**/Builds": true,
+    "**/UserSettings": true,
+    "**/MemoryCaptures": true,
+    "**/*.meta": true,
+    "**/*.asset": true,
+    "**/*.prefab": true,
+    "**/*.unity": true,
+    "**/*.fbx": true,
+    "**/*.obj": true,
+    "**/*.png": true,
+    "**/*.jpg": true,
+    "**/*.jpeg": true,
+    "**/*.tga": true,
+    "**/*.psd": true,
+    "**/*.wav": true,
+    "**/*.mp3": true,
+    "**/*.ogg": true,
+    "**/*.ttf": true,
+    "**/*.otf": true,
+    "**/*.anim": true,
+    "**/*.controller": true,
+    "**/*.mat": true
+  },
+  // files.watcherExclude evita que o VS Code fique observando mudancas nessas
+  // pastas o tempo todo (Library/Temp mudam constantemente enquanto o Unity
+  // esta aberto), o que tambem consome CPU/memoria sem necessidade.
+  "files.watcherExclude": {
+    "**/Library/**": true,
+    "**/Temp/**": true,
+    "**/Logs/**": true,
+    "**/Obj/**": true,
+    "**/obj/**": true,
+    "**/Build/**": true,
+    "**/Builds/**": true,
+    "**/UserSettings/**": true,
+    "**/MemoryCaptures/**": true
+  }
+}

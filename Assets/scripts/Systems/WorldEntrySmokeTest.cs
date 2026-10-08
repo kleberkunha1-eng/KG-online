@@ -79,6 +79,8 @@ namespace TOP.Testing
 
         IEnumerator Run()
         {
+            // Let scene Start callbacks finish before beginning the timed network handshake.
+            yield return null;
             if (NetworkServer.active || NetworkClient.active)
             {
                 Check(false, $"Test requires isolation: server={NetworkServer.active}, client={NetworkClient.active}, "
@@ -118,7 +120,8 @@ namespace TOP.Testing
                 Tick();
                 yield return null;
             }
-            Check(connected && transportError == null, "Synthetic client connects to isolated TOPNetworkManager.");
+            Check(connected && transportError == null, "Synthetic client connects to isolated TOPNetworkManager."
+                + (connected && transportError == null ? "" : " " + (transportError ?? "Handshake deadline exceeded.")));
             if (!connected) yield break;
             var connections = (Dictionary<int, PlayerConnection>)typeof(TOPNetworkManager)
                 .GetField("_connections", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(manager);
@@ -134,9 +137,11 @@ namespace TOP.Testing
             player = Instantiate(manager.playerPrefab);
             player.transform.position = new Vector3(0f, .6f, 0f);
             var controller = player.GetComponent<PlayerController>();
+            bool newCharacter = SessionState.GetBool("TOP.NewCharacterSmoke", false);
             controller.InitializeFromCharacterData(new CharacterData
             {
                 Id = 999999, AccountId = 999999, Name = "WorldEntryTest", MapName = "garner", Level = 1,
+                Job = (byte)(newCharacter ? PkoRaces.NewCharacterTest : 0),
                 BaseStr = 10, BaseAgi = 8, BaseCon = 10, BaseSpr = 10, BaseSta = 10,
                 CurrentHp = 220, MaxHp = 220, CurrentMp = 150, MaxMp = 150, CurrentSp = 96, MaxSp = 96
             });
@@ -159,6 +164,22 @@ namespace TOP.Testing
                 + $"send rate={NetworkServer.sendRate}, ticks={NetworkServer.actualTickRate}, "
                 + $"loading={NetworkServer.isLoadingScene}.");
             Check(transportError == null, "World entry completes without transport error.");
+            if (newCharacter)
+            {
+                Check(controller.Job == PkoRaces.NewCharacterTest && controller.CurrentHp > 0
+                    && controller.GetCharacterData().Job == PkoRaces.NewCharacterTest,
+                    "NewCharacterTest preserves race identity and live stats through world entry/save data.");
+                yield return null;
+                var visual = player.GetComponentInChildren<TOP.Character.PkoCharacterVisual>();
+                Check(visual != null && visual.Race == PkoRaces.NewCharacterTest
+                    && visual.Pose.Has(TOP.Character.PkoPoses.Run), "Gameplay binder loads new model and Lance movement poses.");
+                Vector3 start = player.transform.position;
+                player.GetComponent<PlayerMovement>().SetDestination(start + Vector3.right * 2f);
+                deadline = Time.realtimeSinceStartup + 1f;
+                while (Time.realtimeSinceStartup < deadline) { Tick(); yield return null; }
+                Check(Vector3.Distance(start, player.transform.position) > .5f,
+                    "NewCharacterTest actually moves under server-authoritative movement.");
+            }
 
             int navigating = 0;
             foreach (var identity in NetworkServer.spawned.Values)
@@ -272,8 +293,11 @@ namespace TOP.Testing
             Application.logMessageReceived -= ObserveLog;
             checks.Add("No account authentication or database writes were performed.");
             File.WriteAllLines("Tools/world-entry-smoke-results.txt", checks);
+            if (SessionState.GetBool("TOP.NewCharacterSmoke", false))
+                File.WriteAllLines("Tools/new-character-gameplay-results.txt", checks);
             SessionState.SetBool(Active, false);
             SessionState.SetBool("TOP.AdminGenerationSmoke", false);
+            SessionState.SetBool("TOP.NewCharacterSmoke", false);
             EditorApplication.isPlaying = false;
         }
 

@@ -58,6 +58,16 @@ namespace TOP.Services
 
         public static bool TryGetGameServer(out string host, out ushort port)
         {
+            return TryGetGameServer(true, out host, out port);
+        }
+
+        public static bool TryGetPublishedGameServer(out string host, out ushort port)
+        {
+            return TryGetGameServer(false, out host, out port);
+        }
+
+        static bool TryGetGameServer(bool useEditorOverride, out string host, out ushort port)
+        {
             host = null;
             port = 0;
 
@@ -78,7 +88,7 @@ namespace TOP.Services
                 port = config?.gameServerPort ?? 0;
 
             if (Application.isEditor && (string.IsNullOrWhiteSpace(host) || port == 0)
-                && TryReadEditorGameServerAddress(out string editorHost, out ushort editorPort))
+                && TryReadEditorGameServerAddress(useEditorOverride, out string editorHost, out ushort editorPort))
             {
                 if (string.IsNullOrWhiteSpace(host)) host = editorHost;
                 if (port == 0) port = editorPort;
@@ -87,12 +97,19 @@ namespace TOP.Services
             return !string.IsNullOrWhiteSpace(host) && port != 0;
         }
 
-        static bool TryReadEditorGameServerAddress(out string host, out ushort port)
+        static bool TryReadEditorGameServerAddress(bool useEditorOverride, out string host, out ushort port)
+        {
+            string path = EditorGameServerAddressPath(useEditorOverride);
+            bool read = TryReadGameServerAddress(path, out host, out port);
+            if (read) Debug.Log("[ApiConfig] Servidor de teste do Editor (" + Path.GetFileName(path) + "): " + host + ":" + port);
+            return read;
+        }
+
+        static bool TryReadGameServerAddress(string path, out string host, out ushort port)
         {
             host = null;
             port = 0;
 
-            string path = EditorGameServerAddressPath();
             if (!File.Exists(path)) return false;
 
             string[] lines;
@@ -102,12 +119,12 @@ namespace TOP.Services
             }
             catch (IOException e)
             {
-                Debug.LogWarning("[ApiConfig] Nao foi possivel ler Tools/server-address.txt: " + e.Message);
+                Debug.LogWarning("[ApiConfig] Nao foi possivel ler " + path + ": " + e.Message);
                 return false;
             }
             catch (UnauthorizedAccessException e)
             {
-                Debug.LogWarning("[ApiConfig] Sem permissao para ler Tools/server-address.txt: " + e.Message);
+                Debug.LogWarning("[ApiConfig] Sem permissao para ler " + path + ": " + e.Message);
                 return false;
             }
 
@@ -121,34 +138,35 @@ namespace TOP.Services
                     || !ushort.TryParse(line.Substring(separator + 1).Trim(), out ushort parsedPort)
                     || parsedPort == 0)
                 {
-                    Debug.LogWarning("[ApiConfig] Tools/server-address.txt invalido; esperado host:porta.");
+                    Debug.LogWarning("[ApiConfig] " + path + " invalido; esperado host:porta.");
                     return false;
                 }
 
                 host = line.Substring(0, separator).Trim();
                 if (host.Length == 0)
                 {
-                    Debug.LogWarning("[ApiConfig] Tools/server-address.txt nao contem um host.");
+                    Debug.LogWarning("[ApiConfig] " + path + " nao contem um host.");
                     return false;
                 }
 
                 port = parsedPort;
-                Debug.Log("[ApiConfig] Servidor de teste do Editor: " + host + ":" + port);
                 return true;
             }
 
-            Debug.LogWarning("[ApiConfig] Tools/server-address.txt nao contem um endereco host:porta.");
+            Debug.LogWarning("[ApiConfig] " + path + " nao contem um endereco host:porta.");
             return false;
         }
 
         static bool HasEditorGameServerAddressFile()
         {
-            return Application.isEditor && File.Exists(EditorGameServerAddressPath());
+            return Application.isEditor && File.Exists(EditorGameServerAddressPath(true));
         }
 
-        static string EditorGameServerAddressPath()
+        static string EditorGameServerAddressPath(bool useEditorOverride)
         {
             string projectRoot = Path.GetDirectoryName(Application.dataPath) ?? ".";
+            string localPath = Path.Combine(projectRoot, "Tools", "editor-server-address.txt");
+            if (useEditorOverride && File.Exists(localPath)) return localPath;
             return Path.Combine(projectRoot, "Tools", "server-address.txt");
         }
     }

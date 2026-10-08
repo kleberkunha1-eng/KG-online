@@ -62,8 +62,7 @@ namespace TOP.Player
                 Extra = TOP.Data.PkoGems.InstanceBonus(item)
             };
 
-            ApplyEquipmentStats(itemData, true);
-            ApplyExtra(_equippedItems[slot].Extra, 1);
+            RebuildEquipmentStats();
             OnItemEquipped?.Invoke(item, slot);
             SerializeEquipment();
         }
@@ -75,11 +74,8 @@ namespace TOP.Player
 
             EquipmentEntry equipped = _equippedItems[slot];
             _inventory?.ReleaseEquippedSlot(equipped.InventorySlot, equipped.ItemId);
-            EquipmentData itemData = ItemDatabase.Instance?.GetEquipment(equipped.ItemDatabaseId);
-
-            if (itemData != null)
-                ApplyEquipmentStats(itemData, false);
-            ApplyExtra(equipped.Extra, -1);
+            _equippedItems.Remove(slot);
+            RebuildEquipmentStats();
 
             InventoryItem unequippedItem = new InventoryItem 
             { 
@@ -88,8 +84,30 @@ namespace TOP.Player
             };
             OnItemUnequipped?.Invoke(unequippedItem, slot);
 
-            _equippedItems.Remove(slot);
             SerializeEquipment();
+        }
+
+        [Server]
+        void RebuildEquipmentStats()
+        {
+            if (_stats == null)
+            {
+                Debug.LogError("[PlayerEquipment] Cannot rebuild equipment bonuses without PlayerStats.");
+                return;
+            }
+            _stats.ResetEquipmentBonuses();
+            foreach (var entry in _equippedItems.Values)
+            {
+                var data = ItemDatabase.Instance.GetEquipment(entry.ItemDatabaseId);
+                if (data == null)
+                {
+                    Debug.LogError($"[PlayerEquipment] Missing stat definition for equipped item {entry.ItemDatabaseId}.");
+                    continue;
+                }
+                ApplyEquipmentStats(data, true);
+                ApplyExtra(entry.Extra, 1);
+            }
+            _stats.FinishEquipmentStats();
         }
 
         [Server]
@@ -154,13 +172,12 @@ namespace TOP.Player
             return ids;
         }
 
-        // Restores what the database says is worn (visual only; the base stats already include the item bonuses).
+        // Persisted base attributes do not include equipment or instance bonuses.
         [Server]
         public void LoadEquippedFromInventory(List<TOP.Data.InventoryItemData> items)
         {
-            if (items == null) return;
             _equippedItems.Clear();
-            foreach (var it in items)
+            foreach (var it in items ?? new List<TOP.Data.InventoryItemData>())
             {
                 if (!it.IsEquipped) continue;
                 EquipmentSlot slot;
@@ -170,8 +187,20 @@ namespace TOP.Player
                 else continue;
                 if (slot == EquipmentSlot.Weapon && _equippedItems.ContainsKey(slot) && IsOffhandSword(it.ItemId)) slot = EquipmentSlot.Shield;
                 else if (IsRing(slot) && _equippedItems.ContainsKey(slot)) slot = slot == EquipmentSlot.Ring1 ? EquipmentSlot.Ring2 : slot;
-                _equippedItems[slot] = new EquipmentEntry { Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.ItemId, InventorySlot = it.SlotIndex, Durability = (int)it.Durability };
+                var instance = _inventory?.GetSlot(it.SlotIndex);
+                if (data == null || instance == null || instance.ItemId != it.ItemId)
+                {
+                    Debug.LogError($"[PlayerEquipment] Cannot restore equipped item {it.ItemId} at inventory slot {it.SlotIndex}.");
+                    continue;
+                }
+                _equippedItems[slot] = new EquipmentEntry
+                {
+                    Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.ItemId,
+                    InventorySlot = it.SlotIndex, Durability = it.Durability,
+                    Extra = TOP.Data.PkoGems.InstanceBonus(instance)
+                };
             }
+            RebuildEquipmentStats();
             SerializeEquipment();
         }
 

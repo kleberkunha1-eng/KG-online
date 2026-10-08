@@ -88,8 +88,7 @@ namespace TOP.Admin
         void Draw(int id, PkoCharacterVisual v)
         {
             int k = PkoWeaponPose.Key(v.Race, hand);
-            string[] races = { "Lance", "Carsise", "Phyllis", "Ami" };
-            GUILayout.Label("Raca: " + races[Mathf.Clamp(v.Race, 0, 3)] + "  (valores sao por raca e por mao)");
+            GUILayout.Label("Raca: " + TOP.Data.PkoRaces.Name(v.Race) + "  (NewCharacterTest compartilha os ajustes do Lance)");
 
             bool free = GUILayout.Toggle(freeCam, " Camera livre (botao direito + WASD/QE, Shift rapido)");
             if (free != freeCam) { SetFree(free); if (free) Focus(v); }

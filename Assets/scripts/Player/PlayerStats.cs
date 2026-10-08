@@ -135,8 +135,10 @@ namespace TOP.Player
             BaseSpirit = data.BaseSpr;
             BaseStamina = data.BaseSta;
 
-            RecalculateStats();
-            SetCurrentHpMpSp(data.CurrentHp, data.CurrentMp, data.CurrentSp);
+            ResetEquipmentBonuses();
+            CurrentHp = data.CurrentHp;
+            CurrentMp = data.CurrentMp;
+            CurrentSp = data.CurrentSp;
 
             if (data.Skills != null)
             {
@@ -331,6 +333,10 @@ namespace TOP.Player
             CurrentHp = Mathf.Clamp(hp, 0, MaxHp);
             CurrentMp = Mathf.Clamp(mp, 0, MaxMp);
             CurrentSp = Mathf.Clamp(sp, 0, MaxSp);
+            SyncController();
+            OnHealthUpdated?.Invoke();
+            OnManaUpdated?.Invoke();
+            OnStaminaUpdated?.Invoke();
         }
 
         // ============================================================
@@ -373,6 +379,20 @@ namespace TOP.Player
         // ============================================================
         // BONUS
         // ============================================================
+        [Server]
+        public void ResetEquipmentBonuses()
+        {
+            _bonusStr = _bonusAgi = _bonusCon = _bonusSpr = _bonusSta = 0;
+            _bonusHp = _bonusMp = _bonusSp = _bonusAtk = _bonusDef = 0;
+        }
+
+        [Server]
+        public void FinishEquipmentStats()
+        {
+            SetCurrentHpMpSp(CurrentHp, CurrentMp, CurrentSp);
+            OnStatsChanged?.Invoke();
+        }
+
         public void AddBonusStrength(int value) => _bonusStr += value;
         public void AddBonusAgility(int value) => _bonusAgi += value;
         public void AddBonusConstitution(int value) => _bonusCon += value;

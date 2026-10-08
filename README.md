@@ -17,7 +17,11 @@ O cliente Unity usa Mirror/KCP e **nunca** inicia um host no computador do jogad
 }
 ```
 
-Para testar direto no Unity Editor sem gerar/publicar um build, o Play Mode usa `Tools/server-address.txt` como destino do jogo quando os argumentos e o `api.json` do projeto não definirem host e porta. Com esse arquivo presente, o login usa a mesma API publicada do build para que o JWT seja aceito pelo servidor remoto. O arquivo local tem o formato `host:porta` e não é incluído no build. Um argumento `--api=URL` ou um `api.json` na raiz do projeto pode substituir a API publicada para testes locais.
+Para testar direto no Unity Editor sem gerar/publicar um build, o Play Mode usa `Tools/editor-server-address.txt` quando presente; caso contrario, usa `Tools/server-address.txt`. Argumentos e o `api.json` do projeto continuam tendo prioridade. Nesta maquina, o arquivo exclusivo do Editor aponta para `127.0.0.1:7777`: acessa o servidor dedicado diretamente, sem depender do tunel publico para testes no mesmo computador. Nao inicia um host nem troca de servidor silenciosamente. Para testar o tunel no Play Mode, renomeie temporariamente o arquivo exclusivo do Editor. Os arquivos tem formato `host:porta` e nao sao incluidos no build; `Tools/server-address.txt` continua sendo o destino dos clientes publicados. Com um desses arquivos presente, o login usa a mesma API publicada do build para que o JWT seja aceito pelo servidor. Um argumento `--api=URL` ou um `api.json` na raiz do projeto pode substituir a API publicada para testes locais.
+
+Se o transporte falhar, o login mostra o destino e libera uma nova tentativa em vez de permanecer bloqueado em "Conectando". O timeout KCP nao foi aumentado: autenticar na API nao comprova que o UDP do servidor ou o tunel esteja disponivel. `Tools > PKO > Validate Multiplayer Transport` continua verificando o destino PUBLICO, ignorando o arquivo exclusivo do Editor, e exige pelo menos 10 respostas em 12 segundos. Use tambem `Tools > PKO > Validate Editor Server Configuration` para verificar a separacao dos destinos.
+
+Se o teste funcionar fora do Unity, mas falhar no Editor, verifique as regras do executavel exato do Unity e o perfil ativo em `Get-NetConnectionProfile`: uma regra explicita de **Block** tem prioridade sobre **Allow**. Foi identificado um bloqueio Public para Unity 6000.4.4f1, enquanto sua permissao existente era apenas Domain. `Tools/Release/Repair-UnityGameFirewall.ps1`, executado pelo administrador, permite somente respostas UDP nas portas local/publica do jogo para esse executavel e preserva o bloqueio TCP. Nao desliga o firewall, nao se eleva automaticamente e nao altera regras de outras versoes do Unity. `-WhatIf` mostra a alteracao sem aplica-la; depois de aplicar, repita a validacao de transporte por 12 segundos. A correcao do codigo nao substitui essa permissao do Windows.
 
 Execute uma instância dedicada do mesmo build com `GameProjectKG.exe -batchmode -nographics --server --server-port=7777`. O servidor valida o JWT na API antes de liberar a seleção de personagem.
 
@@ -58,11 +62,49 @@ O cliente C++ original fornecido em `E:\NEW SV\Client` utiliza um protocolo TCP 
 
 ## Conteúdo e configuração
 
+### Novas estruturas
+
+Os 75 modelos GLB de `SEND TO PROJECT` ficam em `Assets/Novas estruturas`, preservando nomes e subpastas, inclusive `new character`. O pacote oficial Unity glTFast importa malhas, materiais, texturas incorporadas e animacoes. Arraste o asset GLB da janela Project para a cena para criar uma instancia; expanda o asset para acessar seus componentes importados. Os arquivos originais nao foram modificados e nenhuma estrutura foi posicionada automaticamente no mapa.
+
+Esses assets ficam fora de `Resources`: somente os modelos referenciados pelo jogo devem entrar na build, evitando incluir toda a colecao de aproximadamente 6,9 GB sem necessidade. A importacao nao gera colisores nem NavMesh automaticamente; configure-os conforme o uso de cada estrutura no novo mapa. Execute `Tools > Validate New Structures` para verificar malhas, materiais, texturas e contar as animacoes; o resultado fica em `Tools/new-structures-validation-results.txt`.
+
 O terreno importado usa alturas e texturas de `E:\NEW SV\Client\map\garner.map`: uma região de 256 × 256 unidades, com 24 camadas de textura. A origem Unity corresponde à coordenada original (2218, 2782). Foram convertidos dois edifícios originais, suas texturas e a música de Argent. O jogador usa o modelo Lance existente; os inimigos usam o modelo animado disponível no prefab `Mob_Slime` (visualmente um cervo).
 
 O arquivo de posicionamento `garner.obj` não foi encontrado no cliente fornecido. Os edifícios foram posicionados manualmente. O mapa inteiro de 4096 × 4096, todas as classes, quests, economia e demais sistemas de um MMO completo não estão certificados como concluídos. As transições de textura aproximam as máscaras originais usando Terrain splat weights.
 
 ## Verificação reproduzível
+
+### NewCharacterTest
+
+`NewCharacterTest` e a quinta opcao de personagem (ID 4 no campo historico `Job`, usado pelo fluxo como raca). Nao e uma nova profissao de combate: herda Lance (ID 0), sem substituir personagens existentes. O modelo vem de `Assets/ImportedClient/NewCharacterTest/Personagem_RPG.glb`. O rig `Resources/PkoChar/Rig_0004` e o esqueleto exportado do Blender, com tamanho (1,70 m), proporcoes, pesos e as 72 animacoes `0000_action*` exatamente como no GLB, convertidas para clips legacy em `Resources/PkoChar/NewCharacterTest/Animations` (eventos e wrap mode seguem o clip do Lance de mesmo nome). Os ossos `RPG_*` dos dedos viram ossos extras (indice 56+) e os nubs ausentes dos dedos do pe recebem marcadores vazios. As cinco partes ficam em `Resources/PkoChar/NewCharacterTest`, mantendo substituicao por equipamento, rosto e cabelo. Pecas feitas para o Lance (rosto, cabelo, armaduras) sao reposicionadas por `PkoRigFit`: cada peca e escalada em torno da junta do Lance e colocada na mesma junta deste rig. O skinning do personagem usa 4 ossos por vertice. Nas animacoes com joelhos e pes muito dobrados (`0000_action3`, `0000_action42`) a barra da bota estica do mesmo jeito que no Blender.
+
+Criacao, selecao, aparencia sincronizada, restricoes de equipamento, salao, armas, asas e Blue Mage Set usam a identidade nova com compatibilidade Lance. Os atributos iniciais nas duas APIs sao os mesmos do Lance, incluindo HP 150, MP 50 e SP 100; nao e necessaria uma migracao de esquema. Para testar na API publicada, publique tambem a funcao Cloudflare atualizada e use um servidor/cliente atualizados: modificar somente o Editor nao atualiza servicos em execucao.
+
+O rosto/cabelo padrao preserva a cabeca completa do modelo fornecido. Ao escolher outro rosto, penteado ou capacete original, a cabeca/cabelo passa a usar as variantes do Lance, pois o GLB tem cabelo integrado na mesma malha do rosto; isso evita sobrepor dois penteados. Corpo, luvas e botas continuam usando as partes novas ate serem substituidos por equipamento. A validacao exige p99 de alongamento das arestas menor que 4 na adaptacao e pelo menos 99% das arestas abaixo de 4x em cada amostra animada, alem das previas visuais.
+
+`node Tools/Extract-NewCharacterTextures.cjs` extrai as tres texturas originais sem alterar o GLB; o bake usa copias importadas com compressao, mipmaps e limite 4096 para nao carregar as texturas enormes de autoria no jogo. `Tools > PKO > Build NewCharacterTest` reconstroi os assets e verifica cada clip original em tres amostras, as cinco racas e os equipamentos, escrevendo `Tools/new-character-test-results.txt` e previews. `node --test Tools/tests/new-character-api.test.cjs` verifica criacao, lista e selecao nas duas APIs, com bancos isolados em memoria. Criar `Tools/validate-new-character-gameplay.request` executa entrada no mundo e movimento reais por KCP isolado, sem autenticar contas nem gravar no banco, e restaura as cenas abertas; resultado em `Tools/new-character-gameplay-results.txt`.
+
+### Blue Mage Set
+
+Os cinco equipamentos personalizados usam IDs reservados, nível 10 e aceitam todas as raças/classes:
+
+| ID | Item | Slot | Referência de atributos |
+| --- | --- | --- | --- |
+| 990010 | Blue Mage Helm | Capacete | Mousey Cap (2202) |
+| 990011 | Blue Mage Chestplate | Armadura | Medic Robe (365) |
+| 990012 | Blue Mage Gloves | Luvas | Medic Gloves (541) |
+| 990013 | Blue Mage Pants | Cinto | Visual sem bônus adicionais |
+| 990014 | Blue Mage Boots | Botas | Medic Boots (717) |
+
+As calças ocupam o slot de cinto existente, sem acrescentar slots ao protocolo. O F10 usa o mesmo catálogo que inventário e equipamento, incluindo a categoria `Cinto / Calcas`. Os ícones de 256×256 são renderizações dos modelos texturizados, não recortes do atlas de textura. Os modelos fornecidos em OBJ são estáticos: a preparação limita cada peça a 22 mil triângulos (10 mil nos assets atuais), preserva UVs e reduz as texturas a 2048×2048. O bake cria uma versão com pesos e bind poses para cada raça a partir das partes originais; as peças acompanham o esqueleto também durante voo. Um traje interno azul ajustado preenche as aberturas entre peças e substitui apenas a região correspondente da roupa original, evitando roupa antiga atravessando a armadura ou buracos no corpo. Aparências originais têm prioridade sobre as peças correspondentes.
+
+O encaixe preserva a frente +Z do modelo e usa as regiões anatômicas do esqueleto de cada raça. As luvas incluem os antebraços e são alinhadas ao pulso/cotovelo; as botas incluem as canelas e são alinhadas ao tornozelo/joelho. O bake ajusta a folga radial das peças ao traje interno em faixas ao longo de cada membro e do tronco, preservando os detalhes externos e evitando que o corpo atravesse a armadura. O traje azul inclui uma gola fechada até a região da cabeça e mangas/perneiras fechadas dimensionadas pelas articulações, incorporadas ao mesmo mesh/material, sem renderers adicionais. As perneiras substituem a geometria inferior da roupa original que poderia unir e esticar entre as duas pernas. As calças usam pesos anatômicos de quadril, coxa, joelho e tornozelo, mantendo o painel central preso à pelve; não recebem influência de braços nem da perna oposta. O elmo fechado oculta o rosto e o cabelo originais enquanto equipado; removê-lo restaura a aparência escolhida do personagem.
+
+Os atributos base persistidos são separados dos bônus dos equipamentos. Ao entrar no mundo, o servidor restaura os atributos base, reaplica os bônus das peças/refinos/gemas e só então limita HP/MP/SP aos máximos calculados. Trocas e remoções recalculam o conjunto equipado inteiro, sem subtrair bônus que não foram aplicados no login. Personagens salvos com HP zero retomam o respawn normal, evitando ficar permanentemente sem movimento ao reconectar. A validação KCP de geração inclui HP sincronizado, recarga dos equipamentos, ausência de acúmulo de bônus e movimento real antes/depois do respawn.
+
+O inventário pertence ao personagem, não à conta: as APIs consultam e salvam por `character_id`. Ao sair do mundo, as janelas de gameplay são removidas do cache persistente com seus callbacks; o próximo personagem recebe novas janelas. O HUD acompanha a identidade do jogador local e limpa ícones ao desconectar, sem reaproveitar referências ao personagem anterior. A configuração repetida de áudio reutiliza os componentes de clique/Graphic em vez de interromper a inicialização do inventário. O carregamento de inventário vazio/nulo também limpa itens anteriores. `Tools/validate-window-controls.request` verifica áudio repetido, troca de inventários, limpeza e Alt+E entre sessões.
+
+Para regenerar a partir dos arquivos Meshy, execute o Blender em background com `Tools/Prepare-BlueMageSet.py -- --source "<pasta BLUE SET>" --project "<projeto>"` e depois `Tools > PKO > Build Blue Mage Set` no Unity. A geometria intermediária fica em `Assets/ImportedClient/BlueMageSet`, os assets de jogo em `Assets/Resources/PkoChar/BlueMageSet` e os ícones em `Assets/Resources/PKOUI/icon`. O builder valida catálogo, slots, ícones, texturas, orçamento de triângulos, pesos, deformação e equipamento/remoção nas quatro raças, incluindo ocultação/restauração do rosto. A cobertura é medida em três anéis de 24 direções por região: tronco, pescoço, coxas, canelas e antebraços, na pose inicial e no meio das animações de espera, corrida e ataque terrestres/aéreas. A medição usa os meshes deformados e as posições atuais dos ossos, isolando a região anatômica testada. As prévias de frente, costas e ambos os lados incluem a pose de bind e amostras de espera, corrida e ataque no chão e em voo, sem as asas cobrindo a armadura. Resultado em `Tools/blue-mage-set-results.txt`, com prévias por raça no mesmo diretório.
 
 ### Janelas e asas
 
@@ -129,6 +171,34 @@ A geração de builds usa uma pasta intermediária e só substitui a build ativa
 No editor, use `TOP > Validate gameplay (local test)` para executar o teste isolado do mundo. Ele usa um personagem sintético e não grava contas/personagens no banco. Os resultados ficam em `Tools/smoke-results.txt`, erros em `Tools/smoke-errors.txt` e a captura em `Tools/gameplay-smoke.png`. Esse teste não substitui testes de login real nem de múltiplos clientes remotos.
 
 `TOP > Configure playable world` reconstrói a configuração de cena/prefabs e o terreno. Salve cenas abertas antes de executá-lo. Essa ferramenta aplica posições e parâmetros definidos em `Assets/Editor/PlayableWorldSetup.cs`.
+
+## Trace de desenvolvimento
+
+Ferramenta interna da equipe (não aparece para o jogador). Registra travadas, requisições e tráfego do multiplayer, para decidir o que otimizar ou remover.
+
+- **Unity** (`Assets/scripts/Core/GameTrace.cs`): liga sozinho no Editor, em builds de desenvolvimento e no servidor (`--server`). Na build de release do jogador fica desligado, a menos que se use `--trace`. `--no-trace` desliga.
+- **O que registra:**
+  - `FREEZE`/`HITCH`: frames acima de 1 s ou de 100 ms.
+  - `STALL`: thread principal travada, detectada por outra thread, com o trecho de código aberto no momento.
+  - `SLOW`: blocos medidos com `GameTrace.Measure` acima de 50 ms.
+  - `HANDLER`: mensagens Mirror acima de 20 ms.
+  - `NET`: mensagens acima de 16 KB.
+  - `HTTP`/`HTTP-SLOW`: chamadas à API.
+  - Logs, erros e exceções, com mensagens repetidas agrupadas.
+  - `MARK`: momentos importantes.
+  - `SUMMARY`: a cada 10 s, com fps, GC, memória, rtt, tráfego por tipo de mensagem e HTTP.
+- **API** (`API/trace.js`): para cada request, registra tempo, status, número de queries e tempo de SQL (`REQ`, `REQ-SLOW` acima de 500 ms, `REQ-ERR`). Também registra queries acima de 50 ms (`SQL-SLOW`) e travas do event loop. Não grava corpo, parâmetros nem tokens. Desliga com `API_TRACE=0`.
+- **Arquivos:**
+  - `Logs/Trace` (Editor);
+  - `<build>/Trace` (builds/servidor);
+  - `API/logs` (API).
+
+  Cada arquivo tem no máximo 20 MB e é dividido ao atingir esse tamanho. São mantidos até 40 arquivos ou 200 MB na Unity, e até 10 arquivos na API.
+- **Menu `Tools > Trace`:**
+  - **Ver Trace** abre a janela com filtros (Problemas, Tudo, Resumo, Rede/HTTP, Logs), busca e as 5 piores ocorrências.
+  - **Apagar Trace** remove todos os traces. O arquivo em uso é esvaziado.
+  - **Abrir Pasta** abre a pasta dos traces.
+- `--trace-profiler` (ou `TOP_TRACE_PROFILER=1`) grava também uma captura `.raw` do Unity Profiler.
 
 ## Limpeza e origem
 

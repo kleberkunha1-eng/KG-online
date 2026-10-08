@@ -29,6 +29,7 @@ namespace TOP.Character
 
         public static Entry Get(int race, int itemId)
         {
+            race = TOP.Data.PkoRaces.BaseRace(race);
             Load();
             var entry = store.entries.Find(e => e.race == race && e.itemId == itemId);
             if (entry != null) return entry;

@@ -176,7 +176,9 @@ namespace Mirror
                 try
                 {
                     // user implemented handler
+                    long handlerStarted = NetworkDiagnostics.HandlerTiming ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
                     handler((C)conn, message, channelId);
+                    if (handlerStarted != 0) NetworkDiagnostics.OnHandled(typeof(T), handlerStarted);
                 }
                 catch (Exception exception)
                 {

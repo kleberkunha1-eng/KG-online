@@ -30,6 +30,14 @@ do projeto — não precisa decorar nada, é só seguir a receita da tarefa que 
 3. Aguarde terminar (aparece no console: `Succeeded | XXX MB | 0 errors | tempo`).
 4. A build fica em `Build\GameProjectKG\GameProjectKG.exe`.
 
+Se o servidor ainda estiver usando a build ativa, use **Tools > Build Game (Windows, staging only)**.
+Essa opção gera `Build\GameProjectKG.building`, incluindo as configurações de API e itch, sem
+substituir a build ativa nem interromper o servidor. No Editor aberto, também pode ser acionada
+criando `Tools\build.request` com o conteúdo `stage`; o resultado fica em `Tools\build-result.txt`.
+A ativação continua sendo uma operação separada: requer parar o servidor com a autorização
+apropriada, preservar a build anterior e verificar o servidor após a troca. Gerar staging não
+significa que a correção já está em uso pelos jogadores.
+
 ### Opção B — Por linha de comando (sem abrir o Editor, útil se ele já estiver aberto noutro
 projeto ou se você quiser automatizar)
 

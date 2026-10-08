@@ -21,14 +21,20 @@ public static class GameBuild
         // enquanto isPlaying == true). Sai do Play Mode automaticamente e aguarda o proximo tick.
         if (EditorApplication.isPlaying) { EditorApplication.isPlaying = false; return; }
         if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        bool stagingOnly = File.ReadAllText(Request).Trim().Equals("stage", System.StringComparison.OrdinalIgnoreCase);
         File.Delete(Request);
-        File.WriteAllText(Result, Build());
+        File.WriteAllText(Result, Build(!stagingOnly));
     }
 
     [MenuItem("Tools/Build Game (Windows)")]
     public static void BuildMenu() { Debug.Log(Build()); }
 
-    public static string Build()
+    [MenuItem("Tools/Build Game (Windows, staging only)")]
+    public static void BuildStagingMenu() { Debug.Log(Build(false)); }
+
+    public static string Build() => Build(true);
+
+    static string Build(bool promote)
     {
         if (EditorUtility.scriptCompilationFailed)
         {
@@ -48,6 +54,8 @@ public static class GameBuild
             options = BuildOptions.None,
         };
         var r = BuildPipeline.BuildPlayer(opts);
+        string summary = r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | "
+            + r.summary.totalErrors + " errors | " + r.summary.totalTime;
         // Garante que toda build gerada ja aponte para a API publica (Cloudflare), mesmo quando
         // o jogo e aberto fora do launcher proprio (ex.: build publicada direto no itch.io, sem o
         // argumento --api= que o launcher injeta). Sem isso o cliente cai no fallback
@@ -59,6 +67,7 @@ public static class GameBuild
                 "{\"apiUrl\":\"" + TOP.Services.ApiConfig.PublishedApiUrl + "\",\"gameServerHost\":\"" + host + "\",\"gameServerPort\":" + port + "}");
             File.WriteAllText(Path.Combine(staging, ".itch.toml"),
                 "[[actions]]\nname = \"Jogar KG Online\"\npath = \"GameProjectKG.exe\"\nplatform = \"windows\"\n");
+            if (!promote) return summary + " | Staging ready: " + staging + " | Active build unchanged";
             string previous = Out + ".previous." + System.DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
             if (Directory.Exists(Out)) Directory.Move(Out, previous);
             try { Directory.Move(staging, Out); }
@@ -68,7 +77,7 @@ public static class GameBuild
                 throw;
             }
         }
-        return r.summary.result + " | " + (r.summary.totalSize / 1048576) + " MB | " + r.summary.totalErrors + " errors | " + r.summary.totalTime;
+        return summary;
     }
 
     // Le o endereco publico do servidor dedicado (host e porta) de Tools/server-address.txt,

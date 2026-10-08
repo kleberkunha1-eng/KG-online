@@ -100,12 +100,14 @@ namespace TOP.Services
                 req.downloadHandler = new DownloadHandlerBuffer();
                 req.SetRequestHeader("Authorization", "Bearer " + (token ?? ""));
                 req.timeout = 20;
+                double traceStarted = TOP.Diagnostics.GameTrace.Now;
                 var op = req.SendWebRequest();
                 while (!op.isDone)
                 {
                     if (ct.IsCancellationRequested) { req.Abort(); throw new OperationCanceledException(); }
                     await Task.Yield();
                 }
+                TOP.Diagnostics.GameTrace.Http(req, traceStarted);
                 string text = req.downloadHandler.text;
                 if (req.result == UnityWebRequest.Result.ConnectionError)
                     throw new Exception("Sem conexao com a API: " + req.error);

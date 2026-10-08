@@ -10,6 +10,7 @@ const CLASSES = {
     10: 'Crusader', 11: 'Sharpshooter', 12: 'Sharpshooter', 13: 'Cleric', 14: 'Seal Master', 16: 'Voyager',
 };
 const BASE_STATS = { 0: [15, 10, 12, 8, 10, 150, 50, 100], 1: [10, 15, 10, 10, 12, 120, 60, 100], 2: [8, 10, 10, 15, 10, 100, 80, 100], 3: [10, 12, 10, 12, 11, 110, 70, 100] };
+BASE_STATS[4] = BASE_STATS[0]; // NewCharacterTest inherits Lance's starting attributes.
 const DEFAULT_STATS = [10, 10, 10, 10, 10, 100, 50, 100];
 const MAX_INV = 300, MAX_SKILLS = 300;
 const SESSION_SECONDS = 24 * 3600;

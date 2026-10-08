@@ -1,0 +1,41 @@
+# Arquivos e pastas que o GitHub Copilot deve ignorar ao indexar/varrer o workspace.
+# Objetivo: reduzir drasticamente o consumo de tokens de contexto, ignorando pastas
+# geradas/pesadas do Unity e arquivos binarios/nao-codigo. O codigo-fonte (C#) e
+# arquivos de configuracao em texto continuam visiveis normalmente.
+
+# Pastas geradas pelo Unity / builds / cache (recriadas automaticamente, nunca precisam
+# ser lidas pela IA)
+Library/
+Temp/
+Logs/
+Obj/
+obj/
+Build/
+Builds/
+UserSettings/
+MemoryCaptures/
+.vs/
+.plastic/
+
+# Extensoes de metadados e assets binarios do Unity (nao sao texto util para a IA;
+# .meta sao apenas GUIDs, .asset/.prefab/.unity podem ser YAML gigantes sem valor de
+# leitura direta, o resto sao binarios de modelos/texturas/audio/fontes)
+*.meta
+*.asset
+*.prefab
+*.unity
+*.fbx
+*.obj
+*.png
+*.jpg
+*.jpeg
+*.tga
+*.psd
+*.wav
+*.mp3
+*.ogg
+*.ttf
+*.otf
+*.anim
+*.controller
+*.mat

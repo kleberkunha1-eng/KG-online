@@ -101,7 +101,9 @@ namespace TOP.Network
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.timeout = requestTimeout;
 
+                double traceStarted = TOP.Diagnostics.GameTrace.Now;
                 yield return request.SendWebRequest();
+                TOP.Diagnostics.GameTrace.Http(request, traceStarted);
 
                 if (request.result != UnityWebRequest.Result.Success)
                 {
@@ -154,7 +156,9 @@ namespace TOP.Network
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.timeout = requestTimeout;
 
+                double traceStarted = TOP.Diagnostics.GameTrace.Now;
                 yield return request.SendWebRequest();
+                TOP.Diagnostics.GameTrace.Http(request, traceStarted);
 
                 if (request.result != UnityWebRequest.Result.Success)
                 {

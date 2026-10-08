@@ -21,6 +21,7 @@ namespace TOP.Network
         const float ClientPingInterval = 3f;
 
         public static TOPNetworkManager Instance { get; private set; }
+        public static event Action<string> ClientConnectionFailed;
 
         [Header("Tales of Pirates - Config")]
         [SerializeField] private float autoSaveInterval = 30f;
@@ -45,6 +46,7 @@ namespace TOP.Network
         private readonly Dictionary<int, RateLimiter> _rateLimiters = new Dictionary<int, RateLimiter>();
         private readonly Dictionary<int, PendingAuth> _pendingAuths = new Dictionary<int, PendingAuth>();
         private float nextClientPingTime;
+        private string clientConnectionError;
 
         private class PendingAuth
         {
@@ -103,6 +105,7 @@ namespace TOP.Network
             }
 
             networkAddress = host;
+            clientConnectionError = null;
             ConfigureTransportPort(port);
             Debug.Log($"[TOPNetworkManager] Conectando ao servidor Mirror em {host}:{port}.");
             StartClient();
@@ -324,6 +327,21 @@ namespace TOP.Network
         {
             base.OnClientDisconnect();
             Debug.Log("[TOPNetworkManager] Cliente desconectado do servidor Mirror");
+            ClientConnectionFailed?.Invoke(clientConnectionError
+                ?? "A conexao com o servidor do jogo foi encerrada. Tente entrar novamente.");
+            clientConnectionError = null;
+        }
+
+        public override void OnClientError(TransportError error, string reason)
+        {
+            base.OnClientError(error, reason);
+            string endpoint = transport is KcpTransport kcp ? networkAddress + ":" + kcp.Port : networkAddress;
+            clientConnectionError = error == TransportError.Timeout
+                ? "O servidor do jogo nao respondeu em " + endpoint
+                    + ". Verifique o servidor e a conexao; o login na API nao garante que o servidor do jogo esteja acessivel."
+                : "Falha na conexao com o servidor do jogo em " + endpoint + ": " + reason;
+            Debug.LogWarning("[TOPNetworkManager] " + clientConnectionError);
+            ClientConnectionFailed?.Invoke(clientConnectionError);
         }
 
         public override void OnServerAddPlayer(NetworkConnectionToClient conn)
@@ -395,7 +413,9 @@ namespace TOP.Network
                 request.downloadHandler = new DownloadHandlerBuffer();
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.timeout = 5;
+                double traceStarted = TOP.Diagnostics.GameTrace.Now;
                 yield return request.SendWebRequest();
+                TOP.Diagnostics.GameTrace.Http(request, traceStarted);
 
                 bool isValid = false;
                 long accountId = 0;

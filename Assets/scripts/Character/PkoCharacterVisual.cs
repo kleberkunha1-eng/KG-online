@@ -11,7 +11,7 @@ namespace TOP.Character
     // Used by the character selection preview and by the in-game player.
     public class PkoCharacterVisual : MonoBehaviour
     {
-        public const int Races = 4; // Lance, Carsise, Phyllis, Ami
+        public const int Races = PkoRaces.OriginalCount; // Original asset families; NewCharacterTest shares Lance equipment.
         const int PartFace = 0, PartHair = 1, PartBody = 2, PartGloves = 3, PartBoots = 4, PartCount = 5;
         const int DummyRightHand = 9, DummyLeftHand = 6;
         static readonly Regex BoneName = new Regex(@"^b(\d+)_");
@@ -23,8 +23,11 @@ namespace TOP.Character
 
         GameObject rig;
         Transform[] bones;
+        PkoRigFit rigFit;
         readonly Dictionary<string, Transform> dummies = new Dictionary<string, Transform>();
         readonly GameObject[] parts = new GameObject[PartCount];
+        readonly List<GameObject> customParts = new List<GameObject>();
+        Mesh coveredBody;
         GameObject rightWeapon, leftWeapon, wingVisual;
         Vector3 wingBasePosition;
         Quaternion wingBaseRotation;
@@ -32,9 +35,11 @@ namespace TOP.Character
         public int WingItemId { get; private set; }
         public Transform WingMount => wingVisual != null ? wingVisual.transform : null;
         public PkoPoseDriver Pose { get; private set; }
+        public const string NewCharacterClipFolder = "PkoChar/NewCharacterTest/Animations/";
 
         public static PkoCharacterVisual Create(Transform parent, int race, int face, int hair, IEnumerable<int> items)
         {
+            using var trace = TOP.Diagnostics.GameTrace.Measure("PkoCharacterVisual.Create", race);
             var go = new GameObject("PkoCharacter");
             go.transform.SetParent(parent, false);
             var v = go.AddComponent<PkoCharacterVisual>();
@@ -44,7 +49,7 @@ namespace TOP.Character
 
         public void Apply(int race, int face, int hair, IEnumerable<int> items)
         {
-            race = Mathf.Clamp(race, 0, Races - 1);
+            race = Mathf.Clamp(race, 0, PkoRaces.Count - 1);
             if (rig == null || race != Race) LoadRig(race);
             Race = race; Face = face; Hair = hair;
             var list = new List<int>(); if (items != null) list.AddRange(items);
@@ -52,12 +57,15 @@ namespace TOP.Character
             if (rig == null) return;
 
             var models = new string[PartCount];
-            models[PartFace] = Name(race, face, 0);
-            models[PartHair] = Name(race, hair, 1);
-            models[PartBody] = Name(race, 0, 2);
-            models[PartGloves] = Name(race, 0, 3);
-            models[PartBoots] = Name(race, 0, 4);
+            int baseRace = PkoRaces.BaseRace(race);
+            models[PartFace] = Name(baseRace, face, 0);
+            models[PartHair] = Name(baseRace, hair, 1);
+            models[PartBody] = Name(baseRace, 0, 2);
+            models[PartGloves] = Name(baseRace, 0, 3);
+            models[PartBoots] = Name(baseRace, 0, 4);
             string right = null, left = null; PkoItem wing = null; int rightType = 0, leftType = 0;
+            var custom = new List<BlueMageSet.Piece>();
+            var apparelSlots = new HashSet<EquipmentSlot>();
 
             // Aparencia vence o equipamento real: processada por ultimo.
             var ordered = new List<int>(Equipped);
@@ -65,13 +73,15 @@ namespace TOP.Character
             foreach (int id in ordered)
             {
                 if (!PkoTables.Items.TryGetValue(id, out var it)) continue;
+                if (BlueMageSet.TryGet(id, out var bluePiece)) { custom.Add(bluePiece); continue; }
                 if (PkoTables.SlotOf(it) == EquipmentSlot.Wing)
                 {
                     wing = it;
                     continue;
                 }
-                string m = it.RaceModels != null && race < it.RaceModels.Length ? (it.RaceModels[race] ?? "").TrimEnd('_') : "";
+                string m = it.RaceModels != null && baseRace < it.RaceModels.Length ? (it.RaceModels[baseRace] ?? "").TrimEnd('_') : "";
                 if (m.Length == 0 || m == "0") continue;
+                if (PkoTables.IsApparel(it)) apparelSlots.Add(PkoTables.SlotOf(it));
                 switch (it.Type)
                 {
                     case 20: case 28: if (m.Length == 10) models[PartHair] = m; break;
@@ -86,10 +96,17 @@ namespace TOP.Character
                 }
             }
 
-            for (int i = 0; i < PartCount; i++) SetPart(i, models[i]);
+            bool customHead = models[PartFace] == Name(0, 0, PartFace)
+                && models[PartHair] == Name(0, 0, PartHair);
+            for (int i = 0; i < PartCount; i++)
+                SetPart(i, models[i], customHead || (i != PartFace && i != PartHair));
+            using (TOP.Diagnostics.GameTrace.Measure("PkoCharacterVisual.Equipment", int.MinValue, 20))
+            {
+            ApplyCustomParts(custom, apparelSlots);
             SetWeapon(ref rightWeapon, right, DummyRightHand);
             SetWeapon(ref leftWeapon, left, DummyLeftHand);
             SetWing(wing);
+            }
             if (Pose != null) Pose.SetWield(PkoPoses.WieldOf(leftType, rightType));
         }
 
@@ -99,6 +116,7 @@ namespace TOP.Character
 
         void LoadRig(int race)
         {
+            using var trace = TOP.Diagnostics.GameTrace.Measure("PkoCharacterVisual.LoadRig", race, 20);
             if (rig != null) { rig.SetActive(false); Destroy(rig); }
             foreach (Transform c in transform) if (c.gameObject != rig && c.gameObject.activeSelf) { c.gameObject.SetActive(false); Destroy(c.gameObject); }
             dummies.Clear();
@@ -106,8 +124,10 @@ namespace TOP.Character
             if (prefab == null) { Debug.LogError("[PkoCharacterVisual] Rig ausente para a raca " + race + " (execute TOP/Characters/Bake)."); return; }
             rig = Instantiate(prefab, transform);
             rig.name = "Rig";
+            rigFit = rig.GetComponent<PkoRigFit>();
             var legacy = rig.GetComponent<LegacyAnimDriver>(); if (legacy != null) { legacy.enabled = false; Destroy(legacy); }
-            Pose = rig.AddComponent<PkoPoseDriver>(); Pose.Init(rig.GetComponent<Animation>(), race.ToString("0000"));
+            Pose = rig.AddComponent<PkoPoseDriver>(); Pose.Init(rig.GetComponent<Animation>(), PkoRaces.BaseRace(race).ToString("0000"),
+                race == PkoRaces.NewCharacterTest ? NewCharacterClipFolder : null);
             var found = new List<(int, Transform)>();
             foreach (var t in rig.GetComponentsInChildren<Transform>(true))
             {
@@ -121,20 +141,107 @@ namespace TOP.Character
             rightWeapon = leftWeapon = wingVisual = null;
         }
 
-        void SetPart(int slot, string name)
+        void SetPart(int slot, string name, bool useCustomDefault)
         {
-            if (parts[slot] != null) Destroy(parts[slot]);
+            using var trace = TOP.Diagnostics.GameTrace.Measure("PkoCharacterVisual.SetPart", slot, 20);
+            if (parts[slot] != null) { parts[slot].SetActive(false); Destroy(parts[slot]); }
             parts[slot] = null;
-            var asset = Resources.Load<PkoPartAsset>("PkoChar/Parts/" + name);
+            bool newDefault = useCustomDefault && Race == PkoRaces.NewCharacterTest && name == Name(0, 0, slot);
+            var asset = Resources.Load<PkoPartAsset>(newDefault
+                ? "PkoChar/NewCharacterTest/part_" + slot : "PkoChar/Parts/" + name);
+            if (newDefault && asset == null)
+                Debug.LogError("[PkoCharacterVisual] Missing NewCharacterTest part " + slot + ". Run Tools/PKO/Build NewCharacterTest.");
             if (asset == null) return;
-            var go = new GameObject("part_" + name);
+            if (asset.mesh == null || asset.mesh.vertexCount == 0) return;
+            parts[slot] = CreatePart(asset, "part_" + name, newDefault);
+        }
+
+        // Parts baked for the base race are refitted when the rig's bone lengths belong to a custom body.
+        GameObject CreatePart(PkoPartAsset asset, string name, bool rigNative = false)
+        {
+            var go = new GameObject(name);
             go.transform.SetParent(rig.transform, false);
             var smr = go.AddComponent<SkinnedMeshRenderer>();
-            smr.sharedMesh = asset.mesh; smr.sharedMaterials = asset.materials;
+            smr.sharedMesh = rigNative || rigFit == null ? asset.mesh : rigFit.Fit(asset.mesh);
+            smr.sharedMaterials = asset.materials;
             smr.bones = bones; smr.rootBone = bones[0];
             smr.localBounds = asset.mesh.bounds; smr.updateWhenOffscreen = true;
-            parts[slot] = go;
+            // The custom body is weighted for 4 bones; lower quality levels would otherwise fold its joints.
+            if (rigFit != null) smr.quality = SkinQuality.Bone4;
+            return go;
         }
+
+        void ApplyCustomParts(List<BlueMageSet.Piece> equipped, HashSet<EquipmentSlot> apparel)
+        {
+            if (coveredBody != null) { Destroy(coveredBody); coveredBody = null; }
+            foreach (var old in customParts)
+                if (old != null) { old.SetActive(false); Destroy(old); }
+            customParts.Clear();
+            int coverage = 0;
+            foreach (var piece in equipped)
+            {
+                var appearanceSlot = piece.Slot switch
+                {
+                    EquipmentSlot.Helmet => EquipmentSlot.ApparelHelmet,
+                    EquipmentSlot.Gloves => EquipmentSlot.ApparelGloves,
+                    EquipmentSlot.Boots => EquipmentSlot.ApparelBoots,
+                    _ => EquipmentSlot.ApparelBody
+                };
+                if (apparel.Contains(appearanceSlot)) continue;
+                var asset = Resources.Load<PkoPartAsset>(BlueMageSet.PartPath(piece.Id, PkoRaces.BaseRace(Race)));
+                if (asset == null || asset.mesh == null)
+                {
+                    Debug.LogError($"[PkoCharacterVisual] Missing Blue Mage part {piece.Id}, race {Race}.");
+                    continue;
+                }
+                int replace = piece.Slot == EquipmentSlot.Helmet ? PartHair
+                    : piece.Slot == EquipmentSlot.Gloves ? PartGloves
+                    : piece.Slot == EquipmentSlot.Boots ? PartBoots : -1;
+                var go = CreatePart(asset, "blue_" + piece.Key);
+                if (piece.Slot == EquipmentSlot.Helmet && parts[PartFace] != null)
+                    parts[PartFace].SetActive(false);
+                if (replace >= 0)
+                {
+                    if (parts[replace] != null) { parts[replace].SetActive(false); Destroy(parts[replace]); }
+                    parts[replace] = go;
+                }
+                else
+                {
+                    customParts.Add(go);
+                    coverage |= piece.Slot == EquipmentSlot.Armor ? 1 : 2;
+                }
+            }
+            if (coverage != 0 && parts[PartBody] != null)
+            {
+                var underlay = Resources.Load<PkoPartAsset>($"PkoChar/BlueMageSet/underlay_{PkoRaces.BaseRace(Race)}_{coverage}");
+                if (underlay == null)
+                {
+                    Debug.LogError($"[PkoCharacterVisual] Missing Blue Mage undersuit for race {Race}, coverage {coverage}.");
+                    return;
+                }
+                customParts.Add(CreatePart(underlay, "blue_undersuit"));
+                var body = parts[PartBody].GetComponent<SkinnedMeshRenderer>();
+                coveredBody = Instantiate(body.sharedMesh);
+                coveredBody.hideFlags = HideFlags.DontSave;
+                var vertices = coveredBody.vertices;
+                float pelvis = coveredBody.bindposes[0].inverse.GetColumn(3).y;
+                for (int submesh = 0; submesh < coveredBody.subMeshCount; submesh++)
+                {
+                    var original = coveredBody.GetTriangles(submesh);
+                    var visible = new List<int>();
+                    for (int i = 0; i < original.Length; i += 3)
+                    {
+                        float y = (vertices[original[i]].y + vertices[original[i + 1]].y + vertices[original[i + 2]].y) / 3f;
+                        if (!BlueMageSet.Covers(y, pelvis, coverage))
+                        { visible.Add(original[i]); visible.Add(original[i + 1]); visible.Add(original[i + 2]); }
+                    }
+                    coveredBody.SetTriangles(visible, submesh);
+                }
+                body.sharedMesh = coveredBody;
+            }
+        }
+
+        void OnDestroy() { if (coveredBody != null) Destroy(coveredBody); }
 
         // Local rotation of the weapon model inside the grip dummy wrapper.
         void LateUpdate()

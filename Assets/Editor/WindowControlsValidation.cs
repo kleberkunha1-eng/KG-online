@@ -5,6 +5,8 @@ using System.Text;
 using TOP.UI;
 using TOP.UI.Pko;
 using TOP.Player;
+using TOP.Data;
+using Mirror;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -66,6 +68,55 @@ public static class WindowControlsValidation
             ui.ActivateShortcut(KeyCode.E, true, false, false);
             check(!ui.Get("frmInv").IsOpen, "Alt+E toggles inventory closed");
             check(!ui.ActivateShortcut(KeyCode.E, true, true, false), "Conflicting modifiers do not activate inventory");
+            var gameObject = new GameObject("InventorySessionTest");
+            var playerA = new GameObject("InventoryCharacterA", typeof(NetworkIdentity), typeof(PlayerInventory), typeof(PlayerController));
+            var playerB = new GameObject("InventoryCharacterB", typeof(NetworkIdentity), typeof(PlayerInventory), typeof(PlayerController));
+            try
+            {
+                var game = gameObject.AddComponent<PkoUiGame>();
+                Field(typeof(PkoUiGame), "ui").SetValue(game, ui);
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var bar = typeof(PkoUiGame).GetMethod("Bar", BindingFlags.Static | BindingFlags.NonPublic);
+                var audio = ui.Get("frmAudio");
+                var progress = audio.Get<PkoProgress>("proAudioMusic");
+                bar.Invoke(null, new object[] { audio, "proAudioMusic", .25f, new Action<float>(_ => { }) });
+                bar.Invoke(null, new object[] { audio, "proAudioMusic", .75f, new Action<float>(_ => { }) });
+                check(progress.GetComponents<PkoClickBar>().Length == 1
+                    && progress.GetComponents<Graphic>().Length == 1,
+                    "Repeated audio setup reuses its click handler and Graphic without aborting HUD initialization");
+                typeof(PkoUiGame).GetMethod("SetupInventory", flags).Invoke(game, null);
+                var inventoryWindow = ui.Get("frmInv");
+                inventoryWindow.Open();
+                var deserialize = typeof(PlayerInventory).GetMethod("DeserializeInventory", flags);
+                deserialize.Invoke(playerA.GetComponent<PlayerInventory>(), new object[] { "0:990010:1:0:0:-1:-1:-1:100" });
+                deserialize.Invoke(playerB.GetComponent<PlayerInventory>(), new object[] { "1:990014:2:0:0:-1:-1:-1:100" });
+                var bind = typeof(PkoUiGame).GetMethod("BindPlayer", flags);
+                bind.Invoke(game, new object[] { playerA.GetComponent<NetworkIdentity>() });
+                var grid = inventoryWindow.Grids["grdItem"];
+                check(grid[0].Filled && !grid[1].Filled, "First character shows only its own inventory slots");
+                bind.Invoke(game, new object[] { playerB.GetComponent<NetworkIdentity>() });
+                check(!grid[0].Filled && grid[1].Filled && grid[1].Count.text == "2",
+                    "Switching character clears old icons and shows only the second character's items");
+                bind.Invoke(game, new object[] { null });
+                check(!grid[0].Filled && !grid[1].Filled, "Disconnecting clears character inventory from the persistent window");
+                Field(typeof(PkoUiGame), "ui").SetValue(game, null);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+                UnityEngine.Object.DestroyImmediate(playerA);
+                UnityEngine.Object.DestroyImmediate(playerB);
+            }
+            var oldInventory = ui.Get("frmInv");
+            var oldAudio = ui.Get("frmAudio");
+            ui.ReleaseGameWindows();
+            check(!ui.Windows.ContainsKey("frmInv") && !oldInventory.IsOpen,
+                "Leaving the world releases cached gameplay windows and their previous session callbacks");
+            check(ui.Get("frmInv") != oldInventory && ui.Get("frmAudio") != oldAudio,
+                "Next character gets fresh inventory and audio windows");
+            check(ui.ActivateShortcut(KeyCode.E, true, false, false) && ui.Get("frmInv").IsOpen,
+                "Alt+E still opens inventory after character-session teardown");
+            ui.Get("frmInv").Close();
             var guild = root.AddComponent<GuildUI>();
             Field(typeof(GuildUI), "instance", true).SetValue(null, guild);
             Field(typeof(GuildUI), "local").SetValue(guild, root.AddComponent<PlayerGuild>());

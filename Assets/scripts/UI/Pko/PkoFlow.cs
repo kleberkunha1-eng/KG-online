@@ -24,14 +24,15 @@ namespace TOP.UI.Pko
         static readonly Regex NameRegex = new Regex(@"^[a-zA-Z0-9_]{3,16}$");
 
         // Dados de criacao: raca original -> job/genero usados pelo servidor.
-        static readonly string[] Races = { "Lance", "Carsise", "Phyllis", "Ami" };
-        static readonly byte[] RaceGender = { 0, 0, 1, 1 };
+        static readonly string[] Races = { "Lance", "Carsise", "Phyllis", "Ami", "NewCharacterTest" };
+        static readonly byte[] RaceGender = { 0, 0, 1, 1, 0 };
         static readonly string[] RaceInfo =
         {
             "Lance: robusto e disciplinado, forte no combate corpo a corpo.",
             "Carsise: agil e preciso, especialista em ataques a distancia.",
             "Phyllis: gentil e sabia, mestre em cura e suporte.",
-            "Ami: curiosa e habilidosa, ligada a exploracao e ao mar."
+            "Ami: curiosa e habilidosa, ligada a exploracao e ao mar.",
+            "NewCharacterTest: novo modelo baseado no Lance, com os mesmos atributos, equipamentos e animacoes."
         };
         const int HairCount = 4, FaceCount = 4;
 
@@ -77,6 +78,23 @@ namespace TOP.UI.Pko
         }
 
         // ---------- ciclo de vida ----------
+        void OnEnable()
+        {
+            TOPNetworkManager.ClientConnectionFailed += OnGameConnectionFailed;
+        }
+
+        void OnDisable()
+        {
+            TOPNetworkManager.ClientConnectionFailed -= OnGameConnectionFailed;
+        }
+
+        void OnGameConnectionFailed(string error)
+        {
+            if (!busy) return;
+            busy = false;
+            Say(error, true);
+        }
+
         void Start()
         {
             ui = scene == LoginSceneName ? PkoUi.Instance : PkoUi.Ensure();
@@ -648,7 +666,9 @@ namespace TOP.UI.Pko
                 foreach (var c in r.Characters) if (c.SlotIndex < 3) { chars[c.SlotIndex] = c; has[c.SlotIndex] = true; }
             if (!has[selSlot]) for (int i = 0; i < 3; i++) if (has[i]) { selSlot = i; break; }
             float previewStarted = Time.realtimeSinceStartup;
-            Refresh(true);
+            using (TOP.Diagnostics.GameTrace.Measure("PkoFlow.CharacterPreviews"))
+                Refresh(true);
+            TOP.Diagnostics.GameTrace.Mark($"character list shown ({r.Characters?.Length ?? 0} personagens)");
             Debug.Log($"[Loading] Character previews: {Time.realtimeSinceStartup - previewStarted:F2}s.");
             Say(AnyChar() ? "Escolha um personagem e pressione OK." : "Nenhum personagem. Clique em Create para criar o seu.");
         }
@@ -661,12 +681,14 @@ namespace TOP.UI.Pko
             if (!has[selSlot]) { Say("Selecione um personagem.", true); return; }
             busy = true; Say("Entrando no mundo...");
             selectRequestedAt = Time.realtimeSinceStartup;
+            TOP.Diagnostics.GameTrace.Mark($"enter world requested char={chars[selSlot].Id} race={chars[selSlot].Gender} job={chars[selSlot].Job}");
             NetworkClient.Send(new SelectCharacterRequest { CharacterId = chars[selSlot].Id });
         }
 
         void OnSelected(SelectCharacterResponse r)
         {
             Debug.Log($"[Loading] Character selection response: {Time.realtimeSinceStartup - selectRequestedAt:F2}s.");
+            TOP.Diagnostics.GameTrace.Mark($"select response success={r.Success} map={r.MapName}");
             if (!r.Success) { busy = false; Say("Erro ao entrar: " + r.Error, true); return; }
             if (GameFlowManager.Instance != null) GameFlowManager.Instance.EnterGameWorld(r.MapName);
             else SceneManager.LoadSceneAsync("GameScene");

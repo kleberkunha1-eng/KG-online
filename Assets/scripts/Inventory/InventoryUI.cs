@@ -77,7 +77,8 @@ namespace TOP.Inventory
         public void SetPlayerInventory(PlayerInventory inv)
         {
             if (inv == null || !inv.isLocalPlayer) return;
-            if (isSetup) return;  // Já configurado
+            if (isSetup && playerInventory == inv) return;
+            UnsubscribePlayer();
 
             Debug.Log($"[InventoryUI] ✅ PlayerInventory registrado: {inv.name}");
             playerInventory = inv;
@@ -182,6 +183,11 @@ namespace TOP.Inventory
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            UnsubscribePlayer();
+        }
+
+        void UnsubscribePlayer()
+        {
             if (playerInventory != null)
             {
                 playerInventory.OnInventoryChanged -= RefreshInventory;
@@ -195,6 +201,7 @@ namespace TOP.Inventory
                 playerEquipment.OnItemUnequipped -= OnItemUnequipped;
                 playerEquipment.OnVisualsChanged -= RefreshEquipment;
             }
+            isSetup = false;
         }
 
         void OnInventorySlotChanged(int index, InventoryItem newSlot)

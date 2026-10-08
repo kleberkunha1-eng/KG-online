@@ -7,12 +7,14 @@ const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const trace = require('./trace');
 
 const app = express();
 
 // ============================================================
 // MIDDLEWARES DE SEGURANCA
 // ============================================================
+app.use(trace.middleware);
 app.use(helmet());
 app.set('trust proxy', parseInt(process.env.TRUST_PROXY || '0', 10));
 const allowed = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -49,7 +51,7 @@ console.log(`[DB]   User: ${dbConfig.user}`);
 console.log(`[DB]   Database: ${dbConfig.database}`);
 console.log(`[DB]   Port: ${dbConfig.port}`);
 
-const dbPool = mysql.createPool(dbConfig);
+const dbPool = trace.instrumentPool(mysql.createPool(dbConfig));
 
 // Helper: Log de seguranca
 async function logSecurity(connection, accountId, type, description, ip) {
@@ -304,7 +306,6 @@ app.post('/api/auth/verify', async (req, res) => {
 // ============================================================
 async function migrate() {
     await dbPool.query('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_admin TINYINT(1) NOT NULL DEFAULT 1');
-    await dbPool.query('DROP TABLE IF EXISTS custom_items');
     await dbPool.query('ALTER TABLE accounts MODIFY is_admin TINYINT(1) NOT NULL DEFAULT 0');
     await dbPool.query(`CREATE TABLE IF NOT EXISTS news (id INT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(16) NOT NULL DEFAULT 'News', title VARCHAR(160) NOT NULL, excerpt VARCHAR(600) NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     const [[n]] = await dbPool.query('SELECT COUNT(*) AS c FROM news');

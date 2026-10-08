@@ -32,12 +32,23 @@ namespace Mirror
         /// <summary>Event for when Mirror receives a message. Can be subscribed to.</summary>
         public static event Action<MessageInfo> InMessageEvent;
 
+        // TOP: time spent inside each message handler (GameTrace); only measured while subscribed.
+        public static event Action<Type, double> HandlerEvent;
+        internal static bool HandlerTiming => HandlerEvent != null;
+
+        internal static void OnHandled(Type type, long startedTimestamp)
+        {
+            double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - startedTimestamp) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            HandlerEvent?.Invoke(type, ms);
+        }
+
         // RuntimeInitializeOnLoadMethod -> fast playmode without domain reload
         [UnityEngine.RuntimeInitializeOnLoadMethod]
         static void ResetStatics()
         {
             InMessageEvent = null;
             OutMessageEvent = null;
+            HandlerEvent = null;
         }
 
         internal static void OnSend<T>(T message, int channel, int bytes, int count)

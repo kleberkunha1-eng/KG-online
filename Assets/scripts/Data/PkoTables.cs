@@ -18,7 +18,7 @@ namespace TOP.Data
             _ => "Class " + id
         };
 
-        public static string RaceName(int id) => id switch { 1 => "Lance", 2 => "Carsise", 3 => "Phyllis", 4 => "Ami", _ => "Race " + id };
+        public static string RaceName(int id) => id >= 1 && id <= PkoRaces.Count ? PkoRaces.Name(id - 1) : "Race " + id;
 
         // Mapeamento inferido dos ids de classe do iteminfo para cada classe do jogo.
         public static int[] IdsFor(CharacterClass c) => c switch
@@ -42,6 +42,7 @@ namespace TOP.Data
         // race: 0-based (Lance=0); o iteminfo usa 1-based.
         public static bool RaceOk(PkoItem it, int race)
         {
+            race = PkoRaces.BaseRace(race);
             if (it.Races.Length == 0) return true;
             bool hasRequirement = false;
             foreach (var r in it.Races) if (r > 0) { hasRequirement = true; break; }
@@ -395,6 +396,7 @@ namespace TOP.Data
             }
 
             RegisterCustomWings();
+            BlueMageSet.Register(_items);
         }
 
         static void RegisterCustomWings()
@@ -523,6 +525,8 @@ namespace TOP.Data
             d.name = "pko_item_" + it.Id;
             d.itemId = it.Id; d.itemName = it.Name; d.description = it.Description;
             d.maxStack = it.Stack; d.sellPrice = it.Price / 2; d.buyPrice = it.Price;
+            if (BlueMageSet.TryGet(it.Id, out var bluePiece))
+                d.icon = Resources.Load<Sprite>(BlueMageSet.IconPath(bluePiece));
             return d;
         }
     }

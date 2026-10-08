@@ -223,6 +223,19 @@ namespace TOP.UI.Pko
         }
         public void Close(string name) { if (Windows.TryGetValue(name, out var w)) w.Close(); }
 
+        public void ReleaseGameWindows()
+        {
+            foreach (var entry in new List<KeyValuePair<string, PkoWindow>>(Windows))
+            {
+                var window = entry.Value;
+                if (window != null && (window.Def.file == "login.clu" || window.Def.file == "selectcha.clu")) continue;
+                Windows.Remove(entry.Key);
+                if (window == null) continue;
+                window.Close();
+                Destroy(window.gameObject);
+            }
+        }
+
         PkoWindow BuildWindow(PkoForm f)
         {
             var go = new GameObject(f.name, typeof(RectTransform));

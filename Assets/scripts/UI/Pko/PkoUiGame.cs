@@ -74,6 +74,7 @@ namespace TOP.UI.Pko
             var existing = FindAnyObjectByType<PkoUiGame>();
             if (existing == null) return;
             existing.CloseAllWindows(); // fechar na hora: Destroy() so remove o GameObject no fim do frame
+            existing.ReleaseWindows();
             Destroy(existing.gameObject);
         }
 
@@ -92,6 +93,14 @@ namespace TOP.UI.Pko
         {
             ChatService.Received -= OnNetworkChat;
             CloseAllWindows();
+            ReleaseWindows();
+        }
+
+        void ReleaseWindows()
+        {
+            if (ui == null) return;
+            ui.ReleaseGameWindows();
+            ui = null;
         }
 
         void Start()
@@ -377,8 +386,11 @@ namespace TOP.UI.Pko
         static void Bar(PkoWindow w, string name, float value, System.Action<float> onChange)
         {
             var pr = w.Get<PkoProgress>(name); if (pr == null) return;
-            var cb = pr.gameObject.AddComponent<PkoClickBar>(); cb.Bar = pr; cb.Changed = onChange; pr.Set(value);
-            pr.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .15f);
+            if (!pr.TryGetComponent<PkoClickBar>(out var cb)) cb = pr.gameObject.AddComponent<PkoClickBar>();
+            cb.Bar = pr; cb.Changed = onChange; pr.Set(value);
+            if (!pr.TryGetComponent<Graphic>(out var hitArea)) hitArea = pr.gameObject.AddComponent<Image>();
+            hitArea.color = new Color(0, 0, 0, .15f);
+            hitArea.raycastTarget = true;
         }
 
         // ---------- inventario ----------
@@ -520,11 +532,11 @@ namespace TOP.UI.Pko
 
         void RefreshInventory()
         {
-            if (invW == null || !invW.IsOpen || inv == null) return;
+            if (invW == null || !invW.IsOpen) return;
             if (invW.Grids.TryGetValue("grdItem", out var grid))
                 foreach (var s in grid)
                 {
-                    var item = s.Index < inv.totalSlots ? inv.GetSlot(s.Index) : null;
+                    var item = inv != null && s.Index < inv.totalSlots ? inv.GetSlot(s.Index) : null;
                     int id = item != null && !item.IsEmpty && !item.IsEquipped ? item.ItemId : 0;
                     s.SetIcon(ItemIcon(id), item != null && item.Quantity > 1 ? item.Quantity.ToString() : null, id > 0);
                 }
@@ -718,15 +730,27 @@ namespace TOP.UI.Pko
         // ---------- loop ----------
         void FindPlayer()
         {
-            var lp = NetworkClient.localPlayer; if (lp == null) return;
-            pc = lp.GetComponent<PlayerController>(); inv = lp.GetComponent<PlayerInventory>(); eq = lp.GetComponent<PlayerEquipment>();
-            sk = lp.GetComponent<PlayerSkills>(); hb = lp.GetComponent<PlayerHotbar>(); st = lp.GetComponent<PlayerStats>(); cls = lp.GetComponent<PlayerClass>();
+            BindPlayer(NetworkClient.localPlayer);
+        }
+
+        void BindPlayer(NetworkIdentity lp)
+        {
+            pc = lp != null ? lp.GetComponent<PlayerController>() : null;
+            inv = lp != null ? lp.GetComponent<PlayerInventory>() : null;
+            eq = lp != null ? lp.GetComponent<PlayerEquipment>() : null;
+            sk = lp != null ? lp.GetComponent<PlayerSkills>() : null;
+            hb = lp != null ? lp.GetComponent<PlayerHotbar>() : null;
+            st = lp != null ? lp.GetComponent<PlayerStats>() : null;
+            cls = lp != null ? lp.GetComponent<PlayerClass>() : null;
+            RefreshInventory();
             if (pc != null) { detail?.SetText("labMainID", pc.CharacterName); chat?.Get<PkoLog>("lstOnSay")?.Add("Entered " + pc.MapName + "."); }
         }
 
         void Update()
         {
-            if (pc == null || inv == null || eq == null) { FindPlayer(); if (pc == null || inv == null || eq == null) return; }
+            var local = NetworkClient.localPlayer;
+            if (pc == null || local == null || pc.gameObject != local.gameObject) FindPlayer();
+            if (pc == null || inv == null || eq == null) return;
             if (Input.GetKeyDown(KeyCode.F10) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
                 && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) browser = !browser;
             if (Input.GetKeyDown(KeyCode.Return) && !(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null))

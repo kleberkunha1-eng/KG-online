@@ -67,6 +67,8 @@ namespace TOP.Character
         const float CombatStance = 8f;
 
         Animation anim; string rigId = "";
+        string clipFolder;
+        readonly HashSet<string> missingClips = new HashSet<string>();
         readonly Dictionary<int, int> alias = new Dictionary<int, int>();
         int wield;
         float busyUntil, combatUntil;
@@ -84,9 +86,10 @@ namespace TOP.Character
         public string CurrentClip => current;
         public bool IsFlying => wingState != null;
 
-        public void Init(Animation animation, string rigId0)
+        public void Init(Animation animation, string rigId0, string lazyClipFolder = null)
         {
             anim = animation; rigId = rigId0; alias.Clear();
+            clipFolder = lazyClipFolder; missingClips.Clear();
             var a = Resources.Load<TextAsset>("PkoChar/Alias_" + rigId0);
             if (a != null)
                 foreach (var l in a.text.Split('\n'))
@@ -130,9 +133,23 @@ namespace TOP.Character
                 if (real <= 0) continue;
                 if (alias.TryGetValue(real, out int canonical)) real = canonical;
                 string n = rigId + "_action" + real;
-                if (anim.GetClip(n) != null) return n;
+                if (HasClip(n)) return n;
             }
             return null;
+        }
+
+        // Rigs with a lazy clip folder ship only the idle clip; the others load from Resources the first time
+        // they are needed (loading the whole library at once froze the client for over a minute).
+        bool HasClip(string n)
+        {
+            if (anim.GetClip(n) != null) return true;
+            if (clipFolder == null || missingClips.Contains(n)) return false;
+            AnimationClip clip;
+            using (TOP.Diagnostics.GameTrace.Measure("PkoPoseDriver.LoadClip", int.MinValue, 20))
+                clip = Resources.Load<AnimationClip>(clipFolder + n);
+            if (clip == null) { missingClips.Add(n); return false; }
+            anim.AddClip(clip, n);
+            return true;
         }
 
         // Loops until replaced (idle, run, sit...).

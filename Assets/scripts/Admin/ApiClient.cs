@@ -37,7 +37,9 @@ namespace TOP.Admin
             req.downloadHandler = new DownloadHandlerBuffer();
             if (LoginNetworkClient.IsLoggedIn) req.SetRequestHeader("Authorization", "Bearer " + LoginNetworkClient.AuthToken);
             req.timeout = 10;
+            double traceStarted = TOP.Diagnostics.GameTrace.Now;
             yield return req.SendWebRequest();
+            TOP.Diagnostics.GameTrace.Http(req, traceStarted);
             bool ok = req.result == UnityWebRequest.Result.Success;
             done?.Invoke(ok, ok ? req.downloadHandler.text : (req.downloadHandler.text is { Length: > 0 } t ? t : req.error));
         }

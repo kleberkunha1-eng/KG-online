@@ -19,7 +19,7 @@ namespace TOP.Character
 
         static PkoWeaponPose() { ResetAll(); Load(); }
 
-        public static int Key(int race, int hand) => Mathf.Clamp(race, 0, Races - 1) * 2 + hand;
+        public static int Key(int race, int hand) => TOP.Data.PkoRaces.BaseRace(race) * 2 + hand;
 
         public static void ResetAll()
         {
