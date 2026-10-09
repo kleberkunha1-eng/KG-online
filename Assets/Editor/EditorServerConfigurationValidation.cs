@@ -9,6 +9,12 @@ using UnityEngine;
 [InitializeOnLoad]
 public static class EditorServerConfigurationValidation
 {
+    [Serializable]
+    class ExpectedApiConfig
+    {
+        public string apiUrl;
+    }
+
     static readonly string Request = Path.Combine(Application.dataPath, "../Tools/validate-editor-server.request");
 
     static EditorServerConfigurationValidation() { EditorApplication.update += Poll; }
@@ -41,7 +47,19 @@ public static class EditorServerConfigurationValidation
         {
             rootField.SetValue(null, null);
             configField.SetValue(null, null);
-            check(ApiConfig.Root == ApiConfig.PublishedApiUrl, "Editor keeps published API/JWT identity.");
+            string expectedApi = ApiConfig.PublishedApiUrl;
+            string apiFile = Path.Combine(Application.dataPath, "../api.json");
+            if (File.Exists(apiFile))
+            {
+                var local = JsonUtility.FromJson<ExpectedApiConfig>(File.ReadAllText(apiFile));
+                if (!string.IsNullOrWhiteSpace(local?.apiUrl))
+                    expectedApi = local.apiUrl.Trim().TrimEnd('/');
+            }
+            foreach (var argument in Environment.GetCommandLineArgs())
+                if (argument.StartsWith("--api=", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(argument.Substring(6)))
+                    expectedApi = argument.Substring(6).Trim().TrimEnd('/');
+            check(ApiConfig.Root == expectedApi, "Editor keeps the explicitly configured API/JWT identity.");
             check(ApiConfig.TryGetGameServer(out string localHost, out ushort localPort)
                 && localHost == "127.0.0.1" && localPort != 0, "Editor connects directly to a local dedicated server.");
             check(ApiConfig.TryGetPublishedGameServer(out string publicHost, out ushort publicPort)

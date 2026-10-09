@@ -48,16 +48,20 @@ public static class TOPWorldEntrySmokeRunner
         const string request = "Tools/validate-world-entry.request";
         const string adminRequest = "Tools/validate-admin-generation.request";
         const string characterRequest = "Tools/validate-new-character-gameplay.request";
+        const string environmentRequest = "Tools/validate-environment-network.request";
         bool admin = File.Exists(adminRequest);
         bool newCharacter = File.Exists(characterRequest);
-        if (!File.Exists(request) && !admin && !newCharacter) return;
+        bool environment = File.Exists(environmentRequest);
+        if (!File.Exists(request) && !admin && !newCharacter && !environment) return;
         if (File.Exists("Tools/build.request") || File.Exists("Tools/prepare-world-entry.request")
             || File.Exists("Tools/validate-visuals.request")) return;
         if (admin) File.Delete(adminRequest);
         if (newCharacter) File.Delete(characterRequest);
         if (File.Exists(request)) File.Delete(request);
+        if (environment) File.Delete(environmentRequest);
         SessionState.SetBool("TOP.AdminGenerationSmoke", admin);
         SessionState.SetBool("TOP.NewCharacterSmoke", newCharacter);
+        SessionState.SetBool("TOP.EnvironmentSmoke", environment);
         TOPAutoSave.SaveNow();
         SessionState.SetString(Restore, JsonUtility.ToJson(new SavedScenes
         {

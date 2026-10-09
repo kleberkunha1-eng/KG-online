@@ -1,0 +1,13 @@
+Passed=12 Failed=0
+PASS Editor keeps the explicitly configured API/JWT identity.
+PASS Editor connects directly to a local dedicated server.
+PASS Published endpoint is separate from Editor override.
+PASS Endpoint parsing: # comment /  /  127.0.0.1:7777  / 
+PASS Endpoint parsing: game.example:22538
+PASS Endpoint parsing: 127.0.0.1:0
+PASS Endpoint parsing: 127.0.0.1:65536
+PASS Endpoint parsing: 127.0.0.1:not-a-port
+PASS Endpoint parsing: :7777
+PASS Endpoint parsing: # comment only
+PASS Missing address file is not accepted.
+PASS Explicit api.json destination keeps priority over Editor override.

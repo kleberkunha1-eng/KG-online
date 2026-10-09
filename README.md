@@ -5,7 +5,161 @@
 
 Projeto configurado para Unity 6000.4.4f1. Abra `Assets/Scenes/LoginScene.unity` e entre em Play. Sem configuração de API, o Editor usa a API Node em `API` (porta 3000) e o MariaDB configurado nela. Para iniciar a API local: `cd API` e `node server.js`. Não execute uma segunda instância se a porta já estiver ocupada.
 
+## Colaboracao pelo GitHub
+
+O repositorio compartilhado e `https://github.com/kleberkunha1-eng/KG-online`.
+Cada colaborador precisa de permissao de escrita; aparecer na lista de
+contribuidores, por si so, nao concede essa permissao.
+
+Git nao sincroniza automaticamente ao salvar: as alteracoes sao enviadas por
+**commit + push** e recebidas por **pull**. Antes de editar, salve/commit suas
+alteracoes e atualize sua branch. Use uma branch por tarefa e um pull request
+para integrar na branch principal. Evitem editar a mesma cena/prefab em paralelo.
+Nao use OneDrive ou uma pasta de rede para compartilhar o projeto Unity aberto.
+
+Instale Git e Git LFS antes de clonar:
+
+```powershell
+git lfs install
+git clone https://github.com/kleberkunha1-eng/KG-online.git
+Set-Location KG-online
+git lfs pull
+git switch -c minha-tarefa
+```
+
+Abra a copia pelo Hub com Unity **6000.4.4f1**. Versione scripts, assets e seus
+`.meta`, `Packages` e `ProjectSettings`. Nao compartilhe `Library`, `Temp`,
+`node_modules`, builds, dumps de banco, `.env`, `Secrets` ou tokens de acesso.
+Os caches sao regenerados; dependencias Node usam os manifests/lockfiles.
+Cada maquina precisa de configuracao e credenciais locais proprias.
+Para um colaborador usar a API e o multiplayer publicados, execute
+`Configurar-Unity.cmd` na raiz da copia clonada, com o Editor fechado.
+Ele baixa os objetos Git LFS disponiveis, verifica a API e o DNS, preserva
+qualquer `api.json` anterior em `UserSettings/CollaboratorSetup`, grava os
+endpoints publicados e abre Unity 6000.4.4f1. Se o Editor nao estiver instalado,
+abre o Hub na instalacao da versao exata; conclua a instalacao e execute novamente.
+Instale Git for Windows/Git LFS e Unity Hub antes. Login/licenca Unity exigem
+interacao do usuario. Uma instalacao personalizada pode ser informada:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tools\Setup\Configure-Collaborator.ps1 -UnityExe "D:\Unity\6000.4.4f1\Editor\Unity.exe"
+```
+
+O configurador nao cria banco/API local, nao abre firewall/tunel e nao publica
+no itch. Ele usa `https://gamekg.pages.dev` e `pgsql-henderson.tun.ply.gg:22538`.
+O servidor publicado deve estar ativo e aceitar a identidade dessa API;
+HTTP/DNS acessiveis nao garantem conexao UDP nem entrada no mundo.
+Mudancas futuras do endereco do tunel exigem atualizar o configurador.
+O servidor local de teste `127.0.0.1:7778` nao e acessivel do computador do
+colega, e nao e iniciado por esse procedimento.
+O anfitriao pode usar `Tools/Release/Start-SharedServer.ps1` para a instancia
+dedicada **7777** autenticada pelo Cloudflare. Esse script exige uma build
+Dedicated Server existente e nao inicia o playit. O tunel deve estar ativo
+separadamente no anfitriao. Login HTTP 200 seguido de timeout KCP indica que
+a API respondeu, mas nao confirma acesso ao servidor UDP.
+Ambos os clientes precisam dos mesmos scripts/mensagens Mirror que o servidor;
+clonar a versao antiga do GitHub nao entrega as mudancas locais ainda sem push.
+Para a restauracao e servidor dedicado local, consulte
+[API/RESTORACAO-LOCAL.md](API/RESTORACAO-LOCAL.md); os caminhos de ferramentas
+nesse ambiente podem precisar de ajuste em outra maquina.
+
+Modelos/texturas binarios e dados grandes de terreno usam as regras de Git LFS
+em `.gitattributes`. Isso e necessario para assets acima do limite de 100 MiB
+do Git normal. O armazenamento/trafego LFS depende da cota da conta GitHub.
+Essa preparacao nao envia os assets existentes: os arquivos ja rastreados
+precisam ser renormalizados e revisados no index antes do primeiro commit com LFS.
+Nao reescreva o historico compartilhado nem use force-push para fazer essa conversao.
+
+Antes do primeiro envio desta copia restaurada, revise tambem os arquivos
+ignorados: ignorado nao significa dispensavel. Assets necessarios devem entrar
+com seus `.meta`; referencias/backups, configuracoes privadas e dados pessoais
+devem permanecer separados. A pasta `.plastic` era rastreada e ainda precisa
+ser retirada apenas do index numa alteracao aprovada, preservando a copia local.
+Nao use `git add .` indiscriminadamente nem envie as credenciais de producao.
+
 ## Multiplayer
+
+### Ceu, sol e horario do servidor
+
+**Tools > World > Ceu e Tempo** abre a previa de ambiente na GameScene.
+Ative "Previa na GameScene" para ajustar horario, clima, direcao/intensidade/
+diametro do sol, rotacao e exposicao do panorama. A previa restaura a iluminacao
+original ao fechar, sair para Play ou salvar a cena; nao grava a hora no servidor.
+"Salvar como padrao do servidor" grava somente os controles no asset
+`Assets/Resources/WorldEnvironment.asset`, para a proxima inicializacao.
+
+No jogo, administradores usam **F9** ou o botao **Ceu / Tempo**. "Aplicar para
+todos" confirma inclusive os presets Amanhecer (06:00), Meio-dia (12:00),
+Entardecer (18:00) e Noite (00:00); selecionar um preset apenas prepara o pedido.
+O painel mostra o material predominante e o horario real em HH:mm.
+O ajuste local de armas usa **Ctrl+F9**, para nao abrir duas janelas com F9.
+F10 separa itens/equipamentos e personagem em abas; os paineis usam fundo opaco,
+rolagem e limites de tela.
+
+"Aplicar para todos" solicita uma alteracao ao servidor, que revalida a permissao pela API.
+"Voltar ao horario real" remove o deslocamento manual do relogio. Alteracoes
+durante o jogo duram nesta sessao do servidor; nao alteram o relogio do Windows.
+Clientes normais apenas recebem o estado. Cliente e servidor precisam de builds
+atualizadas com esse sistema; uma build dedicada anterior nao transmite o relogio.
+
+O ciclo tem 24 horas reais no fuso local do servidor, com sol no horizonte as
+06h/18h. E um ciclo artistico, nao um calculo astronomico de latitude/estacoes.
+O servidor envia amostras a cada 2 segundos; os clientes interpolam o relogio
+usando Mirror NetworkTime, sem depender do fuso do PC de cada jogador.
+A GameScene recebe automaticamente o controlador, sem substituir a cena.
+O Dedicated Server nao cria materiais, sol visual ou menu.
+O controlador configura a camera principal da GameScene para desenhar skybox
+(a configuracao anterior usava fundo solido) e restaura o modo anterior ao sair.
+
+O shader faz crossfade dos oito panoramas FS002. Sunrise e Sunset aparecem
+perto do horizonte; a noite se aprofunda conforme o sol desce abaixo dele.
+O clima automatico usa blocos de 3 horas, com transicao de 10 minutos entre
+variacoes deterministicas iguais para todos (60% dia, 20% sem sol, 10% chuva,
+10% neve). Chuva/neve usam noite sem lua; a opcao Moonless tambem pode forca-la.
+FS002_Day e o dia padrao e pode incluir um sol pintado na textura, alem do sol
+movel: escolha Sunless para evitar esse segundo sol. Os materiais sao imagens,
+nao animacoes; o movimento vem do sol e das transicoes do shader.
+Rainy/Snowy mudam o panorama, sem particulas ou alteracao de gameplay.
+Um skybox fica no infinito, portanto seu controle de posicao e por rotacao.
+
+A lua movel acompanha o relogio do servidor (ciclo artistico de lua cheia,
+sem fases astronomicas): nasce as 18h, culmina a 25 graus e se poe as 06h.
+Essa trajetoria baixa permite ve-la na camera de jogo sem olhar ao zenite.
+Seu disco artistico de 6 graus tem
+superficie cinza com detalhes, sem halo solar e brilho independente do sol.
+A luz direcional lunar azul-acinzentada tem intensidade maxima 0,12, contra
+1,2 do sol padrao, com preenchimento ambiente suave para a noite ser legivel.
+Ela desaparece suavemente no horizonte, de dia e sob
+chuva/neve; "Noite sem lua" desativa disco e iluminacao lunar.
+O panorama noturno sem lua serve de fundo para evitar uma segunda lua pintada.
+O clima "Sem sol" nao desativa a lua: somente "Noite sem lua" e ceus de
+chuva/neve a ocultam. A lua assume RenderSettings.sun durante a iluminacao
+noturna para funcionar como luz principal URP, inclusive no Terrain/Lit.
+F9 mostra sua altura no ceu; gire a camera para a direcao da lua para ve-la.
+**Tamanho da lua** permite ajustar de 0,1 a 30 graus no F9 e na previa
+**Tools > World > Ceu e Tempo**. O padrao e 6 graus. No F9 confirme com
+**Aplicar para todos**; na previa a alteracao e local, e **Salvar como padrao**
+persiste para a proxima inicializacao do servidor. O brilho nao muda com o tamanho.
+Esse campo altera as mensagens Mirror: clientes e servidor devem ser atualizados
+juntos antes de testar o multiplayer; nao conecte clientes novos a builds antigas.
+
+A camera do jogador inicia com inclinacao de 22 graus e alvo elevado a 2,2m.
+Botao direito permite inclinar de -35 a 75 graus; o percurso usa spherecast
+contra Ground/Terrain e mantem pelo menos 0,5m de afastamento do chao.
+O modelo visual do Enemy_Slime fica na origem local do inimigo, sem reutilizar
+coordenadas de mapa como deslocamento do modelo. Os pontos de spawn permanecem.
+
+**Tools > World > Configurar Fantasy Sky** instala as referencias de materiais
+caso o asset esteja ausente. **Validar ciclo e materiais** na janela testa pesos,
+continuidade, limites, renderizacao e restauracao de iluminacao; desligue a previa
+antes de validar. Relatorio em `Tools/sky-validation-results.txt`.
+O request explicito `Tools/validate-environment-network.request` executa o
+smoke existente na porta temporaria 17892 e testa envio do relogio e rejeicao
+de alteracao nao autenticada; nao autentica contas nem grava no banco.
+O smoke tambem exige o terreno central `Garner_Argent`, verifica o raycast
+na cidade e o deslocamento real do personagem mantendo a altura do chao.
+As builds de cliente e servidor recusam a GameScene sem esse terreno ativo
+e seu TerrainCollider. O ceu nao substitui nem recria terrenos.
 
 O cliente Unity usa Mirror/KCP e **nunca** inicia um host no computador do jogador. Após o login REST, ele lê o destino Mirror de `api.json` (ou dos argumentos `--game-server=HOST --game-server-port=PORT`) e conecta como cliente. Um `api.json` de produção deve conter:
 

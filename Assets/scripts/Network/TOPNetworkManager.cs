@@ -16,7 +16,7 @@ using kcp2k;
 namespace TOP.Network
 {
     [DefaultExecutionOrder(-150)]
-    public class TOPNetworkManager : NetworkManager
+    public partial class TOPNetworkManager : NetworkManager
     {
         const float ClientPingInterval = 3f;
 
@@ -166,6 +166,7 @@ namespace TOP.Network
         {
             base.OnStartServer();
             Debug.Log("[TOPNetworkManager] Servidor iniciado");
+            StartEnvironmentServer();
 
             NetworkServer.RegisterHandler<AuthRequestMessage>(OnAuthRequest);
             NetworkServer.RegisterHandler<CharacterListRequest>(OnCharacterListRequest);
@@ -189,6 +190,8 @@ namespace TOP.Network
         public override void OnStopServer()
         {
             CancelInvoke();
+            environmentRequests.Clear();
+            NetworkServer.UnregisterHandler<TOP.World.EnvironmentChange>();
 
             Debug.Log("[TOPNetworkManager] Servidor fechando — salvando todos os jogadores...");
             foreach (PlayerConnection playerConn in _connections.Values)
@@ -273,6 +276,8 @@ namespace TOP.Network
         public override void OnStartClient()
         {
             base.OnStartClient();
+            NetworkClient.RegisterHandler<TOP.World.EnvironmentSnapshot>(TOP.World.WorldEnvironment.Receive);
+            NetworkClient.RegisterHandler<TOP.World.EnvironmentReply>(TOP.World.WorldEnvironment.ReceiveReply);
             NetworkClient.RegisterHandler<ServerPong>(_ => { });
             NetworkClient.RegisterHandler<ChatMessage>(ChatService.Receive);
             SceneManager.sceneLoaded += OnClientWorldLoaded;
@@ -280,6 +285,9 @@ namespace TOP.Network
 
         public override void OnStopClient()
         {
+            NetworkClient.UnregisterHandler<TOP.World.EnvironmentSnapshot>();
+            NetworkClient.UnregisterHandler<TOP.World.EnvironmentReply>();
+            TOP.World.WorldEnvironment.ResetClock();
             NetworkClient.UnregisterHandler<ServerPong>();
             NetworkClient.UnregisterHandler<ChatMessage>();
             SceneManager.sceneLoaded -= OnClientWorldLoaded;

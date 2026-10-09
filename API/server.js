@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: [path.join(__dirname, '.env.local'), path.join(__dirname, '.env')] });
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) { console.error('JWT_SECRET ausente ou curto (min 32).'); process.exit(1); }
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -372,7 +373,6 @@ require('./portal')(app, dbPool);
 require('./game')(app, dbPool);
 
 // Site (build do Vite) servido pela mesma porta
-const path = require('path');
 const site = path.resolve(process.env.SITE_DIR || path.join(__dirname, 'site'));
 app.use('/patch', express.static(path.join(__dirname, 'patch'), { setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
@@ -383,7 +383,8 @@ app.get(/^\/(?!api\/).*/, (req, res, next) => res.sendFile(path.join(site, 'inde
 // INICIALIZACAO
 // ============================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, async () => {
     console.log(`[AuthAPI] ==========================================`);
     console.log(`[AuthAPI] Servidor rodando na porta ${PORT}`);
     console.log(`[AuthAPI] Banco: top_unity`);

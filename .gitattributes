@@ -1,2 +1,14 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Unity binary models/textures and large terrain data. Keep scenes and .meta as text.
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.tif filter=lfs diff=lfs merge=lfs -text
+*.tiff filter=lfs diff=lfs merge=lfs -text
+*.hdr filter=lfs diff=lfs merge=lfs -text
+Assets/**/*.png filter=lfs diff=lfs merge=lfs -text
+Assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+Assets/**/*.tga filter=lfs diff=lfs merge=lfs -text
+Assets/**/*.dds filter=lfs diff=lfs merge=lfs -text
+Assets/TerrainDemoScene_HDRP/Terrain/Data/*.asset filter=lfs diff=lfs merge=lfs -text

@@ -5,7 +5,7 @@ using TOP.Player;
 
 namespace TOP.Admin
 {
-    // F9: ajuste em tempo real da rotacao/posicao das armas por raca e mao + camera livre
+    // Ctrl+F9: ajuste em tempo real da rotacao/posicao das armas por raca e mao + camera livre
     // (botao direito: olhar, WASD: mover, Q/E: descer/subir, Shift: rapido, scroll: avancar).
     public class WeaponTuner : MonoBehaviour
     {
@@ -22,7 +22,7 @@ namespace TOP.Admin
         readonly string[] fields = new string[6];
         int fieldKey = -1;
 
-        float Scale => Mathf.Max(1f, Screen.height / 900f);
+        float Scale => Mathf.Min(1f, Mathf.Min(Screen.width / 460f, Screen.height / 600f));
 
         PkoCharacterVisual Visual()
         {
@@ -32,7 +32,8 @@ namespace TOP.Admin
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F9) && Visual() != null) { open = !open; if (!open) SetFree(false); }
+            if (Input.GetKeyDown(KeyCode.F9) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+                && Visual() != null) { open = !open; if (!open) SetFree(false); }
             Blocks = false;
             if (!open) return;
             float s = Scale; var m = Input.mousePosition;
@@ -81,8 +82,10 @@ namespace TOP.Admin
             if (!open) return;
             var v = Visual(); if (v == null) return;
             float s = Scale;
+            var old = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            win = TOP.UI.GameWindowControls.Window(94001, win, id => Draw(id, v), "Ajuste de armas (F9)", () => { open = false; SetFree(false); });
+            win = TOP.UI.GameWindowControls.Window(94001, win, id => Draw(id, v), "Ajuste de armas (Ctrl+F9)", () => { open = false; SetFree(false); });
+            GUI.matrix = old;
         }
 
         void Draw(int id, PkoCharacterVisual v)

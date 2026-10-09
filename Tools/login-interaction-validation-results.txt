@@ -1,0 +1,19 @@
+Passed=17 Failed=0
+Login card construction=210,5ms
+PASS Username and password accept input immediately
+PASS Password remains concealed
+PASS Transport failure releases login for a new attempt.
+PASS Transport failure is visible in login status, not only the Console.
+PASS Duplicate disconnect does not replace the original connection error.
+PASS Registration UI is not constructed before requested
+PASS Tab moves username to password
+PASS Tab wraps password to username
+PASS Shift+Tab navigates backwards
+PASS Opening registration focuses account
+PASS Registration reverse Tab wraps to email
+PASS Character list arriving before scene is cached for selection
+PASS Pending character request is not sent twice
+PASS Reconnection clears previous account character cache
+PASS On-demand access builds only the requested window
+PASS Repeated access reuses the existing window without rebuilding
+PASS Loading priority is restored after world transition

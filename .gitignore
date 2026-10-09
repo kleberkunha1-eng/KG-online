@@ -83,6 +83,9 @@ Launcher/node_modules/
 Launcher/dist/
 API/node_modules/
 Cloudflare/node_modules/
+Cloudflare/.dev.vars
+Cloudflare/.dev.vars.*
+Cloudflare/.wrangler/
 Tools/Nuget/
 API/patch/
 API/downloads/
@@ -112,3 +115,9 @@ Tools/Release/butler/
 # parte deste repo) e endereco publico do servidor (muda conforme o tunel) - nunca versionar.
 Tools/Release/logs/
 Tools/server-address.txt
+/api.json
+
+# Local VCS workspace and editor-triggered operations are not collaboration assets.
+/.plastic/
+*.slnx
+Tools/*.request

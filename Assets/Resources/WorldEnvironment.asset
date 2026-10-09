@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b09d7811361141e48af6fff443c380b8, type: 3}
+  m_Name: WorldEnvironment
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.World.WorldEnvironmentSettings
+  day: {fileID: 2100000, guid: 9ca22510633fbfd4399f1704cd9d5c72, type: 2}
+  sunless: {fileID: 2100000, guid: 67950864b84c5db4f9eee7ca51c85571, type: 2}
+  rainy: {fileID: 2100000, guid: b5a27fa4b11bfb24cbc6daff3802c229, type: 2}
+  snowy: {fileID: 2100000, guid: 7b0f2096b49ccfb4f8b47c8084d650fa, type: 2}
+  sunrise: {fileID: 2100000, guid: 7c86d4abbd33b564b9e773aceadb8572, type: 2}
+  sunset: {fileID: 2100000, guid: 44d0573bf6d91e447b62f3aff840f2ae, type: 2}
+  night: {fileID: 2100000, guid: d1fdb8e44b28da34d9e922cca0bc740e, type: 2}
+  moonless: {fileID: 2100000, guid: 1cc6e6796f833a94f94e6d794ca654c3, type: 2}
+  blendShader: {fileID: 4800000, guid: c62e6090d1b6efd4a8709212f4000ba8, type: 3}
+  defaults:
+    weather: 0
+    moonless: 0
+    sunAzimuth: 0
+    sunIntensity: 1.2
+    sunDiameter: 0.6
+    moonDiameter: 6
+    skyRotation: 0
+    skyExposure: 1
+  transitionSeconds: 15
+  dayAmbient: {r: 0.45, g: 0.48, b: 0.55, a: 1}
+  nightAmbient: {r: 0.035, g: 0.045, b: 0.08, a: 1}

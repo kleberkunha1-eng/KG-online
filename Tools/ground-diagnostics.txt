@@ -1,0 +1,28 @@
+Play=True subtarget=Player
+Terrain Garner_Valhalla_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1222.00, -8.00, -118.00) data=Garner_Valhalla_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Valhalla_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Glacier_Isle scene=GameScene active=True enabled=True draw=True layer=11 pos=(-60.00, -8.00, 1536.00) data=Garner_Glacier_Isle (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Glacier_Isle (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Andes_Forest_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1338.00, -8.00, -319.00) data=Garner_Andes_Forest_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Andes_Forest_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Abandon_Mine_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-447.00, -8.00, -156.00) data=Garner_Abandon_Mine_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Abandon_Mine_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Zephyr_Isle scene=GameScene active=True enabled=True draw=True layer=11 pos=(914.00, -8.00, -630.00) data=Garner_Zephyr_Isle (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Zephyr_Isle (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Chaldea_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1711.00, -8.00, 557.00) data=Garner_Chaldea_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Chaldea_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Outlaw_Isle scene=GameScene active=True enabled=True draw=True layer=11 pos=(1262.00, -8.00, 1918.00) data=Garner_Outlaw_Isle (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Outlaw_Isle (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Thundoria_Harbor scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1309.00, -8.00, 1360.00) data=Garner_Thundoria_Harbor (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Thundoria_Harbor (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Solace_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1794.00, -8.00, 230.00) data=Garner_Solace_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Solace_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Rockery_Haven scene=GameScene active=True enabled=True draw=True layer=11 pos=(-825.00, -8.00, -435.00) data=Garner_Rockery_Haven (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Rockery_Haven (UnityEngine.TerrainCollider) enabled=True
+Terrain Garner_Thundoria_Castle scene=GameScene active=True enabled=True draw=True layer=11 pos=(-1616.00, -8.00, 1154.00) data=Garner_Thundoria_Castle (UnityEngine.TerrainData) material=GarnerTerrain (UnityEngine.Material)
+Collider=Garner_Thundoria_Castle (UnityEngine.TerrainCollider) enabled=True
+Camera MainCamera active=True mask=-1 clear=Skybox pos=(-60.79, 7.02, 3.95)
+Camera MinimapCamera active=True mask=-33 clear=SolidColor pos=(-47.42, 100.60, 1.73)
+Player Player(Clone) pos=(-47.42, 0.60, 1.73) input=True
+Hit Player(Clone) layer=3 pos=(-47.42, 2.40, 1.73)
+Hit KillPlane layer=0 pos=(-47.42, -49.50, 1.73)

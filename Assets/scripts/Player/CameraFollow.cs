@@ -8,7 +8,7 @@ namespace TOP.Player
     {
         [Header("Seguimento")]
         public Vector3 offset = new Vector3(0f, 12f, -8f);
-        public Vector3 lookAtOffset = new Vector3(0f, 1.5f, 0f);
+        public Vector3 lookAtOffset = new Vector3(0f, 2.2f, 0f);
 
         [Header("Configuracoes de Zoom")]
         public float zoomSpeed = 5f;
@@ -18,8 +18,8 @@ namespace TOP.Player
         [Header("Rotacao 3D")]
         public bool allowRotation = true;
         public float rotationSpeed = 3f;
-        public float minVerticalAngle = -80f;
-        public float maxVerticalAngle = 85f;
+        public float minVerticalAngle = -35f;
+        public float maxVerticalAngle = 75f;
 
         [Header("Limite do Chao")]
         public LayerMask groundLayers = ~0;
@@ -39,7 +39,7 @@ namespace TOP.Player
 
             base.OnStartLocalPlayer();
             currentZoom = Mathf.Clamp(offset.magnitude, minZoom, maxZoom);
-            currentPitch = 50f;
+            currentPitch = Mathf.Clamp(22f, minVerticalAngle, maxVerticalAngle);
         }
 
         void LateUpdate()
@@ -61,14 +61,15 @@ namespace TOP.Player
 
             if (FreeCam) return;
 
-            float scrollInput = Input.GetAxis("Mouse ScrollWheel");
+            bool blocked = TOP.Admin.AdminPanel.BlocksMouse;
+            float scrollInput = blocked ? 0 : Input.GetAxis("Mouse ScrollWheel");
             if (scrollInput != 0f)
             {
                 currentZoom -= scrollInput * zoomSpeed;
                 currentZoom = Mathf.Clamp(currentZoom, minZoom, maxZoom);
             }
 
-            if (allowRotation && Input.GetMouseButton(1))
+            if (!blocked && allowRotation && Input.GetMouseButton(1))
             {
                 currentYaw += Input.GetAxis("Mouse X") * rotationSpeed;
                 currentPitch -= Input.GetAxis("Mouse Y") * rotationSpeed;
@@ -80,17 +81,30 @@ namespace TOP.Player
             Vector3 orbitOffset = rotation * new Vector3(0f, 0f, -currentZoom);
             Vector3 desiredPosition = pivotPosition + orbitOffset;
 
-            Vector3 rayOrigin = desiredPosition + Vector3.up * groundCheckHeight;
-            float rayDistance = groundCheckHeight * 2f;
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit groundHit, rayDistance, groundLayers, QueryTriggerInteraction.Ignore))
+            desiredPosition = ProtectGround(pivotPosition, desiredPosition, groundLayers,
+                groundClearance, groundCheckHeight);
+            camTransform.position = desiredPosition;
+            camTransform.LookAt(pivotPosition);
+        }
+
+        public static Vector3 ProtectGround(Vector3 pivotPosition, Vector3 desiredPosition,
+            LayerMask layers, float clearance, float checkHeight)
+        {
+            Vector3 travel = desiredPosition - pivotPosition;
+            float radius = Mathf.Max(.35f, clearance);
+            if (travel.sqrMagnitude > .001f && Physics.SphereCast(pivotPosition, radius,
+                travel.normalized, out var obstruction, travel.magnitude, layers, QueryTriggerInteraction.Ignore))
+                desiredPosition = pivotPosition + travel.normalized * Mathf.Max(0, obstruction.distance - .05f);
+            Vector3 rayOrigin = desiredPosition + Vector3.up * checkHeight;
+            float rayDistance = checkHeight * 2f;
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit groundHit, rayDistance, layers, QueryTriggerInteraction.Ignore))
             {
-                float minAllowedY = groundHit.point.y + groundClearance;
+                float minAllowedY = groundHit.point.y + radius;
                 if (desiredPosition.y < minAllowedY)
                     desiredPosition.y = minAllowedY;
             }
 
-            camTransform.position = desiredPosition;
-            camTransform.LookAt(pivotPosition);
+            return desiredPosition;
         }
     }
 }

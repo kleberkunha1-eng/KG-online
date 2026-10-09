@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TOP.Character
 {
     // Rotacao/posicao do modelo da arma dentro do dummy da mao, por raca (0-3) e mao (0 direita, 1 esquerda).
-    // Editavel em tempo real pelo WeaponTuner (F9); "Salvar" grava o JSON que e carregado no proximo inicio.
+    // Editavel em tempo real pelo WeaponTuner (Ctrl+F9); "Salvar" grava o JSON que e carregado no proximo inicio.
     public static class PkoWeaponPose
     {
         public const int Races = 4;

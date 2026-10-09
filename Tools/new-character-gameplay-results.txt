@@ -1,0 +1,14 @@
+PASS Synthetic client connects to isolated TOPNetworkManager.
+PASS Server tracks the connected synthetic client.
+PASS Ready during login produces zero world spawns.
+PASS Selected synthetic character is initialized but not sent before Ready.
+PASS World Ready associates the selected player with its connection.
+PASS World Ready delivers owner=True, spawns=80, observing=80, server spawned=80, send rate=60, ticks=8, loading=False.
+PASS World entry completes without transport error.
+PASS NewCharacterTest preserves race identity and live stats through world entry/save data.
+PASS Gameplay binder loads new model and Lance movement poses.
+PASS NewCharacterTest actually moves under server-authoritative movement.
+PASS Server monsters navigate on the baked world NavMesh.
+PASS An unspawned client replica never activates server navigation.
+PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
+No account authentication or database writes were performed.

@@ -1,0 +1,59 @@
+Passed=58 Failed=0
+PASS Controles padrao validos.
+PASS Oito materiais e texturas FS002 referenciados.
+PASS Shader sem erros reportados.
+PASS Pesos normalizados durante 24h: Automatic
+PASS Pesos normalizados durante 24h: Clear
+PASS Pesos normalizados durante 24h: Sunless
+PASS Pesos normalizados durante 24h: Rainy
+PASS Pesos normalizados durante 24h: Snowy
+PASS Continuidade de fase/clima em 0h.
+PASS Continuidade de fase/clima em 3h.
+PASS Continuidade de fase/clima em 6h.
+PASS Continuidade de fase/clima em 9h.
+PASS Continuidade de fase/clima em 12h.
+PASS Continuidade de fase/clima em 15h.
+PASS Continuidade de fase/clima em 18h.
+PASS Continuidade de fase/clima em 21h.
+PASS Continuidade de fase/clima em 24h.
+PASS Sol no horizonte 06/18h, zenite 12h e abaixo do horizonte a noite.
+PASS Sunrise no horizonte matinal.
+PASS Sunset no horizonte vespertino.
+PASS Material de transicao presente antes/depois do horizonte em 5,5h.
+PASS Material de transicao presente antes/depois do horizonte em 6,5h.
+PASS Material de transicao presente antes/depois do horizonte em 17,5h.
+PASS Material de transicao presente antes/depois do horizonte em 18,5h.
+PASS FS002_Day no meio-dia.
+PASS FS002_Night a meia-noite.
+PASS Variacao Moonless.
+PASS NaN rejeitado no controle do servidor.
+PASS Diametro fora do limite rejeitado.
+PASS Lua no horizonte 18/06h e trajetoria baixa de 25 graus a meia-noite.
+PASS Lua visivel a noite; oculta de dia, Moonless e clima sem noite clara.
+PASS Sem sol nao significa sem lua: noite Sunless mantem disco e luz lunar.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 18h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 18,25h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 18,5h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 19h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 5h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 5,5h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 5,75h.
+PASS Lua aparece apos Sunset e desaparece em Sunrise: 6h.
+PASS Renderizacao finita em 12h.
+PASS Renderizacao finita em 0h.
+PASS Ceu 0h difere visualmente do meio-dia.
+PASS Renderizacao finita em 6h.
+PASS Ceu 6h difere visualmente do meio-dia.
+PASS Renderizacao finita em 18h.
+PASS Ceu 18h difere visualmente do meio-dia.
+PASS Sunrise e Sunset sao panoramas distintos na GPU.
+PASS Lua com diametro aparente de 6 graus, cinco vezes maior.
+PASS Luz lunar suave (0,12), azul-acinzentada e independente da intensidade solar.
+PASS Lua selecionada como luz principal noturna do renderizador.
+PASS Luz lunar ilumina Terrain/Lit real na GPU; ganho medio=0,07214705
+PASS Disco lunar realmente renderizado na GPU.
+PASS Disco lunar cinza frio, sem saturacao branca ou brilho solar.
+PASS Superficie lunar com variacao de albedo/crateras, nao um disco de luz uniforme.
+PASS Moonless remove disco e luz lunar na renderizacao real.
+PASS Previa restaura ceu, sol e ambiente originais.
+PASS Shader compilado para renderizacao sem erros.

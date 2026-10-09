@@ -1,0 +1,62 @@
+PASS Central city terrain is active, visible and has an enabled collider.
+PASS City click/ground ray hits the central terrain at city height, not the KillPlane.
+PASS Camera stays above ground at pitch -35
+PASS Camera stays above ground at pitch -30
+PASS Camera stays above ground at pitch -25
+PASS Camera stays above ground at pitch -20
+PASS Camera stays above ground at pitch -15
+PASS Camera stays above ground at pitch -10
+PASS Camera stays above ground at pitch -5
+PASS Camera stays above ground at pitch 0
+PASS Camera stays above ground at pitch 5
+PASS Camera stays above ground at pitch 10
+PASS Camera stays above ground at pitch 15
+PASS Camera stays above ground at pitch 20
+PASS Camera stays above ground at pitch 25
+PASS Camera stays above ground at pitch 30
+PASS Camera stays above ground at pitch 35
+PASS Camera stays above ground at pitch 40
+PASS Camera stays above ground at pitch 45
+PASS Camera stays above ground at pitch 50
+PASS Camera stays above ground at pitch 55
+PASS Camera stays above ground at pitch 60
+PASS Camera stays above ground at pitch 65
+PASS Camera stays above ground at pitch 70
+PASS Camera stays above ground at pitch 75
+PASS Synthetic client connects to isolated TOPNetworkManager.
+PASS Server tracks the connected synthetic client.
+PASS Gameplay camera draws the synchronized sky instead of its former solid background.
+PASS Unauthenticated environment change is rejected over KCP.
+PASS Server clock and timezone arrive through a real KCP snapshot, independently of client clock.
+PASS Environment controls survive Mirror serialization.
+PASS Ready during login produces zero world spawns.
+PASS Selected synthetic character is initialized but not sent before Ready.
+PASS World Ready associates the selected player with its connection.
+PASS World Ready delivers owner=True, spawns=78, observing=78, server spawned=78, send rate=60, ticks=6, loading=False.
+PASS World entry completes without transport error.
+PASS Player actually moves under server authority and stays on city ground.
+PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
+PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
+PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
+PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
+PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
+PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
+PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
+PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
+PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
+PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
+PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
+PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
+PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
+PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
+PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
+PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
+PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
+PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01269287
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004582822
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,00984627
+PASS Server monsters navigate on the baked world NavMesh.
+PASS An unspawned client replica never activates server navigation.
+PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
+No account authentication or database writes were performed.

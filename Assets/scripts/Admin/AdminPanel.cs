@@ -12,7 +12,7 @@ namespace TOP.Admin
     // no primeiro slot vazio do inventario. So aparece para contas is_admin; o servidor revalida em CmdAdminGenerate.
     public class AdminPanel : MonoBehaviour
     {
-        const float RowH = 26f, WinW = 880f, WinH = 620f;
+        const float RowH = 28f, WinW = 760f, WinH = 570f;
 
         static readonly (int type, string name)[] Categories =
         {
@@ -32,7 +32,7 @@ namespace TOP.Admin
         public static bool IsAdmin => LoginNetworkClient.IsAdmin;
         // Usado pelo click-to-move: clique sobre o painel nao deve mover o personagem.
         public static bool BlocksMouse => panelBlocks || WeaponTuner.Blocks || WingTuner.BlocksMouse
-            || TOP.UI.GameWindowControls.BlocksMouse;
+            || TOP.UI.GameWindowControls.BlocksMouse || TOP.World.WorldEnvironment.BlocksMouse;
         static bool panelBlocks;
 
         bool open;
@@ -48,8 +48,11 @@ namespace TOP.Admin
         int[] classIds;
         string[] classNames;
         bool dirty = true;
+        int tab;
+        int expandedFilter;
+        Vector2 filterScroll, detailScroll, characterScroll;
 
-        float Scale => Mathf.Max(1f, Screen.height / 900f);
+        float Scale => Mathf.Min(1f, Mathf.Min(Screen.width / (WinW + 40), Screen.height / (WinH + 40)));
 
         void Update()
         {
@@ -106,37 +109,56 @@ namespace TOP.Admin
 
         void Draw(int id)
         {
-            GUILayout.BeginHorizontal();
-            DrawList();
-            DrawDetail();
-            GUILayout.EndHorizontal();
+            tab = GUILayout.Toolbar(tab, new[] { "Itens e equipamentos", "Personagem" });
+            GUILayout.Space(8);
+            if (tab == 0)
+            {
+                GUILayout.BeginHorizontal();
+                DrawList();
+                DrawDetail();
+                GUILayout.EndHorizontal();
+            }
+            else
+            {
+                characterScroll = GUILayout.BeginScrollView(characterScroll);
+                DrawMyClass();
+                GUILayout.EndScrollView();
+            }
             GUILayout.Label(status);
             GUI.DragWindow(new Rect(0, 0, 10000, 22));
         }
 
         void DrawList()
         {
-            GUILayout.BeginVertical(GUILayout.Width(380));
-            GUILayout.Label("Tipo");
-            int newCat = GUILayout.SelectionGrid(category, CategoryNames, 4);
-            if (newCat != category) { category = newCat; dirty = true; }
-
-            GUILayout.Label("Classe");
-            int ci = GUILayout.SelectionGrid(classFilter < 0 ? 0 : System.Array.IndexOf(classIds, classFilter) + 1, classNames, 4);
-            int nf = ci == 0 ? -1 : classIds[ci - 1];
-            if (nf != classFilter) { classFilter = nf; dirty = true; }
+            GUILayout.BeginVertical(GUILayout.Width(300));
+            filterScroll = GUILayout.BeginScrollView(filterScroll, GUILayout.Height(expandedFilter == 0 ? 74 : 180));
+            if (GUILayout.Button("Tipo: " + CategoryNames[category], GUILayout.Width(275)))
+                expandedFilter = expandedFilter == 1 ? 0 : 1;
+            if (expandedFilter == 1)
+            {
+                int newCat = GUILayout.SelectionGrid(category, CategoryNames, 2, GUILayout.Width(275));
+                if (newCat != category) { category = newCat; dirty = true; expandedFilter = 0; }
+            }
+            int currentClass = classFilter < 0 ? 0 : System.Array.IndexOf(classIds, classFilter) + 1;
+            if (GUILayout.Button("Classe: " + classNames[currentClass], GUILayout.Width(275)))
+                expandedFilter = expandedFilter == 2 ? 0 : 2;
+            if (expandedFilter == 2)
+            {
+                int ci = GUILayout.SelectionGrid(currentClass, classNames, 2, GUILayout.Width(275));
+                int nf = ci == 0 ? -1 : classIds[ci - 1];
+                if (nf != classFilter) { classFilter = nf; dirty = true; expandedFilter = 0; }
+            }
+            GUILayout.EndScrollView();
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Busca", GUILayout.Width(50));
             string ns = GUILayout.TextField(search);
             if (ns != search) { search = ns; dirty = true; }
             GUILayout.EndHorizontal();
-            showChar = GUILayout.Toggle(showChar, showChar ? " v Personagem (classe / level / gold)" : " > Personagem (classe / level / gold)", "Button");
-            if (showChar) DrawMyClass();
             GUILayout.Label(shown.Count + " itens");
 
             // Lista virtualizada: so desenha as linhas visiveis.
-            var area = GUILayoutUtility.GetRect(380, 10000, 200, 10000, GUILayout.ExpandHeight(true));
+            var area = GUILayoutUtility.GetRect(300, 300, 100, 10000, GUILayout.ExpandHeight(true));
             GUI.Box(area, GUIContent.none);
             var content = new Rect(0, 0, area.width - 20, shown.Count * RowH);
             listScroll = GUI.BeginScrollView(area, listScroll, content);
@@ -192,7 +214,7 @@ namespace TOP.Admin
             GUILayout.EndHorizontal();
         }
 
-        bool showChar; string levelText = "50", goldText = "1000000";
+        string levelText = "50", goldText = "1000000";
 
         static GUIStyle _left;
         static GUIStyle LeftButton { get { if (_left == null) _left = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft }; return _left; } }
@@ -200,8 +222,9 @@ namespace TOP.Admin
         void DrawDetail()
         {
             GUILayout.BeginVertical();
+            detailScroll = GUILayout.BeginScrollView(detailScroll);
             var it = Selected;
-            if (it == null) { GUILayout.Label("Selecione um item na lista."); GUILayout.EndVertical(); return; }
+            if (it == null) { GUILayout.Label("Selecione um item na lista para ver atributos e configurar a geracao."); GUILayout.EndScrollView(); GUILayout.EndVertical(); return; }
 
             GUILayout.BeginHorizontal();
             var icon = PkoUi.Instance != null ? PkoUi.Instance.Icon(it.Icon) : null;
@@ -230,6 +253,7 @@ namespace TOP.Admin
             }
 
             if (GUILayout.Button("Gerar no inventario", GUILayout.Height(34))) Generate(it);
+            GUILayout.EndScrollView();
             GUILayout.EndVertical();
         }
 

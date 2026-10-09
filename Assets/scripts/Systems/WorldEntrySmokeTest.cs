@@ -29,6 +29,9 @@ namespace TOP.Testing
         int worldEntryErrors;
         bool ownerSpawned;
         readonly Unbatcher unbatcher = new Unbatcher();
+        TOP.World.EnvironmentSnapshot environmentSnapshot;
+        TOP.World.EnvironmentReply environmentReply;
+        int environmentSnapshots, environmentReplies;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void StartRequested()
@@ -81,6 +84,30 @@ namespace TOP.Testing
         {
             // Let scene Start callbacks finish before beginning the timed network handshake.
             yield return null;
+            var centralTerrain = Array.Find(Terrain.activeTerrains, terrain =>
+                terrain.name == "Garner_Argent" && terrain.gameObject.scene.name == "GameScene");
+            Check(centralTerrain != null && centralTerrain.drawHeightmap
+                && centralTerrain.GetComponent<TerrainCollider>() != null
+                && centralTerrain.GetComponent<TerrainCollider>().enabled,
+                "Central city terrain is active, visible and has an enabled collider.");
+            Check(centralTerrain != null
+                && Physics.Raycast(new Vector3(-47.42f, 8f, 1.73f), Vector3.down, out var cityGround, 20f,
+                    LayerMask.GetMask("Terrain"), QueryTriggerInteraction.Ignore)
+                && cityGround.collider == centralTerrain.GetComponent<TerrainCollider>()
+                && Mathf.Abs(cityGround.point.y - .6f) < .1f,
+                "City click/ground ray hits the central terrain at city height, not the KillPlane.");
+            if (centralTerrain != null)
+            {
+                var pivot = new Vector3(-47.42f, 2.8f, 1.73f);
+                for (int pitch = -35; pitch <= 75; pitch += 5)
+                {
+                    var desired = pivot + Quaternion.Euler(pitch, 45, 0) * Vector3.back * 14;
+                    var safe = CameraFollow.ProtectGround(pivot, desired, LayerMask.GetMask("Terrain", "Ground"), .5f, 50);
+                    Check(Physics.Raycast(safe + Vector3.up * 50, Vector3.down, out var cameraGround, 100,
+                        LayerMask.GetMask("Terrain", "Ground"), QueryTriggerInteraction.Ignore)
+                        && safe.y - cameraGround.point.y >= .49f, "Camera stays above ground at pitch " + pitch);
+                }
+            }
             if (NetworkServer.active || NetworkClient.active)
             {
                 Check(false, $"Test requires isolation: server={NetworkServer.active}, client={NetworkClient.active}, "
@@ -128,6 +155,13 @@ namespace TOP.Testing
             foreach (var connection in connections.Values) { playerConnection = connection; break; }
             Check(playerConnection != null, "Server tracks the connected synthetic client.");
             if (playerConnection == null) yield break;
+            if (SessionState.GetBool("TOP.EnvironmentSmoke", false))
+            {
+                Check(TOP.World.WorldEnvironment.Instance != null && Camera.main != null
+                    && Camera.main.clearFlags == CameraClearFlags.Skybox,
+                    "Gameplay camera draws the synchronized sky instead of its former solid background.");
+                yield return CheckEnvironment();
+            }
             SendReady();
             deadline = Time.realtimeSinceStartup + 1f;
             while (Time.realtimeSinceStartup < deadline) { Tick(); yield return null; }
@@ -164,6 +198,14 @@ namespace TOP.Testing
                 + $"send rate={NetworkServer.sendRate}, ticks={NetworkServer.actualTickRate}, "
                 + $"loading={NetworkServer.isLoadingScene}.");
             Check(transportError == null, "World entry completes without transport error.");
+            Vector3 movementStart = player.transform.position;
+            var movement = player.GetComponent<PlayerMovement>();
+            movement.SetDestination(movementStart + Vector3.right * 2f);
+            deadline = Time.realtimeSinceStartup + 1f;
+            while (Time.realtimeSinceStartup < deadline) { Tick(); yield return null; }
+            Check(player.transform.position.x > movementStart.x + .5f
+                && Mathf.Abs(player.transform.position.y - movementStart.y) < .5f,
+                "Player actually moves under server authority and stays on city ground.");
             if (newCharacter)
             {
                 Check(controller.Job == PkoRaces.NewCharacterTest && controller.CurrentHp > 0
@@ -185,7 +227,29 @@ namespace TOP.Testing
             foreach (var identity in NetworkServer.spawned.Values)
             {
                 var ai = identity.GetComponent<EnemyAI>();
-                if (ai != null && ai.GetComponent<NavMeshAgent>().isOnNavMesh) navigating++;
+                if (ai != null && ai.GetComponent<NavMeshAgent>().isOnNavMesh)
+                {
+                    navigating++;
+                    if (Physics.Raycast(ai.transform.position + Vector3.up * 10, Vector3.down, out var mobGround, 30,
+                        LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore))
+                    {
+                        foreach (var skin in ai.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        {
+                            var baked = new Mesh();
+                            try
+                            {
+                                skin.BakeMesh(baked);
+                                float bottom = float.PositiveInfinity;
+                                foreach (var vertex in baked.vertices)
+                                    bottom = Mathf.Min(bottom, skin.transform.TransformPoint(vertex).y);
+                                Check(bottom - mobGround.point.y < .5f && bottom - mobGround.point.y > -.5f,
+                                    "Monster visual stays at ground height: " + ai.name + " gap=" + (bottom - mobGround.point.y));
+                            }
+                            finally { Destroy(baked); }
+                        }
+                    }
+                    else Check(false, "Monster has no ground: " + ai.name);
+                }
             }
             Check(navigating > 0, "Server monsters navigate on the baked world NavMesh.");
             var enemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Enemy/Mob_Slime.prefab");
@@ -231,6 +295,18 @@ namespace TOP.Testing
                 using (var reader = NetworkReaderPool.Get(message))
                 {
                     ushort id = reader.ReadUShort();
+                    if (id == NetworkMessageId<TOP.World.EnvironmentSnapshot>.Id)
+                    {
+                        environmentSnapshot = reader.Read<TOP.World.EnvironmentSnapshot>();
+                        environmentSnapshots++;
+                        continue;
+                    }
+                    if (id == NetworkMessageId<TOP.World.EnvironmentReply>.Id)
+                    {
+                        environmentReply = reader.Read<TOP.World.EnvironmentReply>();
+                        environmentReplies++;
+                        continue;
+                    }
                     if (id == NetworkMessageId<RpcMessage>.Id && SessionState.GetBool("TOP.AdminGenerationSmoke", false))
                     {
                         AdminGenerationSmokeTest.Receive(reader.Read<RpcMessage>());
@@ -257,6 +333,45 @@ namespace TOP.Testing
         }
 
         void Tick() { client.TickIncoming(); client.TickOutgoing(); }
+
+        IEnumerator CheckEnvironment()
+        {
+            var control = Resources.Load<TOP.World.WorldEnvironmentSettings>("WorldEnvironment").defaults;
+            using (var message = NetworkWriterPool.Get())
+            using (var batch = NetworkWriterPool.Get())
+            {
+                var batcher = new Batcher(1200);
+                NetworkMessages.Pack(new TOP.World.EnvironmentChange
+                    { controls = control, hour = 12 }, message);
+                batcher.AddMessage(message.ToArraySegment(), Time.realtimeSinceStartupAsDouble);
+                if (batcher.GetBatch(batch)) client.Send(batch.ToArraySegment(), KcpChannel.Reliable);
+            }
+            float deadline = Time.realtimeSinceStartup + 3;
+            while (environmentReplies == 0 && Time.realtimeSinceStartup < deadline) { Tick(); yield return null; }
+            Check(environmentReplies > 0 && !environmentReply.success
+                && environmentReply.message == "NOT_AUTHENTICATED", "Unauthenticated environment change is rejected over KCP.");
+            var pending = (System.Collections.IDictionary)typeof(TOPNetworkManager)
+                .GetField("_pendingAuths", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(manager);
+            object auth = pending[playerConnection.ConnectionId];
+            var field = auth.GetType().GetField("IsAuthenticated");
+            field.SetValue(auth, true);
+            try
+            {
+                typeof(TOPNetworkManager).GetMethod("BroadcastEnvironment", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(manager, null);
+                deadline = Time.realtimeSinceStartup + 3;
+                while (environmentSnapshots == 0 && Time.realtimeSinceStartup < deadline) { Tick(); yield return null; }
+                var now = DateTimeOffset.Now;
+                double expected = now.ToUnixTimeMilliseconds() / 1000d + now.Offset.TotalSeconds;
+                Check(environmentSnapshots > 0 && Math.Abs(environmentSnapshot.localSeconds - expected) < 4
+                    && environmentSnapshot.utcOffsetMinutes == (int)now.Offset.TotalMinutes,
+                    "Server clock and timezone arrive through a real KCP snapshot, independently of client clock.");
+                Check(environmentSnapshots > 0 && environmentSnapshot.controls.IsValid
+                    && environmentSnapshot.controls.weather == control.weather,
+                    "Environment controls survive Mirror serialization.");
+            }
+            finally { field.SetValue(auth, false); }
+        }
 
         void SendAdminCommand(string name, int[] arguments)
         {
@@ -293,11 +408,14 @@ namespace TOP.Testing
             Application.logMessageReceived -= ObserveLog;
             checks.Add("No account authentication or database writes were performed.");
             File.WriteAllLines("Tools/world-entry-smoke-results.txt", checks);
+            if (SessionState.GetBool("TOP.EnvironmentSmoke", false))
+                File.WriteAllLines("Tools/environment-network-results.txt", checks);
             if (SessionState.GetBool("TOP.NewCharacterSmoke", false))
                 File.WriteAllLines("Tools/new-character-gameplay-results.txt", checks);
             SessionState.SetBool(Active, false);
             SessionState.SetBool("TOP.AdminGenerationSmoke", false);
             SessionState.SetBool("TOP.NewCharacterSmoke", false);
+            SessionState.SetBool("TOP.EnvironmentSmoke", false);
             EditorApplication.isPlaying = false;
         }
 
