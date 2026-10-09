@@ -6,12 +6,13 @@ using System;
 
 namespace TOP.NPC
 {
-    public class NPCInteractable : NetworkBehaviour, IInteractable
+    public partial class NPCInteractable : NetworkBehaviour, IInteractable
     {
         [Header("NPC Info")]
         [SerializeField] private string npcId;
         [SerializeField] private string npcName = "NPC";
         [SerializeField] private NPCType npcType = NPCType.Merchant;
+        [SerializeField] private string mapName = "garner";
         [SerializeField] private Sprite npcPortrait;
 
         [Header("Interaction")]
@@ -60,6 +61,7 @@ namespace TOP.NPC
                 npcAnimator.SetTrigger(idleAnimation);
         }
 
+        [Server]
         public void OnInteract(PlayerMovement player)
         {
             if (!CanInteract(player)) return;
@@ -71,6 +73,10 @@ namespace TOP.NPC
             transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
 
             OpenNPCInterface(player);
+            if (npcType != NPCType.Hairdresser && (npcType != NPCType.Blacksmith || ShopItemIds().Length > 0)
+                && npcType != NPCType.Teleporter)
+                TargetOpenDialogue(player.connectionToClient, dialogueLines ?? Array.Empty<string>(), ShopItemIds(),
+                    QuestIds(availableQuests), QuestIds(completesQuests));
         }
 
         [ClientRpc]
@@ -106,7 +112,13 @@ namespace TOP.NPC
 
         public bool CanInteract(PlayerMovement player)
         {
-            if (player == null) return false;
+            if (player == null || !isActiveAndEnabled) return false;
+            var controller = player.GetComponent<PlayerController>();
+            var stats = player.GetComponent<PlayerStats>();
+            var combat = player.GetComponent<PlayerCombat>();
+            if (controller == null || !controller.IsInitialized || stats == null || stats.IsDead
+                || controller.MapName != mapName
+                || (player.GetComponent<PlayerTrade>()?.InTrade ?? false) || (combat != null && combat.DuelOpponentNetId != 0)) return false;
             float distance = Vector3.Distance(transform.position, player.transform.position);
             return distance <= interactionRange;
         }
@@ -119,7 +131,7 @@ namespace TOP.NPC
                 controller?.RpcOpenHairSalon();
                 return;
             }
-            if (npcType == NPCType.Blacksmith)
+            if (npcType == NPCType.Blacksmith && ShopItemIds().Length == 0)
             {
                 controller?.RpcOpenForge();
                 return;
@@ -131,13 +143,12 @@ namespace TOP.NPC
                     controller.Teleport(teleportDestinationMap, teleportDestinationPosition);
                     controller.RpcShowMessage("Voce foi transportado para " + teleportDestinationMap + ".", PlayerMessageType.Info);
                 }
+                else controller?.RpcShowMessage("Destino original deste teleporte ainda nao configurado.", PlayerMessageType.Warning);
                 return;
             }
 
             HandleQuestInteraction(player);
 
-            // Feedback minimo ate a UI de loja/dialogo completa ser implementada (ver todo "npc-shop-ui").
-            controller?.RpcShowMessage(GetInteractionName(), PlayerMessageType.Info);
         }
 
         // Conecta este NPC ao sistema de quests: marca progresso de objetivos "falar com",
@@ -151,19 +162,6 @@ namespace TOP.NPC
 
             pq.ServerNotifyTalk(npcId);
 
-            if (completesQuests != null)
-                foreach (var idStr in completesQuests)
-                    if (int.TryParse(idStr, out int qid) && pq.HasActiveQuest(qid) && pq.CanTurnIn(qid))
-                        pq.ServerTurnInQuest(qid);
-
-            if (availableQuests != null && availableQuests.Length > 0)
-            {
-                var ids = new System.Collections.Generic.List<int>();
-                foreach (var idStr in availableQuests)
-                    if (int.TryParse(idStr, out int qid)) ids.Add(qid);
-                foreach (var qid in pq.GetOfferableQuestsFor(ids))
-                    pq.ServerOfferQuest(qid);
-            }
         }
 
         private void HealPlayer(PlayerMovement player)

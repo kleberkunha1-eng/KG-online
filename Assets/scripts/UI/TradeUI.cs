@@ -18,8 +18,11 @@ namespace TOP.UI
         ulong myGold, partnerGold;
         bool myLocked, partnerLocked;
         string myGoldInput = "0";
+        string quantityInput = "1";
+        int selectedSlot = -1;
+        Vector2 inventoryScroll, myOfferScroll, partnerOfferScroll;
 
-        Rect win = new Rect(400, 150, 420, 300);
+        Rect win = new Rect(400, 100, 460, 480);
         Rect inviteWin = new Rect(500, 300, 260, 110);
 
         float Scale => Mathf.Max(1f, Screen.height / 900f);
@@ -39,6 +42,9 @@ namespace TOP.UI
             instance.myGold = instance.partnerGold = 0;
             instance.myLocked = instance.partnerLocked = false;
             instance.myGoldInput = "0";
+            instance.quantityInput = "1";
+            instance.selectedSlot = -1;
+            instance.inventoryScroll = instance.myOfferScroll = instance.partnerOfferScroll = Vector2.zero;
             instance.local = pt;
         }
 
@@ -61,6 +67,8 @@ namespace TOP.UI
             instance.myGold = instance.partnerGold = 0;
             instance.myLocked = instance.partnerLocked = false;
             instance.myGoldInput = "0";
+            instance.selectedSlot = -1;
+            instance.quantityInput = "1";
         }
 
         public static void OnOfferUpdated(PlayerTrade pt, string myOffer, ulong myGold, bool myLocked, string partnerOffer, ulong partnerGold, bool partnerLocked)
@@ -159,17 +167,58 @@ namespace TOP.UI
             GUI.Label(new Rect(10, 24, half, 20), "Sua oferta" + (myLocked ? " [TRAVADA]" : ""));
             GUI.Label(new Rect(20 + half, 24, half, 20), partnerName + (partnerLocked ? " [TRAVADO]" : ""));
 
-            DrawOfferList(myOfferRaw, new Rect(10, 46, half, 150));
-            DrawOfferList(partnerOfferRaw, new Rect(20 + half, 46, half, 150));
+            DrawOfferList(myOfferRaw, new Rect(10, 46, half, 110), ref myOfferScroll);
+            DrawOfferList(partnerOfferRaw, new Rect(20 + half, 46, half, 110), ref partnerOfferScroll);
 
-            GUI.Label(new Rect(10, 200, 60, 20), "Ouro:");
-            if (!myLocked) myGoldInput = GUI.TextField(new Rect(70, 200, half - 60, 20), myGoldInput);
-            else GUI.Label(new Rect(70, 200, half - 60, 20), myGoldInput);
-            if (GUI.Button(new Rect(10, 224, half, 20), "Definir ouro") && !myLocked)
+            GUI.Label(new Rect(10, 160, 60, 20), "Ouro:");
+            if (!myLocked) myGoldInput = GUI.TextField(new Rect(70, 160, half - 60, 20), myGoldInput);
+            else GUI.Label(new Rect(70, 160, half - 60, 20), myGoldInput);
+            if (GUI.Button(new Rect(10, 184, half, 22), "Definir ouro") && !myLocked)
             {
                 if (ulong.TryParse(myGoldInput, out var g)) local.CmdSetOfferGold(g);
+                else UIManager.Instance?.ShowMessage("Informe uma quantidade de ouro valida.", PlayerMessageType.Warning);
             }
-            GUI.Label(new Rect(20 + half, 200, half, 20), "Ouro: " + partnerGold);
+            GUI.Label(new Rect(20 + half, 160, half, 20), "Ouro: " + partnerGold);
+            GUI.Label(new Rect(10, 212, win.width - 20, 20), "Itens do inventario (equipados nao podem ser trocados)");
+            var inventory = local.GetComponent<PlayerInventory>();
+            var inventoryArea = new Rect(10, 236, win.width - 20, 140);
+            int availableSlots = 0;
+            if (inventory != null)
+                for (int i = 0; i < inventory.totalSlots; i++)
+                    if (inventory.GetSlot(i) != null && !inventory.GetSlot(i).IsEquipped) availableSlots++;
+            GUI.enabled = !myLocked;
+            inventoryScroll = GUI.BeginScrollView(inventoryArea, inventoryScroll,
+                new Rect(0, 0, inventoryArea.width - 22, availableSlots * 26));
+            int row = 0;
+            if (inventory != null)
+                for (int i = 0; i < inventory.totalSlots; i++)
+                {
+                    var item = inventory.GetSlot(i);
+                    if (item == null || item.IsEquipped) continue;
+                    var data = ItemDatabase.Instance?.GetItem(item.ItemId);
+                    string itemName = data != null ? data.itemName : "Item#" + item.ItemId;
+                    if (GUI.Button(new Rect(0, row * 26, inventoryArea.width - 24, 24),
+                        (selectedSlot == i ? "> " : "") + (i + 1) + ": " + itemName + " x" + item.Quantity))
+                    {
+                        selectedSlot = i;
+                        quantityInput = "1";
+                    }
+                    row++;
+                }
+            GUI.EndScrollView();
+            GUI.Label(new Rect(10, 382, 85, 22), "Quantidade:");
+            quantityInput = GUI.TextField(new Rect(95, 382, 60, 22), quantityInput);
+            GUI.enabled = !myLocked && selectedSlot >= 0;
+            if (GUI.Button(new Rect(165, 382, 125, 24), "Ofertar item"))
+            {
+                var item = inventory != null ? inventory.GetSlot(selectedSlot) : null;
+                if (item != null && int.TryParse(quantityInput, out int quantity) && quantity > 0 && quantity <= item.Quantity)
+                    local.CmdSetOfferItem(selectedSlot, quantity);
+                else UIManager.Instance?.ShowMessage("Selecione um item e uma quantidade disponivel.", PlayerMessageType.Warning);
+            }
+            if (GUI.Button(new Rect(300, 382, win.width - 310, 24), "Retirar"))
+                local.CmdSetOfferItem(selectedSlot, 0);
+            GUI.enabled = true;
 
             string lockLabel = myLocked ? "Destravar" : "Travar oferta";
             if (GUI.Button(new Rect(10, win.height - 60, win.width - 20, 24), lockLabel))
@@ -184,20 +233,23 @@ namespace TOP.UI
             GUI.DragWindow(new Rect(0, 0, win.width, 20));
         }
 
-        void DrawOfferList(string raw, Rect area)
+        void DrawOfferList(string raw, Rect area, ref Vector2 scroll)
         {
             GUI.Box(area, "");
             if (string.IsNullOrEmpty(raw)) return;
-            float y = area.y + 4;
-            foreach (var entry in raw.Split(';'))
+            var entries = raw.Split(';');
+            scroll = GUI.BeginScrollView(area, scroll, new Rect(0, 0, area.width - 20, entries.Length * 22 + 8));
+            float y = 4;
+            foreach (var entry in entries)
             {
                 var p = entry.Split(':');
                 if (p.Length < 2 || !int.TryParse(p[0], out int itemId) || !int.TryParse(p[1], out int qty)) continue;
                 var data = ItemDatabase.Instance?.GetItem(itemId);
                 string name = data != null ? data.itemName : ("Item#" + itemId);
-                GUI.Label(new Rect(area.x + 4, y, area.width - 8, 18), $"{name} x{qty}");
-                y += 18;
+                GUI.Label(new Rect(4, y, area.width - 24, 22), $"{name} x{qty}");
+                y += 22;
             }
+            GUI.EndScrollView();
         }
     }
 }

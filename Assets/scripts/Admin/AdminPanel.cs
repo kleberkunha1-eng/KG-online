@@ -32,7 +32,8 @@ namespace TOP.Admin
         public static bool IsAdmin => LoginNetworkClient.IsAdmin;
         // Usado pelo click-to-move: clique sobre o painel nao deve mover o personagem.
         public static bool BlocksMouse => panelBlocks || WeaponTuner.Blocks || WingTuner.BlocksMouse
-            || TOP.UI.GameWindowControls.BlocksMouse || TOP.World.WorldEnvironment.BlocksMouse;
+            || TOP.UI.GameWindowControls.BlocksMouse || TOP.World.WorldEnvironment.BlocksMouse
+            || TOP.UI.PlayerInteractionMenu.BlocksMouse || TOP.UI.NPCDialogueUI.BlocksMouse;
         static bool panelBlocks;
 
         bool open;

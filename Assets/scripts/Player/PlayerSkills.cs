@@ -109,7 +109,18 @@ namespace TOP.Player
             }
 
             if (_stats.CurrentSp < skillData.spCost) return;
-            if (skillData.targetType == SkillTargetType.SingleEnemy && (targetNetId == 0 || !NetworkServer.spawned.TryGetValue(targetNetId, out var enemyTarget) || enemyTarget.GetComponent<EnemyStats>() == null || enemyTarget.GetComponent<EnemyStats>().IsDead || Vector3.Distance(transform.position,enemyTarget.transform.position) > skillData.range)) return;
+            if (skillData.targetType == SkillTargetType.SingleEnemy)
+            {
+                if (targetNetId == 0 || !NetworkServer.spawned.TryGetValue(targetNetId, out var enemyTarget)
+                    || Vector3.Distance(transform.position, enemyTarget.transform.position) > skillData.range) return;
+                var enemy = enemyTarget.GetComponent<EnemyStats>();
+                var opponent = enemyTarget.GetComponent<PlayerCombat>();
+                if ((enemy == null || enemy.IsDead) && (opponent == null || !GetComponent<PlayerCombat>().CanDuelAttack(opponent)))
+                {
+                    GetComponent<PlayerController>()?.RpcShowMessage("Alvo invalido: ataques a jogadores exigem duelo.", PlayerMessageType.Warning);
+                    return;
+                }
+            }
 
             // Consome recursos
             _stats.ConsumeMp(skillData.mpCost);
@@ -200,7 +211,10 @@ namespace TOP.Player
             }
             else
             {
-                targetStats.TakeDamage(damage, netId);
+                var combat = GetComponent<PlayerCombat>();
+                var opponent = targetObj.GetComponent<PlayerCombat>();
+                if (combat != null && opponent != null && Vector3.Distance(transform.position, targetObj.transform.position) <= data.range)
+                    combat.ApplyDuelDamage(opponent, damage);
             }
         }
 

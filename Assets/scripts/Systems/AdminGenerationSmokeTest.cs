@@ -32,7 +32,8 @@ namespace TOP.Testing
             foreach (DictionaryEntry entry in delegates)
             {
                 var function = (Delegate)entry.Value.GetType().GetField("function").GetValue(entry.Value);
-                if (function.Method.Name.StartsWith("InvokeUserCode_" + name + "__", StringComparison.Ordinal))
+                if (function.Method.Name == "InvokeUserCode_" + name
+                    || function.Method.Name.StartsWith("InvokeUserCode_" + name + "__", StringComparison.Ordinal))
                     return (ushort)entry.Key;
             }
             throw new InvalidOperationException("Mirror function not registered: " + name);

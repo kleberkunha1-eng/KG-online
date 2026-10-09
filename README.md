@@ -79,6 +79,127 @@ Nao use `git add .` indiscriminadamente nem envie as credenciais de producao.
 
 ## Multiplayer
 
+### Interacao entre jogadores (primeira etapa da importacao)
+
+Clique com o botao direito em outro personagem para abrir o menu compacto:
+Trade, convite para Party e desafio de duelo. Arrastar o botao direito continua
+girando a camera. Trade e Party reutilizam os componentes existentes.
+O painel de Trade permite selecionar itens nao equipados, informar quantidade,
+retirar itens da oferta e definir ouro. Ambos precisam travar a oferta.
+Trocas preservam refino, durabilidade e gemas; alteracoes nos itens oferecidos,
+falta de espaco/ouro, morte, mapa diferente ou distancia acima de 5 metros
+cancelam a negociacao sem transferencia parcial.
+
+Duelo precisa de aceite do outro jogador em ate 30 segundos. Ambos precisam
+estar vivos, no mesmo mapa, a ate 20 metros e fora de uma negociacao.
+Apenas o adversario consentido recebe ataques/skills individuais; ataques
+comuns continuam seguindo alcance e cooldown. O duelo termina com 1 HP
+(sem morte, itens ou recompensas), cancelamento, desconexao, troca de mapa
+ou afastamento. Ataques em area ainda atingem apenas monstros.
+Esta e uma adaptacao local do desafio individual do cliente original;
+arenas, PK livre e combate entre equipes ainda nao foram importados.
+
+Alteracoes no PlayerCombat incluem novos comandos/SyncVars Mirror: clientes
+e servidor precisam de builds da mesma revisao antes de jogar juntos.
+Nao conecte o Editor modificado ao servidor antigo para testar estes comandos.
+O catalogo QuestTable atual ainda usa objetivos/recompensas inferidos;
+nao equivale a importar todas as missoes originais ou ativar todos os NPCs.
+
+Validacao isolada (Editor fechado; nenhuma conta/banco real e usado):
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\6000.4.4f1\Editor\Unity.exe" -batchmode -projectPath "C:\Tales of Pirates Unity" -executeMethod TOPWorldEntrySmokeRunner.RunSocialBatch -logFile "social-validation.log"
+```
+
+O runner encerra Unity com codigo 0/1 e escreve
+`Tools/social-gameplay-results.txt`. Ele usa UDP 17892 e duas conexoes KCP
+sinteticas para validar autoridade, combate/skills, aceite/recusa/expiracao,
+desconexao, party, atributos de itens e transferencia de ouro, junto dos
+testes existentes de terreno, movimento e camera. Nao valida persistencia
+real na API nem uma sessao entre dois computadores.
+
+### NPCs, lojas e receitas importadas
+
+Ao clicar em um NPC proximo, o personagem se aproxima automaticamente e abre
+a interacao a ate 3 metros. Clicar no chao cancela essa aproximacao.
+Dialogos e lojas usam painel opaco com rolagem. Compras, vendas, receitas e cura
+revalidam no servidor o jogador que enviou o pedido, NPC aberto, mapa, distancia,
+vida e ausencia de duelo/trade.
+
+A GameScene preserva os NPCs existentes e suas posicoes. Foram importados os
+estoques de Goldie (78 itens), Granny Nila (39) e Ditto (14), iguais nas duas
+referencias de servidor preservadas e presentes no catalogo do cliente.
+Goldie oferece tambem o acesso a forja existente. O cabeleireiro Cartel foi
+ligado ao salao; Peter, Margaret, Beldi, Daniel e Mysterious Granny nao abrem
+mais o salao indevidamente.
+
+Ditto prepara quatro receitas originais: 1 Bottle (1779), 10 unidades do material
+3129/3130/3131/3132 e 50 ouro produzem respectivamente o item 3133/3134/3135/3136.
+A operacao valida todos os requisitos antes de alterar inventario/ouro e
+preserva atributos dos itens nao consumidos. Gina restaura HP/MP/SP por 200 ouro;
+a isencao original exige nivel menor que 6 e registro da missao 500 concluido.
+Essa missao ainda nao foi importada; nao se concede a isencao apenas pelo nivel.
+Nao se cobra por uma cura quando todos os recursos ja estao completos.
+
+Compras usam o preco/limite de pilha do iteminfo. Vendas usam metade do preco
+base, como no cliente original, e protegem itens equipados/refinados/com sockets.
+Inventario cheio, quantidade invalida e ouro insuficiente nao geram cobranca
+ou consumo parcial. A janela de NPC lista as missoes configuradas; aceitar e
+entregar requer contato com o NPC correto (oferta expira em 60 segundos).
+
+`Tools/PKO/Import Verified Argent NPC Services` compara novamente as fontes e
+preserva uma copia da cena em `Library/TOPAutosave/NpcServices` antes de salvar.
+Recusa fontes divergentes, IDs ausentes ou sobrescrita de configuracoes customizadas.
+O resultado fica em `Tools/npc-services-import-results.txt`; a auditoria real dos
+56 NPCs e gerada em `Tools/npc-catalog-audit.txt` pelo teste isolado.
+
+Jimberry ainda nao recebeu estoque: as referencias divergem (67/69 itens).
+Banco, navios, teleportes sem destino, cura parcial e regras de quests completas
+nao foram inventados. As missoes originais incluem flags, multiplos objetivos e
+recompensas condicionais que o modelo simplificado atual ainda nao representa.
+O teste isolado acima cobre tambem NPCs, compras/vendas, receitas, cura e limites
+de acesso; usa personagens sinteticos sem gravacoes em contas/banco reais.
+Os 125 checks passaram. A fase social/NPC desliga os spawners e os inimigos do
+fixture; a fase NPC pausa a regeneracao para medir cura/cobranca sem interferencia.
+Esses ajustes existem somente no teste e nao alteram o combate do jogo.
+
+### Persistencia das missoes nas APIs
+
+A API Cloudflare agora tem as mesmas cinco rotas de progresso da API MariaDB:
+listar, aceitar, abandonar, atualizar progresso e concluir. Ambas verificam
+posse do personagem e entradas numericas; pedidos repetidos nao duplicam missoes
+nem concluem duas vezes. Progresso atrasado nao reduz a contagem, e uma missao
+concluida nao pode ser apagada pelo comando de abandono.
+
+A migracao aditiva `Cloudflare/migrations/0003_quest_progress.sql` cria somente
+a tabela ausente. Nenhuma migracao remota ou publicacao foi executada: para ativar
+isso no endpoint publicado e necessario aplicar a migracao D1 e publicar as
+Functions em uma janela de atualizacao coordenada. Isso nao importa os roteiros
+originais nem corrige a atomicidade entre recompensas/inventario e conclusao da
+missao; essa integracao ainda precisa ser implementada antes da ativacao ampla.
+
+`node --test Tools/tests/quest-api.test.cjs Tools/tests/new-character-api.test.cjs`
+testa as duas APIs com SQLite em memoria, incluindo a autenticacao Cloudflare,
+concorrencia, posse, validacao, progresso e preservacao dos dados ao reaplicar
+a migracao. Com `TOP_TEST_MARIADB=1`, tambem testa o SQL real no MariaDB local,
+usando apenas tabelas temporarias da conexao e a precedencia `.env.local`/`.env`
+da API. Foram executados os cinco testes, incluindo MariaDB, sem falhas.
+O resultado fica em `Tools/quest-api-results.txt`.
+
+`GameBuild.BuildGameplayStagingBatch` gera cliente Windows e Dedicated Server
+em pastas novas com timestamp, sem substituir builds anteriores ou publicar.
+O servidor gerado continua com configuracao local de staging (API local/7778);
+o cliente tem o endpoint publicado e so deve ser usado depois de atualizar
+o servidor compartilhado para a mesma revisao. Resultados em
+`Tools/gameplay-staging-build-results.txt`.
+Cliente e servidor foram gerados sem erros. A build dedicada foi iniciada em
+UDP 17894 e respondeu a duas sessoes KCP de 12 segundos (11 pongs por sessao,
+sem desconexao nem entrada de personagem sem autenticacao). Os dois destinos
+do validador foram sobrescritos pela linha de comando para localhost: nenhuma
+dessas sessoes testou o endpoint publico. Resultado em
+`Tools/gameplay-staging-runtime-results.txt`. Somente o processo de staging
+foi encerrado; o servidor compartilhado UDP 7777 permaneceu ativo.
+
 ### Ceu, sol e horario do servidor
 
 **Tools > World > Ceu e Tempo** abre a previa de ambiente na GameScene.

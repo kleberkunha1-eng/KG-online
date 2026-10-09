@@ -3,6 +3,7 @@ using Mirror;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TOP.Data;
 
 namespace TOP.Player
 {
@@ -14,7 +15,7 @@ namespace TOP.Player
     {
         const float InviteTimeout = 30f;
 
-        class OfferEntry { public int ItemId; public int Quantity; }
+        class OfferEntry { public int SlotIndex; public int ItemId; public int Quantity; public InventoryItemData Item; }
 
         PlayerController _pc;
         PlayerInventory _inventory;
@@ -56,6 +57,8 @@ namespace TOP.Player
             var target = FindByName(targetName);
             if (target == null) { ShowMsg("Jogador nao encontrado.", PlayerMessageType.Warning); return; }
             if (target.InTrade) { ShowMsg(targetName + " ja esta negociando com outra pessoa.", PlayerMessageType.Warning); return; }
+            if (!CanTradeWith(target))
+            { ShowMsg("Comercio exige jogadores vivos, sem duelo, no mesmo mapa e a ate 5 metros.", PlayerMessageType.Warning); return; }
 
             _pendingInvites[targetName] = new PendingInvite { Inviter = this, Time = Time.time };
             target.TargetTradeInvite(target.connectionToClient, _pc.CharacterName);
@@ -82,6 +85,8 @@ namespace TOP.Player
                 return;
             }
             if (InTrade || inviter.InTrade) { ShowMsg("Negociacao ja em andamento.", PlayerMessageType.Warning); return; }
+            if (!CanTradeWith(inviter))
+            { ShowMsg("Comercio indisponivel. Aproximem-se e terminem o duelo.", PlayerMessageType.Warning); return; }
 
             StartTradeInternal(inviter, this);
         }
@@ -94,6 +99,8 @@ namespace TOP.Player
             a._myOffer.Clear(); b._myOffer.Clear();
             a._myOfferedGold = 0; b._myOfferedGold = 0;
             a._myLocked = false; b._myLocked = false;
+            a.GetComponent<PlayerCombat>()?.StopAttack();
+            b.GetComponent<PlayerCombat>()?.StopAttack();
 
             a.TargetTradeStarted(a.connectionToClient, b._pc.CharacterName);
             b.TargetTradeStarted(b.connectionToClient, a._pc.CharacterName);
@@ -111,11 +118,13 @@ namespace TOP.Player
         {
             if (!InTrade || _partner == null || _inventory == null) return;
             var slot = _inventory.GetSlot(slotIndex);
-            if (slot == null || slot.IsEquipped) return;
+            if (slot == null || slot.IsEquipped)
+            { ShowMsg("Selecione um item disponivel e nao equipado.", PlayerMessageType.Warning); return; }
             quantity = Mathf.Clamp(quantity, 0, slot.Quantity);
 
-            _myOffer.RemoveAll(e => e.ItemId == slot.ItemId);
-            if (quantity > 0) _myOffer.Add(new OfferEntry { ItemId = slot.ItemId, Quantity = quantity });
+            _myOffer.RemoveAll(e => e.SlotIndex == slotIndex);
+            if (quantity > 0) _myOffer.Add(new OfferEntry { SlotIndex = slotIndex, ItemId = slot.ItemId,
+                Quantity = quantity, Item = _inventory.GetInventoryData().First(i => i.SlotIndex == slotIndex) });
 
             UnlockBoth();
             BroadcastOffers(this, _partner);
@@ -174,55 +183,83 @@ namespace TOP.Player
         [Server]
         static void TryCommitTrade(PlayerTrade a, PlayerTrade b)
         {
+            if (!a.CanTradeWith(b))
+            { CancelTradeInternal(a, b, "Comercio cancelado: distancia, mapa ou estado invalido."); return; }
             // Revalida posse no exato momento do commit (o jogador pode ter perdido o item/ouro
             // entre a oferta e o lock, por qualquer outro meio).
             if (a._pc.Gold < a._myOfferedGold || b._pc.Gold < b._myOfferedGold)
             { CancelTradeInternal(a, b, "Ouro insuficiente para concluir a troca."); return; }
 
-            int freeSlotsA = CountFreeSlots(a._inventory);
-            int freeSlotsB = CountFreeSlots(b._inventory);
-            if (b._myOffer.Count > freeSlotsA || a._myOffer.Count > freeSlotsB)
+            var itemsA = a._inventory.GetInventoryData();
+            var itemsB = b._inventory.GetInventoryData();
+            if (!RemoveOffered(itemsA, a._myOffer) || !RemoveOffered(itemsB, b._myOffer))
+            { CancelTradeInternal(a, b, "Itens oferecidos mudaram. Refaca a oferta."); return; }
+            if (!ReceiveOffered(itemsA, b._myOffer, a._inventory.totalSlots)
+                || !ReceiveOffered(itemsB, a._myOffer, b._inventory.totalSlots))
             { CancelTradeInternal(a, b, "Inventario cheio demais para concluir a troca."); return; }
+            ulong goldA = a._pc.Gold - a._myOfferedGold, goldB = b._pc.Gold - b._myOfferedGold;
+            if (ulong.MaxValue - goldA < b._myOfferedGold || ulong.MaxValue - goldB < a._myOfferedGold)
+            { CancelTradeInternal(a, b, "Limite de ouro excedido."); return; }
 
-            // Remove primeiro (atomico por item via RemoveItemById); se falhar, aborta sem ja ter
-            // dado nada ao lado oposto.
-            foreach (var e in a._myOffer) if (!a._inventory.RemoveItemById(e.ItemId, e.Quantity))
-            { RestoreRemoved(a, b); CancelTradeInternal(a, b, "Falha ao validar os itens oferecidos."); return; }
-            foreach (var e in b._myOffer) if (!b._inventory.RemoveItemById(e.ItemId, e.Quantity))
-            { RestoreRemoved(a, b); CancelTradeInternal(a, b, "Falha ao validar os itens oferecidos."); return; }
-
-            a._pc.Gold -= a._myOfferedGold;
-            b._pc.Gold -= b._myOfferedGold;
-
-            foreach (var e in b._myOffer)
-            {
-                int slot = a._inventory.FindEmptySlot();
-                if (slot >= 0) a._inventory.AddItem(e.ItemId, e.Quantity, (ushort)slot);
-            }
-            foreach (var e in a._myOffer)
-            {
-                int slot = b._inventory.FindEmptySlot();
-                if (slot >= 0) b._inventory.AddItem(e.ItemId, e.Quantity, (ushort)slot);
-            }
-            a._pc.Gold += b._myOfferedGold;
-            b._pc.Gold += a._myOfferedGold;
+            // Both snapshots are fully validated before changing either live inventory.
+            a._inventory.InitializeFromData(itemsA);
+            b._inventory.InitializeFromData(itemsB);
+            a._pc.Gold = goldA + b._myOfferedGold;
+            b._pc.Gold = goldB + a._myOfferedGold;
 
             a.ShowMsg("Comercio concluido.", PlayerMessageType.Success);
             b.ShowMsg("Comercio concluido.", PlayerMessageType.Success);
             EndTradeInternal(a, b, null);
         }
 
-        // Nao ha rollback parcial real necessario aqui: a ordem de remocao so avanca para o
-        // segundo lado apos o primeiro ter sucesso total, entao se o primeiro bloco falhar nada
-        // foi alterado ainda; mantido por clareza/seguranca futura caso a logica mude.
-        [Server]
-        static void RestoreRemoved(PlayerTrade a, PlayerTrade b) { }
-
-        static int CountFreeSlots(PlayerInventory inv)
+        static bool RemoveOffered(List<InventoryItemData> items, List<OfferEntry> offer)
         {
-            int count = 0;
-            for (int i = 0; i < inv.totalSlots; i++) if (inv.GetSlot(i) == null) count++;
-            return count;
+            foreach (var entry in offer)
+            {
+                var item = items.Find(i => i.SlotIndex == entry.SlotIndex);
+                var expected = entry.Item;
+                if (item == null || item.IsEquipped || item.IsLocked || item.ItemId != entry.ItemId
+                    || entry.Quantity <= 0 || item.Quantity < entry.Quantity
+                    || item.RefineLevel != expected.RefineLevel || item.Durability != expected.Durability
+                    || item.GemSlot1 != expected.GemSlot1 || item.GemSlot2 != expected.GemSlot2
+                    || item.GemSlot3 != expected.GemSlot3) return false;
+                item.Quantity -= entry.Quantity;
+                if (item.Quantity == 0) items.Remove(item);
+            }
+            return true;
+        }
+
+        static bool ReceiveOffered(List<InventoryItemData> items, List<OfferEntry> offer, int capacity)
+        {
+            foreach (var entry in offer)
+            {
+                int slot = 0;
+                while (slot < capacity && items.Any(i => i.SlotIndex == slot)) slot++;
+                if (slot == capacity) return false;
+                var item = entry.Item;
+                items.Add(new InventoryItemData { SlotIndex = (ushort)slot, ItemId = item.ItemId,
+                    Quantity = entry.Quantity, Durability = item.Durability, RefineLevel = item.RefineLevel,
+                    GemSlot1 = item.GemSlot1, GemSlot2 = item.GemSlot2, GemSlot3 = item.GemSlot3 });
+            }
+            return true;
+        }
+
+        bool CanTradeWith(PlayerTrade other)
+        {
+            var stats = GetComponent<PlayerStats>();
+            var otherStats = other != null ? other.GetComponent<PlayerStats>() : null;
+            return other != null && other != this && _pc != null && other._pc != null
+                && _inventory != null && other._inventory != null && _pc.IsInitialized && other._pc.IsInitialized
+                && stats != null && otherStats != null && !stats.IsDead && !otherStats.IsDead
+                && _pc.MapName == other._pc.MapName && Vector3.Distance(transform.position, other.transform.position) <= 5
+                && GetComponent<PlayerCombat>().DuelOpponentNetId == 0
+                && other.GetComponent<PlayerCombat>().DuelOpponentNetId == 0;
+        }
+
+        void Update()
+        {
+            if (isServer && InTrade && _partner != null && !CanTradeWith(_partner))
+                CancelTradeInternal(this, _partner, "Comercio cancelado: distancia, mapa ou estado invalido.");
         }
 
         [Command]

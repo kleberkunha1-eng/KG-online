@@ -33,12 +33,27 @@ public static class TOPWorldEntrySmokeRunner
         {
             path = scene.path, isLoaded = scene.loaded, isActive = scene.active
         }).ToArray();
-        EditorSceneManager.RestoreSceneManagerSetup(scenes);
+        if (scenes.Any(scene => scene.isLoaded) && scenes.Any(scene => scene.isActive))
+            EditorSceneManager.RestoreSceneManagerSetup(scenes);
         SessionState.EraseString(Restore);
         string startScene = SessionState.GetString(StartScene, "");
         EditorSceneManager.playModeStartScene = string.IsNullOrEmpty(startScene)
             ? null : AssetDatabase.LoadAssetAtPath<SceneAsset>(startScene);
         SessionState.EraseString(StartScene);
+        if (SessionState.GetBool("TOP.SocialSmokeBatch", false))
+        {
+            SessionState.SetBool("TOP.SocialSmokeBatch", false);
+            bool passed = File.Exists("Tools/social-gameplay-results.txt")
+                && !File.ReadLines("Tools/social-gameplay-results.txt").Any(line => line.StartsWith("FAIL "));
+            EditorApplication.delayCall += () => EditorApplication.Exit(passed ? 0 : 1);
+        }
+    }
+
+    public static void RunSocialBatch()
+    {
+        SessionState.SetBool("TOP.SocialSmokeBatch", true);
+        File.WriteAllText("Tools/validate-social-gameplay.request", "validate");
+        Poll();
     }
 
     static void Poll()
@@ -49,19 +64,23 @@ public static class TOPWorldEntrySmokeRunner
         const string adminRequest = "Tools/validate-admin-generation.request";
         const string characterRequest = "Tools/validate-new-character-gameplay.request";
         const string environmentRequest = "Tools/validate-environment-network.request";
+        const string socialRequest = "Tools/validate-social-gameplay.request";
         bool admin = File.Exists(adminRequest);
         bool newCharacter = File.Exists(characterRequest);
         bool environment = File.Exists(environmentRequest);
-        if (!File.Exists(request) && !admin && !newCharacter && !environment) return;
+        bool social = File.Exists(socialRequest);
+        if (!File.Exists(request) && !admin && !newCharacter && !environment && !social) return;
         if (File.Exists("Tools/build.request") || File.Exists("Tools/prepare-world-entry.request")
             || File.Exists("Tools/validate-visuals.request")) return;
         if (admin) File.Delete(adminRequest);
         if (newCharacter) File.Delete(characterRequest);
         if (File.Exists(request)) File.Delete(request);
         if (environment) File.Delete(environmentRequest);
+        if (social) File.Delete(socialRequest);
         SessionState.SetBool("TOP.AdminGenerationSmoke", admin);
         SessionState.SetBool("TOP.NewCharacterSmoke", newCharacter);
         SessionState.SetBool("TOP.EnvironmentSmoke", environment);
+        SessionState.SetBool("TOP.SocialSmoke", social);
         TOPAutoSave.SaveNow();
         SessionState.SetString(Restore, JsonUtility.ToJson(new SavedScenes
         {

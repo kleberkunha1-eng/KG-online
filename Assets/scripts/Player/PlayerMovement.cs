@@ -30,6 +30,9 @@ namespace TOP.Player
         private Vector3 _targetPosition;
         [SyncVar] private bool _isMoving;
         private bool _wasMoving;
+        TOP.NPC.NPCInteractable pendingNpc;
+        float npcApproachDeadline;
+        public TOP.NPC.NPCInteractable ActiveNpc { get; private set; }
         [SyncVar] private bool running;
         public bool IsRunning => running;
         public bool InputEnabled { get; set; } = true;
@@ -88,6 +91,7 @@ namespace TOP.Player
             if (isServer)
             {
                 UpdateMovementState();
+                UpdateNpcApproach();
             }
         }
 
@@ -134,6 +138,14 @@ namespace TOP.Player
                         }
                         return;
                     }
+                    var otherPlayer = hit.collider.GetComponentInParent<PlayerController>();
+                    if (otherPlayer != null && !otherPlayer.isLocalPlayer)
+                    {
+                        var combat = GetComponent<PlayerCombat>();
+                        if (combat != null && combat.DuelOpponentNetId == otherPlayer.netId)
+                            PlayerControllerRef?.CmdAttackTarget(otherPlayer.netIdentity, 0);
+                        return;
+                    }
 
                     // PRIORIDADE 2: Clicou em um NPC interativo (vendedor, ferreiro, etc.)
                     IInteractable interactable = hit.collider.GetComponent<IInteractable>();
@@ -167,6 +179,7 @@ namespace TOP.Player
         [Command]
         public void CmdMoveTo(Vector3 destination)
         {
+            ActiveNpc = null;
             GetComponent<PlayerCombat>()?.StopAttack();
             SetDestination(destination);
         }
@@ -174,7 +187,23 @@ namespace TOP.Player
         [Command]
         public void CmdInteractWithNpc(NetworkIdentity npcIdentity)
         {
-            if (npcIdentity == null) return;
+            if (npcIdentity == null || PlayerControllerRef == null || PlayerControllerRef.CurrentHp <= 0) return;
+            var npc = npcIdentity.GetComponent<TOP.NPC.NPCInteractable>();
+            if (npc != null)
+            {
+                GetComponent<PlayerCombat>()?.StopAttack();
+                ActiveNpc = null;
+                if (npc.CanInteract(this)) { OpenNpc(npc); return; }
+                if (Vector3.Distance(transform.position, npc.transform.position) > 60)
+                {
+                    PlayerControllerRef.RpcShowMessage("NPC muito distante. Aproxime-se primeiro.", PlayerMessageType.Warning);
+                    return;
+                }
+                SetDestination(npc.transform.position);
+                pendingNpc = npc;
+                npcApproachDeadline = Time.time + 15;
+                return;
+            }
             IInteractable interactable = npcIdentity.GetComponent<IInteractable>();
             if (interactable == null) return;
             if (Vector3.Distance(transform.position, npcIdentity.transform.position) > interactable.InteractionRange + 1f) return;
@@ -186,9 +215,34 @@ namespace TOP.Player
         {
             if (PlayerControllerRef != null && PlayerControllerRef.CurrentHp <= 0) return;
             if (float.IsNaN(destination.x) || float.IsNaN(destination.z) || float.IsInfinity(destination.x) || float.IsInfinity(destination.z)) return;
+            pendingNpc = null;
+            ActiveNpc = null;
             _targetPosition = destination;
             _isMoving = true;
             Debug.Log($"[PlayerMovement] Destino definido: {destination}");
+        }
+
+        [Server]
+        void OpenNpc(TOP.NPC.NPCInteractable npc)
+        {
+            pendingNpc = null;
+            Stop();
+            ActiveNpc = npc;
+            npc.OnInteract(this);
+        }
+
+        [Server]
+        void UpdateNpcApproach()
+        {
+            if (pendingNpc == null) return;
+            if (PlayerControllerRef == null || PlayerControllerRef.CurrentHp <= 0 || Time.time > npcApproachDeadline)
+            {
+                pendingNpc = null;
+                Stop();
+                PlayerControllerRef?.RpcShowMessage("Nao foi possivel alcancar o NPC.", PlayerMessageType.Warning);
+                return;
+            }
+            if (pendingNpc.CanInteract(this)) OpenNpc(pendingNpc);
         }
 
         [Server]
@@ -263,6 +317,7 @@ namespace TOP.Player
         [Server]
         public void Stop()
         {
+            pendingNpc = null;
             _isMoving = false;
             _targetPosition = transform.position;
         }

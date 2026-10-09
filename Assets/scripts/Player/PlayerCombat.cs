@@ -6,7 +6,7 @@ using System;
 
 namespace TOP.Player
 {
-    public class PlayerCombat : NetworkBehaviour
+    public partial class PlayerCombat : NetworkBehaviour
     {
         public event Action OnAttackStarted;
         public event Action OnAttackFinished;
@@ -47,6 +47,7 @@ namespace TOP.Player
         void Update()
         {
             if (!isServer) return;
+            UpdateDuel();
             if (_stats == null || _stats.IsDead) { StopAttack(); return; }
 
             // Atualiza referência do target a partir do netId
@@ -64,6 +65,12 @@ namespace TOP.Player
 
                 // Se o target morreu, para de atacar
                 EnemyStats enemyStats = _currentTarget.GetComponent<EnemyStats>();
+                var targetPlayer = _currentTarget.GetComponent<PlayerCombat>();
+                if (targetPlayer != null && !CanDuelAttack(targetPlayer))
+                {
+                    StopAttack();
+                    return;
+                }
                 if (enemyStats != null && enemyStats.IsDead)
                 {
                     StopAttack();
@@ -118,6 +125,7 @@ namespace TOP.Player
         void ApplyDamage()
         {
             if (_currentTarget == null) return;
+            if (Vector3.Distance(transform.position, _currentTarget.transform.position) > attackRange) return;
 
             int damage = CalculateDamage();
 
@@ -126,6 +134,12 @@ namespace TOP.Player
             {
                 targetStats.TakeDamage(damage, netId, DamageType.Physical);
                 Debug.Log($"[PlayerCombat] ⚔️ {damage} de dano em {_currentTarget.name} | HP={targetStats.Health}/{targetStats.MaxHealth}");
+            }
+            else
+            {
+                var targetPlayer = _currentTarget.GetComponent<PlayerCombat>();
+                if (targetPlayer == null || !CanDuelAttack(targetPlayer)) { StopAttack(); return; }
+                ApplyDuelDamage(targetPlayer, damage);
             }
 
             _stats?.ConsumeSp(5);
@@ -186,6 +200,14 @@ namespace TOP.Player
         public void AttackTarget(uint targetNetId, int skillId = 0)
         {
             if (targetNetId == 0) return;
+            if (!NetworkServer.spawned.TryGetValue(targetNetId, out var identity)) return;
+            var playerTarget = identity.GetComponent<PlayerCombat>();
+            if (playerTarget != null && !CanDuelAttack(playerTarget))
+            {
+                _controller?.RpcShowMessage("O jogador precisa aceitar um duelo antes do ataque.", PlayerMessageType.Warning);
+                return;
+            }
+            if (playerTarget == null && identity.GetComponent<EnemyStats>() == null) return;
 
             SetTarget(targetNetId);
             _isAttacking = true;

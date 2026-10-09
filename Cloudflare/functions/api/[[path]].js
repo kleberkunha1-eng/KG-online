@@ -369,6 +369,47 @@ game.post('/characters/:id/delete', async c => {
     return c.json({ success: true });
 });
 
+const questNumber = (value, minimum = 1) =>
+    Number.isInteger(value) && value >= minimum && value <= 2147483647;
+
+game.get('/quests/:charId', async c => {
+    const charId = Number(c.req.param('charId'));
+    if (!Number.isSafeInteger(charId) || charId <= 0) return c.json({ success: false, error: 'INVALID_CHARACTER' });
+    if (!(await owned(c, charId, c.get('user').id))) return c.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+    const rows = await all(c, 'SELECT quest_id, progress, completed_at FROM quest_progress WHERE character_id = ?', charId);
+    return c.json({
+        success: true,
+        active: rows.filter(r => r.completed_at === null).map(r => ({ questId: r.quest_id, progress: r.progress })),
+        completed: rows.filter(r => r.completed_at !== null).map(r => r.quest_id),
+    });
+});
+
+for (const action of ['accept', 'abandon', 'progress', 'complete']) {
+    game.post('/quests/:charId/' + action, async c => {
+        const charId = Number(c.req.param('charId')), b = await body(c);
+        if (!Number.isSafeInteger(charId) || charId <= 0) return c.json({ success: false, error: 'INVALID_CHARACTER' });
+        if (!(await owned(c, charId, c.get('user').id))) return c.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+        if (!questNumber(b.questId) || (action === 'progress' && !questNumber(b.progress, 0)))
+            return c.json({ success: false, error: 'INVALID_QUEST' });
+        let result;
+        if (action === 'accept') {
+            result = await run(c, 'INSERT INTO quest_progress (character_id, quest_id) VALUES (?, ?) ON CONFLICT(character_id, quest_id) DO NOTHING',
+                charId, b.questId);
+        } else if (action === 'abandon') {
+            result = await run(c, 'DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
+                charId, b.questId);
+        } else if (action === 'progress') {
+            result = await run(c, 'UPDATE quest_progress SET progress = MAX(progress, ?) WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
+                b.progress, charId, b.questId);
+        } else {
+            result = await run(c, 'UPDATE quest_progress SET completed_at = ? WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
+                now(), charId, b.questId);
+        }
+        return result.meta.changes > 0 ? c.json({ success: true })
+            : c.json({ success: false, error: action === 'accept' ? 'ALREADY_HAVE_QUEST' : 'QUEST_NOT_ACTIVE' });
+    });
+}
+
 game.post('/audit', async c => {
     const u = c.get('user'), b = await body(c);
     let data = typeof b.detail === 'string' ? b.detail.slice(0, 4000) : '{}';

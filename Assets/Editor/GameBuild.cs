@@ -58,9 +58,8 @@ public static class GameBuild
     [MenuItem("Tools/Build Local Dedicated Server (Windows)")]
     public static void BuildEditorServerMenu() { Debug.Log(BuildEditorServer()); }
 
-    static string BuildEditorServer()
+    static string BuildEditorServer(string output = "Build/GameProjectKG.editorserver")
     {
-        const string output = "Build/GameProjectKG.editorserver";
         if (EditorUtility.scriptCompilationFailed)
         {
             Debug.LogError("[GameBuild] Corrija os erros de compilacao antes de gerar o servidor local.");
@@ -101,7 +100,7 @@ public static class GameBuild
 
     public static string Build() => Build(true);
 
-    static string Build(bool promote)
+    static string Build(bool promote, string stagingPath = null)
     {
         if (EditorUtility.scriptCompilationFailed)
         {
@@ -111,7 +110,9 @@ public static class GameBuild
         PlayerSettings.companyName = "KG";
         PlayerSettings.productName = "GameProjectKG";
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
-        string staging = Out + ".building";
+        string staging = stagingPath ?? Out + ".building";
+        if (stagingPath != null && Directory.Exists(staging))
+            throw new BuildFailedException("Staging output already exists; preserve it before building: " + staging);
         if (Directory.Exists(staging)) Directory.Delete(staging, true);
         var opts = new BuildPlayerOptions
         {
@@ -146,6 +147,23 @@ public static class GameBuild
             }
         }
         return summary;
+    }
+
+    public static void BuildGameplayStagingBatch()
+    {
+        string suffix = System.DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        string client = "Build/GameProjectKG.gameplay-client-" + suffix;
+        string server = "Build/GameProjectKG.gameplay-server-" + suffix;
+        const string result = "Tools/gameplay-staging-build-results.txt";
+        string clientReport = Build(false, client);
+        File.WriteAllText(result, clientReport + "\n");
+        if (!clientReport.StartsWith("Succeeded", System.StringComparison.Ordinal))
+            throw new BuildFailedException(clientReport);
+        string serverReport = BuildEditorServer(server);
+        File.AppendAllText(result, serverReport + "\n");
+        if (!serverReport.StartsWith("Succeeded", System.StringComparison.Ordinal))
+            throw new BuildFailedException(serverReport);
+        File.AppendAllText(result, "Published builds and running server unchanged.\n");
     }
 
     // Le o endereco publico do servidor dedicado (host e porta) de Tools/server-address.txt,

@@ -389,8 +389,12 @@ module.exports = function register(app, db) {
     }));
 
     // ---- Quests ----
+    const questNumber = (value, minimum = 1) =>
+        Number.isInteger(value) && value >= minimum && value <= 2147483647;
+
     app.get(`${g}/quests/:charId`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
+        const charId = Number(req.params.charId);
+        if (!Number.isSafeInteger(charId) || charId <= 0) return res.json({ success: false, error: 'INVALID_CHARACTER' });
         if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
         const [rows] = await db.execute('SELECT quest_id, progress, completed_at FROM quest_progress WHERE character_id = ?', [charId]);
         res.json({
@@ -400,40 +404,28 @@ module.exports = function register(app, db) {
         });
     }));
 
-    app.post(`${g}/quests/:charId/accept`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const questId = int((req.body || {}).questId);
-        const [[existing]] = [await db.execute('SELECT id FROM quest_progress WHERE character_id = ? AND quest_id = ?', [charId, questId])];
-        if (existing.length) return res.json({ success: false, error: 'ALREADY_HAVE_QUEST' });
-        await db.execute('INSERT INTO quest_progress (character_id, quest_id, progress) VALUES (?, ?, 0)', [charId, questId]);
-        res.json({ success: true });
-    }));
-
-    app.post(`${g}/quests/:charId/abandon`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const questId = int((req.body || {}).questId);
-        await db.execute('DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, questId]);
-        res.json({ success: true });
-    }));
-
-    app.post(`${g}/quests/:charId/progress`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const questId = int((req.body || {}).questId);
-        const progress = int((req.body || {}).progress);
-        await db.execute('UPDATE quest_progress SET progress = ? WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [progress, charId, questId]);
-        res.json({ success: true });
-    }));
-
-    app.post(`${g}/quests/:charId/complete`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const questId = int((req.body || {}).questId);
-        await db.execute('UPDATE quest_progress SET completed_at = NOW() WHERE character_id = ? AND quest_id = ?', [charId, questId]);
-        res.json({ success: true });
-    }));
+    for (const action of ['accept', 'abandon', 'progress', 'complete']) {
+        app.post(`${g}/quests/:charId/${action}`, wrap(async (req, res) => {
+            const charId = Number(req.params.charId), b = req.body || {};
+            if (!Number.isSafeInteger(charId) || charId <= 0) return res.json({ success: false, error: 'INVALID_CHARACTER' });
+            if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
+            if (!questNumber(b.questId) || (action === 'progress' && !questNumber(b.progress, 0)))
+                return res.json({ success: false, error: 'INVALID_QUEST' });
+            let result;
+            if (action === 'accept') {
+                [result] = await db.execute('INSERT IGNORE INTO quest_progress (character_id, quest_id, progress) VALUES (?, ?, 0)', [charId, b.questId]);
+            } else if (action === 'abandon') {
+                [result] = await db.execute('DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, b.questId]);
+            } else if (action === 'progress') {
+                [result] = await db.execute('UPDATE quest_progress SET progress = GREATEST(progress, ?) WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
+                    [b.progress, charId, b.questId]);
+            } else {
+                [result] = await db.execute('UPDATE quest_progress SET completed_at = NOW() WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, b.questId]);
+            }
+            return result.affectedRows > 0 ? res.json({ success: true })
+                : res.json({ success: false, error: action === 'accept' ? 'ALREADY_HAVE_QUEST' : 'QUEST_NOT_ACTIVE' });
+        }));
+    }
 
     app.post(`${g}/audit`, wrap(async (req, res) => {
         const b = req.body || {};

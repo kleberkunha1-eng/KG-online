@@ -22,6 +22,8 @@ namespace TOP.Player
 
         readonly List<ActiveQuest> _active = new List<ActiveQuest>();
         readonly HashSet<int> _completed = new HashSet<int>();
+        readonly Dictionary<int, (TOP.NPC.NPCInteractable npc, float expires)> _offers =
+            new Dictionary<int, (TOP.NPC.NPCInteractable npc, float expires)>();
 
         public event System.Action OnQuestsChanged;
         public event System.Action<int> OnQuestOffered;
@@ -68,6 +70,9 @@ namespace TOP.Player
         public async void ServerAcceptQuest(int questId)
         {
             if (_pc == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
+            if (!CanUseQuestNpc(questId, false) || !_offers.TryGetValue(questId, out var offer)
+                || offer.npc != GetComponent<PlayerMovement>().ActiveNpc || Time.time > offer.expires)
+            { _pc.RpcShowMessage("Consulte a missao no NPC correto antes de aceitar.", PlayerMessageType.Warning); return; }
             if (_active.Any(a => a.QuestId == questId) || _completed.Contains(questId))
             { _pc.RpcShowMessage("Voce ja possui ou ja concluiu essa missao.", PlayerMessageType.Warning); return; }
             if (_pc.Level < def.RequiredLevel)
@@ -78,6 +83,7 @@ namespace TOP.Player
             bool ok = await DatabaseService.Instance.AcceptQuestAsync(_pc.CharacterId, questId, Token);
             if (!ok) { _pc.RpcShowMessage("Nao foi possivel aceitar a missao.", PlayerMessageType.Warning); return; }
             _active.Add(new ActiveQuest { QuestId = questId, Progress = 0 });
+            _offers.Remove(questId);
             _pc.RpcShowMessage("Missao aceita: " + def.Name, PlayerMessageType.QuestUpdate);
             PushState();
         }
@@ -107,6 +113,8 @@ namespace TOP.Player
         {
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
+            if (!CanUseQuestNpc(questId, true))
+            { _pc.RpcShowMessage("Entregue a missao ao NPC correto, estando perto dele.", PlayerMessageType.Warning); return; }
 
             if (!IsObjectiveComplete(def, entry, out int itemIdForCollect))
             { _pc.RpcShowMessage("Objetivo ainda nao concluido.", PlayerMessageType.Warning); return; }
@@ -238,7 +246,24 @@ namespace TOP.Player
 
         // Empurra um popup de "nova missao" para o dono (chamado por NPCInteractable).
         [Server]
-        public void ServerOfferQuest(int questId) => TargetOfferQuest(connectionToClient, questId);
+        public void ServerOfferQuest(int questId)
+        {
+            if (!CanUseQuestNpc(questId, false)) return;
+            _offers[questId] = (GetComponent<PlayerMovement>().ActiveNpc, Time.time + 60);
+            TargetOfferQuest(connectionToClient, questId);
+        }
+
+        [Server]
+        public bool CanUseQuestNpc(int questId, bool turnIn)
+        {
+            if (!QuestTable.All.TryGetValue(questId, out var def)) return false;
+            var movement = GetComponent<PlayerMovement>();
+            var npc = movement != null ? movement.ActiveNpc : null;
+            if (npc == null || !npc.CanInteract(movement)) return false;
+            string expected = turnIn ? def.TurnInNpcId : def.GiverNpcId;
+            return (string.IsNullOrEmpty(expected) || npc.NpcId == expected)
+                && (turnIn ? npc.ReceivesQuest(questId) : npc.OffersQuest(questId));
+        }
 
         // ------------------------------------------------------------------------------
         // Sincronizacao com o dono

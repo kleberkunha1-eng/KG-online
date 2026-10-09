@@ -263,6 +263,11 @@ namespace TOP.Testing
             }
             finally { Destroy(replica); }
             Check(worldEntryErrors == 0, "No missing-scene spawns or invalid NavMesh agent creation occurred.");
+            if (SessionState.GetBool("TOP.SocialSmoke", false))
+            {
+                yield return SocialGameplaySmokeTest.Run(player, client, Tick, Check);
+                yield return NPCGameplaySmokeTest.Run(player, client, Tick, Check);
+            }
             if (SessionState.GetBool("TOP.AdminGenerationSmoke", false))
             {
                 var ui = TOP.UI.Pko.PkoUi.Instance;
@@ -295,6 +300,15 @@ namespace TOP.Testing
                 using (var reader = NetworkReaderPool.Get(message))
                 {
                     ushort id = reader.ReadUShort();
+                    if (id == NetworkMessageId<RpcMessage>.Id && SessionState.GetBool("TOP.SocialSmoke", false))
+                    {
+                        var rpc = reader.Read<RpcMessage>();
+                        NPCGameplaySmokeTest.Receive(rpc);
+                        if (rpc.functionHash == AdminGenerationSmokeTest.FunctionHash("RpcShowMessage"))
+                            using (var payload = NetworkReaderPool.Get(rpc.payload))
+                                Debug.Log("[SocialFixture] " + payload.ReadString());
+                        continue;
+                    }
                     if (id == NetworkMessageId<TOP.World.EnvironmentSnapshot>.Id)
                     {
                         environmentSnapshot = reader.Read<TOP.World.EnvironmentSnapshot>();
@@ -409,6 +423,8 @@ namespace TOP.Testing
             Application.logMessageReceived -= ObserveLog;
             checks.Add("No account authentication or database writes were performed.");
             File.WriteAllLines("Tools/world-entry-smoke-results.txt", checks);
+            if (SessionState.GetBool("TOP.SocialSmoke", false))
+                File.WriteAllLines("Tools/social-gameplay-results.txt", checks);
             if (SessionState.GetBool("TOP.EnvironmentSmoke", false))
                 File.WriteAllLines("Tools/environment-network-results.txt", checks);
             if (SessionState.GetBool("TOP.NewCharacterSmoke", false))
@@ -417,6 +433,7 @@ namespace TOP.Testing
             SessionState.SetBool("TOP.AdminGenerationSmoke", false);
             SessionState.SetBool("TOP.NewCharacterSmoke", false);
             SessionState.SetBool("TOP.EnvironmentSmoke", false);
+            SessionState.SetBool("TOP.SocialSmoke", false);
             EditorApplication.isPlaying = false;
         }
 

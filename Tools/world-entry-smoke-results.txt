@@ -25,38 +25,102 @@ PASS Camera stays above ground at pitch 70
 PASS Camera stays above ground at pitch 75
 PASS Synthetic client connects to isolated TOPNetworkManager.
 PASS Server tracks the connected synthetic client.
-PASS Gameplay camera draws the synchronized sky instead of its former solid background.
-PASS Unauthenticated environment change is rejected over KCP.
-PASS Server clock and timezone arrive through a real KCP snapshot, independently of client clock.
-PASS Environment controls survive Mirror serialization.
 PASS Ready during login produces zero world spawns.
 PASS Selected synthetic character is initialized but not sent before Ready.
 PASS World Ready associates the selected player with its connection.
-PASS World Ready delivers owner=True, spawns=78, observing=78, server spawned=78, send rate=60, ticks=4, loading=False.
+PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=8, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
-PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
-PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
-PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
-PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
-PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
+PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
+PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
 PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
 PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
 PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
+PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
+PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
 PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
-PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
+PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
+PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
 PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
 PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
-PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
-PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
+PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
+PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
 PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
+PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
 PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
-PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
-PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,005382955
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,005879819
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,03170353
+PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,02131313
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,001085699
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02757603
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
+PASS Second synthetic player connects over KCP.
+PASS Social fixture ready: hp=220/102, ready=True/True, distance=1.
+PASS Server validates fixture players as available for duel.
+PASS Player attack is rejected without an accepted duel.
+PASS Duel invitation arrives over real KCP; no attack permission before acceptance.
+PASS Accepted duel grants reciprocal server-only attack permission.
+PASS Mirror rejects commands on the other player's component (authority).
+PASS Actual server auto-attack damages consenting opponent.
+PASS Lethal duel damage ends both sides at 1 HP without death.
+PASS No player damage after duel termination.
+PASS Declined duel never grants PvP permission.
+PASS Existing party invite/accept works between two real KCP connections.
+PASS Two-player party cleanly dissolves on leave.
+PASS Trade request/accept opens both server participants.
+PASS Partial-stack trade preserves quantity, refinement, durability and all gems.
+PASS Gold is transferred exactly once when both lock.
+PASS Changing an offered item cancels trade without removing anything from either live inventory.
+PASS Full destination inventory rejects the complete trade before removing source items.
+PASS Duel allows exactly 20 meters.
+PASS Duel rejects distances above 20 meters.
+PASS Trade allows exactly 5 meters.
+PASS Trade rejects distances above 5 meters.
+PASS Out-of-range trade and duel requests are rejected.
+PASS Second duel starts cleanly after the previous one ended.
+PASS Trade cannot interrupt an active duel.
+PASS Single-target skill damages only the accepted duel opponent.
+PASS Offensive skill is rejected after duel permission expires.
+PASS Duel can restart after a skill-assisted finish.
+PASS Map changes terminate both duel participants.
+PASS Invitation expiration is scheduled for 30 seconds (not an unlimited challenge).
+PASS Expired challenge cannot be accepted.
+PASS A fresh challenge works after an expired invitation.
+PASS Disconnect removes the opponent and stops combat without stale duel permission.
+PASS World contains interactable original NPCs: 56
+PASS Saved GameScene has exactly 78/39/14 verified original shop items at Goldie/Nila/Ditto.
+PASS Saved GameScene routes Cartel to hair salon and ordinary NPCs to dialogue, not accidental salons.
+PASS Saved GameScene includes four verified Ditto recipes and Gina's original 200-gold recovery.
+PASS NPC catalog rejects invalid IDs and removes duplicate entries.
+PASS Buying before talking to the merchant is rejected without charging gold.
+PASS Clicking a nearby NPC actually approaches, stops inside range and opens that NPC.
+PASS NPC dialogue and authoritative catalog arrive over a real owner-targeted KCP RPC.
+PASS Quest context recognizes only configured offers/turn-ins of the current nearby NPC.
+PASS Unlisted quest cannot be offered by the current NPC.
+PASS Real KCP purchase gives exact quantity and charges the original table price once.
+PASS Negative/excess quantities and non-catalog items cannot change inventory or gold.
+PASS Sale uses original half-price rule and removes only the requested quantity.
+PASS Refined gear cannot accidentally be sold for its base price.
+PASS Socketed items are protected from NPC sale.
+PASS Equipped items cannot be sold.
+PASS Insufficient gold purchase leaves inventory untouched.
+PASS Full inventory purchase does not charge gold.
+PASS NPC interaction allows exactly the configured 3-meter range.
+PASS NPC/quest interaction rejects distances above the configured range.
+PASS Leaving the shop range revokes purchase permission server-side.
+PASS NPC shop and quests reject same coordinates on a different map.
+PASS Dead players cannot interact or buy even with a previously opened shop.
+PASS Valid purchase continues working after rejected requests.
+PASS Recipe atomically consumes one bottle, ten materials across stacks and exactly 50 gold.
+PASS Recipe preserves attributes and slots of unrelated equipment.
+PASS Missing materials or unconfigured recipe cannot consume the bottle, gold or existing output.
+PASS Insufficient recipe gold leaves all materials untouched.
+PASS Full recipe output inventory never partially consumes ingredients or gold.
+PASS Original full-heal cost is enforced before healing.
+PASS Paid full recovery restores and synchronizes all resources, charging exactly 200 gold.
+PASS No healing charge when all resources are already full.
+PASS Original novice waiver requires completed record 500 and permits healing at level 5 without gold.
+PASS Novice recovery waiver expires exactly at level 6.
+PASS A new ground movement command cancels the pending NPC approach.
 No account authentication or database writes were performed.
