@@ -30,8 +30,12 @@ namespace TOP.Data
         public int RequiredLevel;
         public int MaximumLevel; // Zero means no upper acceptance limit.
         public int PrerequisiteId; // 0 = nenhum
+        public int[] RequiredCompletedQuests;
+        public int[] ExcludedActiveQuests;
+        public int[] ExcludedCompletedQuests;
         public QuestObjective Objective;
         public int RewardExp;
+        public int RewardExpMaximumExclusive; // Zero preserves fixed legacy XP rewards.
         public int RewardGold;
         public string RewardItemName = ""; // resolvido por nome contra ItemDatabase (vazio = sem item)
         public int RewardItemQty;
@@ -42,6 +46,34 @@ namespace TOP.Data
         public string TurnInNpcId = "";
 
         public bool CanAcceptAtLevel(int level) => level >= RequiredLevel && (MaximumLevel == 0 || level <= MaximumLevel);
+
+        public bool MeetsQuestConditions(System.Func<int, bool> isActive, System.Func<int, bool> isCompleted)
+        {
+            if (PrerequisiteId != 0 && !isCompleted(PrerequisiteId)) return false;
+            if (RequiredCompletedQuests != null)
+                foreach (int id in RequiredCompletedQuests)
+                    if (!isCompleted(id)) return false;
+            if (ExcludedActiveQuests != null)
+                foreach (int id in ExcludedActiveQuests)
+                    if (isActive(id)) return false;
+            if (ExcludedCompletedQuests != null)
+                foreach (int id in ExcludedCompletedQuests)
+                    if (isCompleted(id)) return false;
+            return true;
+        }
+
+        public bool HasValidExperienceReward => RewardExp >= 0 && RewardExpMaximumExclusive >= 0;
+
+        public int MaximumExperienceReward => RewardExpMaximumExclusive > RewardExp
+            ? RewardExpMaximumExclusive - 1 : RewardExp;
+
+        public int RollExperienceReward()
+        {
+            if (!HasValidExperienceReward)
+                throw new System.InvalidOperationException("Invalid quest experience reward: " + Id);
+            return RewardExpMaximumExclusive > RewardExp
+                ? UnityEngine.Random.Range(RewardExp, RewardExpMaximumExclusive) : RewardExp;
+        }
     }
 
     // Tabela de quests seedada com os IDs e nomes REAIS do cliente original

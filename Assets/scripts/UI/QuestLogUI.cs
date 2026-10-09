@@ -96,7 +96,7 @@ namespace TOP.UI
                     }
                 }
                 else GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
-                GUI.Label(new Rect(0, y + 36 + extra, win.width - 50, 18), $"Recompensa: {def.RewardExp} exp, {def.RewardGold} ouro");
+                GUI.Label(new Rect(0, y + 36 + extra, win.width - 50, 18), $"Recompensa: {ExperienceLabel(def)} exp, {def.RewardGold} ouro");
                 if (def.RewardItemQty > 0)
                     GUI.Label(new Rect(0, y + 54 + extra, win.width - 50, 18),
                         $"Item: {ItemLabel(def.RewardItemId, def.RewardItemName)} x{def.RewardItemQty}");
@@ -115,6 +115,9 @@ namespace TOP.UI
 
         internal static float RowHeight(QuestDef definition) => 96 + (definition.Objective.Type == QuestObjectiveType.Collect
             ? 18 * Mathf.Max(0, (definition.Objective.CollectionItems?.Length ?? 1) - 1) : 0);
+
+        internal static string ExperienceLabel(QuestDef definition) => definition.RewardExpMaximumExclusive > definition.RewardExp
+            ? $"{definition.RewardExp}-{definition.MaximumExperienceReward}" : definition.RewardExp.ToString();
 
         static string ItemLabel(int itemId, string legacyName) => itemId > 0
             ? (PkoTables.Items.TryGetValue(itemId, out var item) ? item.Name : "#" + itemId) : legacyName;

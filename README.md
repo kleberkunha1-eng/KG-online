@@ -279,9 +279,10 @@ uma faixa inclusiva para aceitar/oferecer; zero no maximo preserva quests antiga
 sem teto. Uma missao ja aceita continua entregavel depois dessa faixa.
 As definicoes/IDs antigos nao foram substituidos: o script original de
 `Leaves Collection` usa ID persistente 721, dez itens 1573 e tres itens 1574,
-niveis 5-6; ele nao equivale ao catalogo inferido atual. A semantica nativa dos
-dois argumentos de `AddExp` e das repeticoes ainda precisa ser confirmada antes
-de ativar essa definicao com migracao de progresso.
+niveis 5-6; ele nao equivale ao catalogo inferido atual. A semantica dos argumentos
+de `AddExp` foi confirmada no codigo C++ original na etapa seguinte (abaixo).
+Repeticoes/flags e migracao de progresso ainda precisam ser integradas antes
+de substituir essa definicao.
 
 Validacao desta etapa: 164 checks Unity de mundo/social/NPC/quests passaram,
 incluindo perda de tres confirmacoes, bloqueio de save incerto e recarregamento
@@ -303,6 +304,60 @@ continuou ativo. Esse probe verifica transporte, nao login JWT ou persistencia
 de conta real. Resultados em `Tools/gameplay-staging-build-results.txt` e
 `Tools/gameplay-staging-runtime-results.txt`. As novas builds nao foram
 publicadas, e a migracao de recibos nao foi aplicada ao D1 de producao.
+
+### Regras originais de XP e recuperacao de progresso (desenvolvimento)
+
+Foi lida a implementacao nativa `lua_AddExp` em
+`E:\PrivateTop\meu_servidor\sources\Server\GameServer\src\CharScript.cpp`.
+Os dois argumentos sao minimo inclusivo e maximo exclusivo: `AddExp(40,70)`
+concede 40-69 XP; se minimo >= maximo, concede o minimo fixo. O campo
+`RewardExpMaximumExclusive` implementa essa distribuicao base; zero preserva
+as recompensas fixas antigas. A recompensa e sorteada uma unica vez por entrega,
+antes de serializar o save, e mantida nas tentativas do mesmo pedido.
+O diario mostra o intervalo realmente possivel. Modificadores globais de
+evento/XP do Lua (`GetExpState`) nao foram importados nesta etapa.
+
+`RequiredCompletedQuests`, `ExcludedActiveQuests` e `ExcludedCompletedQuests`
+permitem varios pre-requisitos e exclusoes, combinados com `PrerequisiteId`.
+Oferta e aceite usam as mesmas condicoes; aceitar missoes e serializado para
+nao contornar exclusoes durante um pedido HTTP pendente. Esses campos consultam
+missoes concluidas/ativas atuais, nao substituem o sistema completo de flags
+e etapas intermediarias do original.
+
+Em ambas as referencias `NpcScript01.lua`, `AddNpcMission(733)` e
+`AddNpcMission(738)` de Ditto estao comentadas. Elas nao foram ativadas ou
+usadas para sobrescrever o catalogo inferido/persistido existente.
+
+Progresso de mortes/conversas agora tem fila por missao, coalescendo novas
+contagens enquanto um save esta em andamento. Falhas sao repetidas ate tres
+vezes; a contagem nao confirmada permanece local e gera aviso explicito.
+Atualizar o diario primeiro tenta confirmar esse progresso. Se falhar,
+nao busca/aplica um snapshot antigo da API. Entrega/abandono da mesma missao
+aguardam o pedido de progresso pendente. Atualizacoes de quest no host nao
+reconstroem o estado autoritativo do servidor a partir do payload do cliente.
+
+A fila de progresso ainda e em memoria: se o processo terminar antes de a API
+confirmar, a contagem pendente pode se perder. Nao confundir essa recuperacao
+de falhas HTTP com um journal duravel de eventos ou com a transacao atomica
+de entrega. Repeticoes, flags originais e roteiros completos continuam pendentes.
+
+Validacao adicional: 177 checks Unity passaram (zero falhas), incluindo
+10.000 sorteios deterministas com as bordas 40/69, recompensa aleatoria mantida
+apos resposta perdida, pre-requisitos/exclusoes, corrida de aceite,
+coalescimento de mortes e refresh apos falha/recuperacao. Resultados em
+`Tools/social-gameplay-results.txt`. Nenhuma conta real foi usada e nenhuma
+API/build publicada foi substituida nesses testes.
+
+As regras/progresso acima tambem foram compiladas em novas builds pareadas:
+`Build/GameProjectKG.gameplay-client-20261009-102221` (972 MB) e
+`Build/GameProjectKG.gameplay-server-20261009-102221`, ambas sem erros.
+O servidor dessa revisao respondeu a duas sessoes locais UDP 17894 de
+12 segundos, 11 pongs por sessao, sem desconexao/spawn sem autenticacao.
+O processo de staging foi encerrado apos o probe; o servidor publicado
+permaneceu ativo. Os resultados de build/runtime atuais estao em
+`Tools/gameplay-staging-build-results.txt` e
+`Tools/gameplay-staging-runtime-results.txt`. Nenhuma publicacao ou migracao
+de producao foi executada nesta etapa; o probe nao testa uma conta real.
 
 `GameBuild.BuildGameplayStagingBatch` gera cliente Windows e Dedicated Server
 em pastas novas com timestamp, sem substituir builds anteriores ou publicar.

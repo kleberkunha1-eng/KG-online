@@ -28,7 +28,7 @@ PASS Server tracks the connected synthetic client.
 PASS Ready during login produces zero world spawns.
 PASS Selected synthetic character is initialized but not sent before Ready.
 PASS World Ready associates the selected player with its connection.
-PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=8, loading=False.
+PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=9, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
 PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
@@ -49,9 +49,9 @@ PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,062240
 PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
 PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
 PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01543945
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004001081
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02816254
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,003506124
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,002972066
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,01705033
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
@@ -101,6 +101,11 @@ PASS Unlisted quest cannot be offered by the current NPC.
 PASS Quest refresh loads persisted state and duplicate refresh sends only one isolated HTTP request.
 PASS Rejected quest refresh preserves both active progress and completed records.
 PASS Delayed refresh cannot overwrite newer kill progress while its HTTP response is in flight.
+PASS Rejected kill progress retries the same monotonic value three times and retains the unconfirmed count locally.
+PASS Host-targeted quest updates do not rebuild or clear the authoritative server state and unconfirmed progress.
+PASS Refresh retries dirty progress first and never fetches an obsolete quest snapshot when confirmation still fails.
+PASS After recovery, refresh confirms retained progress before reloading the authoritative quest list.
+PASS Kills during an in-flight save coalesce into the latest count without overlapping writes or abandonment.
 PASS Repeated acceptance and overlapping refresh/abandon cannot duplicate the quest or its API request.
 PASS Failed abandonment retains the accepted quest.
 PASS Talking to the configured quest target advances its persisted objective.
@@ -110,6 +115,7 @@ PASS Repeated talk-quest completion grants the exact reward once and blocks over
 PASS A lost completion response retries the identical atomic character/quest operation and acknowledges its revision once.
 PASS Successful abandonment removes the quest once and suppresses overlapping refresh.
 PASS An explicit successful empty quest response clears state normally.
+PASS Concurrent acceptance cannot bypass an excluded active quest while its first acceptance is awaiting HTTP.
 PASS Invalid material quantity or missing exact reward ID cannot reserve or mutate inventory.
 PASS Collection reserves inventory without consuming any materials before API acknowledgement.
 PASS Moving, adding, removing and dropping items are rejected while collection delivery is pending.
@@ -123,15 +129,22 @@ PASS Confirmed collection consumes exactly ten materials across slots and grants
 PASS Collection advances the character revision and uses the same durable save endpoint as its rewards.
 PASS Collection commit preserves remaining item IDs, durability, gems, refinement and ownership locks.
 PASS Quest acceptance uses inclusive original-style minimum and maximum level bands.
+PASS Legacy prerequisite and all required completion records combine without changing old quest IDs.
+PASS Missing completion records, competing active quests and excluded completed records each reject acceptance.
+PASS Original AddExp minimum is inclusive and maximum exclusive across ten thousand deterministic draws.
+PASS Fixed legacy XP and inverted/equal native ranges keep the minimum; quest log shows the actual attainable range.
 PASS Quest log allocates one objective line per material without overlapping rewards or delivery buttons.
 PASS An NPC cannot offer a quest above its configured maximum level.
 PASS Acceptance outside either level boundary makes no persistence request.
+PASS NPC offers are suppressed while any required quest record is missing.
+PASS An earlier NPC offer cannot bypass changed completion-record requirements.
 PASS A previously offered multi-material quest accepts at the exact minimum level.
 PASS New inventory instances retain one valid UUID across repeated persistence snapshots.
 PASS A missing secondary collection material cannot consume the primary material or call the API.
 PASS Duplicate material IDs in a quest definition are explicitly rejected without reserving inventory.
 PASS Rejected multi-material delivery preserves every material and grants no reward.
 PASS An already accepted quest remains deliverable after leaving its acceptance level band.
+PASS A random quest reward is sampled once, retained through lost-response retries and applied identically to persisted/live XP.
 PASS Atomic delivery consumes each exact material quantity, preserves the remainder and grants gold/item rewards once.
 PASS Gold outside the API exact numeric range is explicitly rejected before HTTP rather than rounded or saved.
 PASS Three lost save acknowledgements block the character and reuse one operation ID/payload on every attempt.

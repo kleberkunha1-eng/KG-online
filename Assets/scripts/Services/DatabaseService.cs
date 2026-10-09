@@ -515,7 +515,9 @@ namespace TOP.Services
             try
             {
                 var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/quests/" + charId + "/progress", JsonUtility.ToJson(new QuestProgressDto { questId = questId, progress = progress }), token, ct));
-                return r.success;
+                if (r != null && r.success) return true;
+                Debug.LogWarning("[API] Quest progress rejected: " + (r?.error ?? "INVALID_RESPONSE"));
+                return false;
             }
             catch (Exception e) { Debug.LogError("[API] SaveQuestProgress: " + e.Message); return false; }
         }

@@ -1,11 +1,11 @@
-﻿✔ D1 atomic character/quest save: retries, stale autosave, concurrent replay and full rollback (394.4899ms)
+﻿✔ D1 atomic character/quest save: retries, stale autosave, concurrent replay and full rollback (1958.5798ms)
 [Game] undefined undefined Duplicate entry '100-0' for key 'uk_character_slot'
-✔ MariaDB atomic character/quest save uses only temporary tables (448.8992ms)
-✔ Node API creates/selects NewCharacterTest with Lance stats and preserves four original races (46.3371ms)
-✔ Cloudflare API authenticates, creates/selects NewCharacterTest and preserves all base stats (104.4264ms)
-✔ Node quest routes: ownership, validation, concurrent requests, monotonic progress and non-destructive migration (64.973ms)
-✔ Cloudflare quest routes: authenticated requests and identical persistence contract (167.6007ms)
-✔ MariaDB quest SQL uses temporary tables only and rejects repeated completion (325.2661ms)
+✔ MariaDB atomic character/quest save uses only temporary tables (2104.0665ms)
+✔ Node API creates/selects NewCharacterTest with Lance stats and preserves four original races (208.8805ms)
+✔ Cloudflare API authenticates, creates/selects NewCharacterTest and preserves all base stats (55.314ms)
+✔ Node quest routes: ownership, validation, concurrent requests, monotonic progress and non-destructive migration (236.9761ms)
+✔ Cloudflare quest routes: authenticated requests and identical persistence contract (170.2018ms)
+✔ MariaDB quest SQL uses temporary tables only and rejects repeated completion (1758.4206ms)
 ℹ tests 7
 ℹ suites 0
 ℹ pass 7
@@ -13,4 +13,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1044.178
+ℹ duration_ms 4246.4322

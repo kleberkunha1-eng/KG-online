@@ -21,6 +21,9 @@ namespace TOP.Testing
 {
     public static class QuestPersistenceSmokeTest
     {
+        [Serializable]
+        sealed class RewardRequest { public CharacterData Character; }
+
         sealed class ApiFixture : IDisposable
         {
             readonly TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
@@ -138,6 +141,65 @@ namespace TOP.Testing
                     check(quests.ActiveQuests.Find(q => q.questId == 704).progress == 3,
                         "Delayed refresh cannot overwrite newer kill progress while its HTTP response is in flight.");
 
+                    int oldRequired = QuestTable.All[704].Objective.Required;
+                    try
+                    {
+                        QuestTable.All[704].Objective.Required = 6;
+                        int progressRequests = fixture.Requests;
+                        for (int attempt = 0; attempt < 3; attempt++)
+                            fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_PROGRESS_FAILURE\"}");
+                        quests.ServerNotifyKill("rat");
+                        yield return Pump(tick, 1.9f);
+                        var progressBodies = fixture.Bodies.ToArray();
+                        check(fixture.Requests == progressRequests + 3 && quests.HasUnsavedProgress
+                            && quests.ActiveQuests.Find(q => q.questId == 704).progress == 4
+                            && progressBodies[progressBodies.Length - 1] == progressBodies[progressBodies.Length - 2]
+                            && progressBodies[progressBodies.Length - 2] == progressBodies[progressBodies.Length - 3],
+                            "Rejected kill progress retries the same monotonic value three times and retains the unconfirmed count locally.");
+                        quests.ApplyQuestState("|");
+                        check(quests.HasActiveQuest(704) && quests.HasUnsavedProgress
+                            && quests.ActiveQuests.Find(q => q.questId == 704).progress == 4 && quests.CompletedQuests.Contains(500),
+                            "Host-targeted quest updates do not rebuild or clear the authoritative server state and unconfirmed progress.");
+
+                        progressRequests = fixture.Requests;
+                        for (int attempt = 0; attempt < 3; attempt++)
+                            fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_PROGRESS_FAILURE\"}");
+                        refresh.Invoke(quests, null);
+                        refresh.Invoke(quests, null);
+                        yield return Pump(tick, 1.9f);
+                        check(fixture.Requests == progressRequests + 3 && quests.HasUnsavedProgress
+                            && fixture.RequestLines.ToArray().Last().Contains("/progress ")
+                            && quests.ActiveQuests.Find(q => q.questId == 704).progress == 4
+                            && quests.CompletedQuests.Contains(500),
+                            "Refresh retries dirty progress first and never fetches an obsolete quest snapshot when confirmation still fails.");
+
+                        progressRequests = fixture.Requests;
+                        fixture.Reply("{\"success\":true}");
+                        fixture.Reply("{\"success\":true,\"active\":[{\"questId\":704,\"progress\":4}],\"completed\":[500]}");
+                        refresh.Invoke(quests, null);
+                        yield return Pump(tick, 1.2f);
+                        check(fixture.Requests == progressRequests + 2 && !quests.HasUnsavedProgress
+                            && quests.ActiveQuests.Find(q => q.questId == 704).progress == 4
+                            && fixture.RequestLines.ToArray().Last().StartsWith("GET ", StringComparison.Ordinal),
+                            "After recovery, refresh confirms retained progress before reloading the authoritative quest list.");
+
+                        progressRequests = fixture.Requests;
+                        fixture.Reply("{\"success\":true}");
+                        fixture.Reply("{\"success\":true}");
+                        quests.ServerNotifyKill("rat");
+                        yield return Pump(tick, .1f);
+                        quests.ServerNotifyKill("rat");
+                        quests.ServerAbandonQuest(704);
+                        yield return Pump(tick, 1.2f);
+                        progressBodies = fixture.Bodies.ToArray();
+                        check(fixture.Requests == progressRequests + 2 && !quests.HasUnsavedProgress
+                            && quests.ActiveQuests.Find(q => q.questId == 704).progress == 6
+                            && progressBodies[progressBodies.Length - 2].Contains("\"progress\":5")
+                            && progressBodies.Last().Contains("\"progress\":6"),
+                            "Kills during an in-flight save coalesce into the latest count without overlapping writes or abandonment.");
+                    }
+                    finally { QuestTable.All[704].Objective.Required = oldRequired; }
+
                     quests.ServerOfferQuest(1);
                     fixture.Reply("{\"success\":true}");
                     int before = fixture.Requests;
@@ -251,6 +313,7 @@ namespace TOP.Testing
             {
                 const int questId = 990001;
                 const int multiQuestId = 990002;
+                const int rivalQuestId = 990004;
                 const BindingFlags fields = BindingFlags.NonPublic | BindingFlags.Instance;
                 var inventory = quests.GetComponent<PlayerInventory>();
                 var npc = quests.GetComponent<PlayerMovement>().ActiveNpc;
@@ -264,26 +327,35 @@ namespace TOP.Testing
                 var secondMaterial = PkoTables.Items.Values.First(i => i.Id != material.Id && i.Id != reward.Id && i.Stack >= 5);
                 var controller = quests.GetComponent<PlayerController>();
                 int oldLevel = controller.Level;
-                if (QuestTable.All.ContainsKey(questId) || QuestTable.All.ContainsKey(multiQuestId))
+                if (QuestTable.All.ContainsKey(questId) || QuestTable.All.ContainsKey(multiQuestId) || QuestTable.All.ContainsKey(rivalQuestId))
                     throw new InvalidOperationException("Synthetic quest ID already exists.");
                 QuestTable.All.Add(questId, new QuestDef { Id = questId, Name = "Synthetic collection", RewardItemId = reward.Id,
                     RewardItemQty = 1, Objective = new QuestObjective { Type = QuestObjectiveType.Collect, ItemId = material.Id, Required = 10 } });
                 var multi = new QuestDef { Id = multiQuestId, Name = "Synthetic multiple materials", RequiredLevel = 5, MaximumLevel = 6,
-                    RewardGold = 7, RewardItemId = reward.Id, RewardItemQty = 1,
+                    RewardGold = 7, RewardExp = 40, RewardExpMaximumExclusive = 70, RewardItemId = reward.Id, RewardItemQty = 1,
+                    RequiredCompletedQuests = new[] { questId }, ExcludedActiveQuests = new[] { 704 },
                     Objective = new QuestObjective { Type = QuestObjectiveType.Collect, CollectionItems = new[]
                     {
                         new QuestCollectionItem { ItemId = material.Id, Quantity = 10 },
                         new QuestCollectionItem { ItemId = secondMaterial.Id, Quantity = 3 }
                     } } };
                 QuestTable.All.Add(multiQuestId, multi);
+                QuestTable.All.Add(rivalQuestId, new QuestDef { Id = rivalQuestId, Name = "Synthetic excluded quest",
+                    ExcludedActiveQuests = new[] { questId }, Objective = new QuestObjective { Type = QuestObjectiveType.TalkTo, Target = npc.NpcId } });
                 try
                 {
-                    available.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString() });
+                    available.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString(), rivalQuestId.ToString() });
                     receives.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString() });
                     quests.ServerOfferQuest(questId);
+                    quests.ServerOfferQuest(rivalQuestId);
+                    int initialRequests = fixture.Requests;
                     fixture.Reply("{\"success\":true}");
                     quests.ServerAcceptQuest(questId);
+                    quests.ServerAcceptQuest(rivalQuestId);
                     yield return Pump(tick);
+                    check(fixture.Requests == initialRequests + 1 && quests.HasActiveQuest(questId) && !quests.HasActiveQuest(rivalQuestId)
+                        && quests.GetOfferableQuestsFor(new[] { rivalQuestId }).Count == 0,
+                        "Concurrent acceptance cannot bypass an excluded active quest while its first acceptance is awaiting HTTP.");
                     var items = new List<InventoryItemData>
                     {
                         new InventoryItemData { SlotIndex = 0, ItemId = material.Id, Quantity = 6, UniqueItemId = "fixture-a", Durability = 11 },
@@ -361,6 +433,36 @@ namespace TOP.Testing
 
                     check(!multi.CanAcceptAtLevel(4) && multi.CanAcceptAtLevel(5) && multi.CanAcceptAtLevel(6)
                         && !multi.CanAcceptAtLevel(7), "Quest acceptance uses inclusive original-style minimum and maximum level bands.");
+                    var conditions = new QuestDef { PrerequisiteId = 1, RequiredCompletedQuests = new[] { 701, 702 },
+                        ExcludedActiveQuests = new[] { 739 }, ExcludedCompletedQuests = new[] { 740 } };
+                    var completed = new HashSet<int> { 1, 701, 702 };
+                    var active = new HashSet<int>();
+                    check(conditions.MeetsQuestConditions(active.Contains, completed.Contains),
+                        "Legacy prerequisite and all required completion records combine without changing old quest IDs.");
+                    completed.Remove(702);
+                    bool missing = !conditions.MeetsQuestConditions(active.Contains, completed.Contains);
+                    completed.Add(702);
+                    active.Add(739);
+                    bool exclusive = !conditions.MeetsQuestConditions(active.Contains, completed.Contains);
+                    active.Clear();
+                    completed.Add(740);
+                    check(missing && exclusive && !conditions.MeetsQuestConditions(active.Contains, completed.Contains),
+                        "Missing completion records, competing active quests and excluded completed records each reject acceptance.");
+                    var randomState = UnityEngine.Random.state;
+                    try
+                    {
+                        UnityEngine.Random.InitState(721);
+                        var rolls = Enumerable.Range(0, 10000).Select(_ => multi.RollExperienceReward()).ToArray();
+                        check(rolls.All(value => value >= 40 && value < 70) && rolls.Min() == 40 && rolls.Max() == 69,
+                            "Original AddExp minimum is inclusive and maximum exclusive across ten thousand deterministic draws.");
+                    }
+                    finally { UnityEngine.Random.state = randomState; }
+                    var fixedReward = new QuestDef { RewardExp = 70, RewardExpMaximumExclusive = 40 };
+                    check(fixedReward.RollExperienceReward() == 70 && new QuestDef { RewardExp = 40 }.RollExperienceReward() == 40
+                        && !new QuestDef { RewardExp = -1 }.HasValidExperienceReward
+                        && TOP.UI.QuestLogUI.ExperienceLabel(multi) == "40-69"
+                        && TOP.UI.QuestLogUI.ExperienceLabel(fixedReward) == "70",
+                        "Fixed legacy XP and inverted/equal native ranges keep the minimum; quest log shows the actual attainable range.");
                     check(TOP.UI.QuestLogUI.RowHeight(multi) == 114
                         && TOP.UI.QuestLogUI.RowHeight(QuestTable.All[questId]) == 96,
                         "Quest log allocates one objective line per material without overlapping rewards or delivery buttons.");
@@ -376,6 +478,13 @@ namespace TOP.Testing
                     check(fixture.Requests == before && !quests.HasActiveQuest(multiQuestId),
                         "Acceptance outside either level boundary makes no persistence request.");
                     controller.Level = 5;
+                    multi.RequiredCompletedQuests = new[] { questId, 999999 };
+                    check(quests.GetOfferableQuestsFor(new[] { multiQuestId }).Count == 0,
+                        "NPC offers are suppressed while any required quest record is missing.");
+                    quests.ServerAcceptQuest(multiQuestId);
+                    check(fixture.Requests == before && !quests.HasActiveQuest(multiQuestId),
+                        "An earlier NPC offer cannot bypass changed completion-record requirements.");
+                    multi.RequiredCompletedQuests = new[] { questId };
                     fixture.Reply("{\"success\":true}");
                     quests.ServerAcceptQuest(multiQuestId);
                     yield return Pump(tick);
@@ -415,9 +524,26 @@ namespace TOP.Testing
                         "Rejected multi-material delivery preserves every material and grants no reward.");
                     controller.Level = 7;
                     check(quests.CanTurnIn(multiQuestId), "An already accepted quest remains deliverable after leaving its acceptance level band.");
+                    ulong beforeExp = controller.Exp;
+                    int beforeLevel = controller.Level, beforeStatPoints = controller.StatPoints, beforeSkillPoints = controller.SkillPoints;
+                    fixture.Reply("");
                     fixture.Reply("{\"success\":true,\"revision\":3}");
                     quests.ServerTurnInQuest(multiQuestId);
-                    yield return Pump(tick);
+                    yield return Pump(tick, 1.4f);
+                    var bodies = fixture.Bodies.ToArray();
+                    var persisted = JsonUtility.FromJson<RewardRequest>(bodies.Last()).Character;
+                    bool matchesRolledExperience = Enumerable.Range(40, 30).Any(value =>
+                    {
+                        var expected = new CharacterData { Exp = beforeExp, Level = beforeLevel,
+                            StatPoints = beforeStatPoints, SkillPoints = beforeSkillPoints };
+                        PlayerController.ApplyExperience(expected, (ulong)value);
+                        return expected.Exp == persisted.Exp && expected.Level == persisted.Level
+                            && expected.StatPoints == persisted.StatPoints && expected.SkillPoints == persisted.SkillPoints;
+                    });
+                    check(bodies[bodies.Length - 1] == bodies[bodies.Length - 2] && matchesRolledExperience
+                        && controller.Exp == persisted.Exp && controller.Level == persisted.Level
+                        && controller.StatPoints == persisted.StatPoints && controller.SkillPoints == persisted.SkillPoints,
+                        "A random quest reward is sampled once, retained through lost-response retries and applied identically to persisted/live XP.");
                     check(!quests.HasActiveQuest(multiQuestId) && controller.GetCharacterData().SaveRevision == 3
                         && controller.Gold == beforeGold + 7 && inventory.GetItemCount(material.Id) == 0
                         && inventory.GetItemCount(secondMaterial.Id) == 2 && inventory.GetItemCount(reward.Id) == 1
@@ -430,11 +556,13 @@ namespace TOP.Testing
                     receives.SetValue(npc, oldReceives);
                     QuestTable.All.Remove(questId);
                     QuestTable.All.Remove(multiQuestId);
+                    QuestTable.All.Remove(rivalQuestId);
                     inventory.InitializeFromData(oldInventory);
                     controller.Level = oldLevel;
                 }
 
             }
+
         }
     }
 }
