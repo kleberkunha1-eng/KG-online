@@ -49,10 +49,16 @@ namespace TOP.Data
         public List<CharacterSkillData> Skills = new List<CharacterSkillData>();
         public List<BoatData> Boats = new List<BoatData>();
         public int BoatOwnershipVersion;
+        public int BoatServicesVersion;
 
         public Vector3 Position => new Vector3(PosX, PosY, PosZ);
 
-        internal CharacterData CopySnapshot() => (CharacterData)MemberwiseClone();
+        internal CharacterData CopySnapshot()
+        {
+            var snapshot = (CharacterData)MemberwiseClone();
+            snapshot.Boats = Boats == null ? null : Boats.ConvertAll(boat => boat.CopySnapshot());
+            return snapshot;
+        }
 
         public void SetPosition(Vector3 position)
         {

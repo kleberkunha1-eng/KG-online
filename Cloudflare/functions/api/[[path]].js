@@ -292,6 +292,7 @@ game.get('/characters/:id', async c => {
             SaveRevision: r.save_revision || 0,
             Boats: JSON.parse(r.boats_json || '[]'),
             BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
+            BoatServicesVersion: r.boats_json !== undefined ? 1 : 0,
             CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
             BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
             Gold: r.gold, StatPoints: r.stat_points, SkillPoints: r.skill_points, PkPoints: r.pk_points, Reputation: r.reputation,
@@ -337,13 +338,14 @@ game.put('/characters/:id', async c => {
             || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
             || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
                 .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
-            || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1)))
+            || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1 || boat.Level > 100
+            || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean'))))
         return c.json({ success: false, error: 'INVALID_BOATS' });
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(b)))))
         .map(value => value.toString(16).padStart(2, '0')).join('');
     const receipt = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);
     const replay = saved => saved.payload_hash === hash
-        ? c.json({ success: true, revision: saved.expected_revision + 1, boatOwnershipVersion: 1 })
+        ? c.json({ success: true, revision: saved.expected_revision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 })
         : c.json({ success: false, error: 'OPERATION_MISMATCH' });
     if (receipt) return replay(receipt);
     const db = c.env.DB, stmts = [];
@@ -401,7 +403,7 @@ game.put('/characters/:id', async c => {
         if (String(error.message).includes('QUEST_NOT_ACTIVE')) return c.json({ success: false, error: 'QUEST_NOT_ACTIVE' });
         throw error;
     }
-    return c.json({ success: true, revision: ch.SaveRevision + 1, boatOwnershipVersion: 1 });
+    return c.json({ success: true, revision: ch.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 });
 });
 
 game.post('/characters/:id/delete', async c => {

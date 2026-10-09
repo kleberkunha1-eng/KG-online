@@ -119,6 +119,7 @@ namespace TOP.Player
             PkPoints = data.PkPoints;
             SynchronizeBoats(data.Boats);
             BoatOwnershipAvailable = data.BoatOwnershipVersion == 1;
+            BoatServicesAvailable = data.BoatServicesVersion == 1;
             Reputation = data.Reputation;
 
             if (_playerInventory != null)

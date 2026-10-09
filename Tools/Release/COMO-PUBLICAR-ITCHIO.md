@@ -31,6 +31,15 @@ atrapalhar.
 
 ## Publicar uma build (toda vez que tiver uma atualizacao)
 
+### Um clique: `PUBLICAR-TUDO.cmd` (raiz do projeto)
+
+Feche o Unity e clique duas vezes em `PUBLICAR-TUDO.cmd`. Ele roda `Publish-All.ps1`, que executa:
+testes da API -> build Unity (cliente + servidor) -> commit/push GitHub -> migrations D1 + API
+Cloudflare Pages -> (pergunta) troca/reinicio do servidor 7777 -> envio ao itch.io. Para na primeira
+falha antes de mexer em producao, recusa commitar Secrets/.env/.dev.vars e grava log em
+`Tools\Release\logs\publish-all-*.log`. Simulacao sem alterar nada: `PUBLICAR-TUDO.cmd -DryRun`.
+Outras opcoes: `-SkipBuild`, `-SkipTests`, `-SkipGit`, `-SkipCloudflare`, `-SkipItch`, `-UpdateServer Sim|Nao`.
+
 ### Opcao recomendada: um unico comando pros dois canais (itch.io + GitHub Releases/launcher)
 
 ```powershell

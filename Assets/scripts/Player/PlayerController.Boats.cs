@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Mirror;
 using TOP.Data;
 using TOP.Network;
@@ -14,6 +15,7 @@ namespace TOP.Player
         [SyncVar(hook = nameof(OnBoatsChanged))] string boatsState = "{\"Boats\":[]}";
         [SyncVar] public bool BoatOperationPending;
         [SyncVar] public bool BoatOwnershipAvailable;
+        [SyncVar] public bool BoatServicesAvailable;
         List<BoatData> ownedBoats = new List<BoatData>();
         public IReadOnlyList<BoatData> OwnedBoats => ownedBoats;
 
@@ -25,8 +27,99 @@ namespace TOP.Player
         [Server]
         void SynchronizeBoats(List<BoatData> boats)
         {
-            ownedBoats = boats ?? new List<BoatData>();
+            ownedBoats = boats == null ? new List<BoatData>() : boats.ConvertAll(boat => boat.CopySnapshot());
             boatsState = JsonUtility.ToJson(new BoatList { Boats = ownedBoats });
+        }
+
+        [Command]
+        public async void CmdMaintainBoat(string boatId, int action)
+        {
+            var movement = GetComponent<PlayerMovement>();
+            var npc = movement != null ? movement.ActiveNpc : null;
+            var inventory = GetComponent<PlayerInventory>();
+            if (!IsInitialized || !BoatOwnershipAvailable || !BoatServicesAvailable || BoatOperationPending
+                || npc == null || npc.NpcId != "88" || MapName != "garner" || !npc.CanInteract(movement)
+                || inventory == null || DatabaseService.Instance == null || action < 0 || action > 2
+                || (GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false)
+                || (GetComponent<PlayerCombat>()?.DuelOpponentNetId ?? 0) != 0)
+            {
+                RpcShowMessage("Fale com Shirley no porto de Argent; aguarde a API naval e as operacoes pendentes.", PlayerMessageType.Warning);
+                return;
+            }
+            var boat = ownedBoats.SingleOrDefault(candidate => candidate.Id == boatId);
+            if (boat == null || boat.BerthId != 1 || boat.IsSunk != (action == 2))
+            {
+                RpcShowMessage("Barco nao disponivel neste porto. Barcos afundados precisam de resgate.", PlayerMessageType.Warning);
+                return;
+            }
+            int maximum, price;
+            try
+            {
+                maximum = action == 0 ? BoatCatalog.MaximumHealth(boat) : BoatCatalog.Quote(boat).Fuel;
+                if (action != 2 && (action == 0 ? boat.Health : boat.Fuel) >= maximum)
+                { RpcShowMessage("O barco nao precisa desse servico.", PlayerMessageType.Info); return; }
+                price = action == 2 ? 1000 : BoatCatalog.MaintenancePrice(boat, Level, action == 1);
+            }
+            catch (InvalidOperationException e)
+            {
+                Debug.LogError("[Boats] Invalid original boat configuration: " + e.Message);
+                RpcShowMessage("Configuracao do barco invalida; manutencao bloqueada.", PlayerMessageType.Error);
+                return;
+            }
+            if (Gold < (ulong)price)
+            { RpcShowMessage("Ouro insuficiente para o servico naval.", PlayerMessageType.Warning); return; }
+            using (var reservation = inventory.PrepareQuestTransaction(Array.Empty<QuestCollectionItem>(), 0, 0, out string error))
+            {
+                if (reservation == null) { RpcShowMessage(error, PlayerMessageType.Warning); return; }
+                BoatOperationPending = true;
+                try
+                {
+                    CharacterData live = null, prepared = null;
+                    var saved = await DatabaseService.Instance.PersistCharacterAsync(CharacterId, () =>
+                    {
+                        if (this == null) throw new InvalidOperationException("Player disconnected before naval service.");
+                        if (!npc.CanInteract(movement)) throw new InvalidOperationException("Player left the original harbor service.");
+                        live = GetCharacterData();
+                        if (live.Gold < (ulong)price) throw new InvalidOperationException("Naval service funds changed before save.");
+                        prepared = live.CopySnapshot();
+                        prepared.Gold -= (ulong)price;
+                        prepared.BoatServicesVersion = 1;
+                        var target = prepared.Boats.Single(candidate => candidate.Id == boatId);
+                        if (action == 0) target.Health = maximum;
+                        else if (action == 1) target.Fuel = maximum;
+                        else target.IsSunk = false;
+                        return prepared;
+                    }, TOPNetworkManager.Instance.GetSessionToken(connectionToClient.connectionId), 0);
+                    if (!saved.success)
+                    {
+                        if (this != null && connectionToClient != null)
+                        {
+                            RpcShowMessage("Servico naval nao confirmado; ouro e barco nao foram alterados nesta sessao.", PlayerMessageType.Warning);
+                            if (saved.error == "RELOAD_REQUIRED" || saved.error == "SAVE_CONFLICT" || saved.error == "OPERATION_MISMATCH")
+                                connectionToClient.Disconnect();
+                        }
+                        return;
+                    }
+                    live.SaveRevision = prepared.SaveRevision;
+                    live.Boats = prepared.Boats;
+                    if (this == null)
+                    { Debug.Log("[Boats] Harbor service persisted after disconnect; reload restores the ship."); return; }
+                    Gold -= (ulong)price;
+                    SynchronizeBoats(prepared.Boats);
+                    RpcShowMessage((action == 0 ? "Reparo" : action == 1 ? "Abastecimento" : "Resgate")
+                        + " confirmado e salvo: " + boat.Name + " (" + price + " ouro).", PlayerMessageType.Success);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("[Boats] Harbor service failed: " + e.Message);
+                    if (this != null && connectionToClient != null)
+                    {
+                        RpcShowMessage("Falha no servico naval. Reconecte para recuperar o estado confirmado.", PlayerMessageType.Error);
+                        connectionToClient.Disconnect();
+                    }
+                }
+                finally { if (this != null) BoatOperationPending = false; }
+            }
         }
 
         [Command]

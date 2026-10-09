@@ -124,7 +124,9 @@ namespace TOP.Testing
             ulong oldGold = controller.Gold;
             Vector3 oldPosition = player.transform.position;
             bool oldCapability = controller.BoatOwnershipAvailable;
+            bool oldServices = controller.BoatServicesAvailable;
             var data = controller.GetCharacterData();
+            int oldServiceVersion = data.BoatServicesVersion;
             long oldRevision = data.SaveRevision;
             var oldBoats = new List<BoatData>(controller.OwnedBoats);
             var synchronize = typeof(PlayerController).GetMethod("SynchronizeBoats", fields);
@@ -202,12 +204,108 @@ namespace TOP.Testing
                     yield return Pump(tick, .2f);
                     check(controller.OwnedBoats.Count == 3 && controller.Gold == 20030 && fixture.Requests == beforeRequests,
                         "Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.");
+                    var harbor = UnityEngine.Object.FindObjectsByType<NPCInteractable>(FindObjectsSortMode.None).Single(n => n.NpcId == "88");
+                    void Maintain(string id, int action) => SocialGameplaySmokeTest.Send(client, controller, "CmdMaintainBoat", w =>
+                    { w.WriteString(id); w.Write(action); });
+                    void AcknowledgeService() => fixture.Reply("{\"success\":true,\"revision\":" + (data.SaveRevision + 1)
+                        + ",\"boatOwnershipVersion\":1,\"boatServicesVersion\":1}");
+                    var damagedFleet = controller.OwnedBoats.Select(boat => boat.CopySnapshot()).ToList();
+                    var damaged = damagedFleet[0];
+                    damaged.Health = BoatCatalog.MaximumHealth(damaged) - 100;
+                    damaged.Fuel = 400;
+                    synchronize.Invoke(controller, new object[] { damagedFleet });
+                    check(damaged.Health == 1819 && BoatCatalog.MaintenancePrice(damaged, 15, false) == 305
+                        && BoatCatalog.MaintenancePrice(damaged, 15, true) == 400
+                        && BoatCatalog.MaintenancePrice(damaged, 10, false) == 0
+                        && BoatCatalog.MaintenancePrice(damaged, 10, true) == 0,
+                        "Native ship level-1 HP=1919, repair=floor(missingHP*.05)+level*20, refuel=missingFuel+level*20; level <=10 is free.");
+                    var clonedData = controller.GetCharacterData().CopySnapshot();
+                    clonedData.Boats[0].Fuel = 1;
+                    check(controller.OwnedBoats[0].Fuel == 400 && damagedFleet[0].Fuel == 400,
+                        "Naval snapshots and fleet synchronization deep-copy mutable boat records before preparing a save.");
+                    controller.BoatServicesAvailable = false;
+                    Maintain(damaged.Id, 0);
+                    yield return Pump(tick, .2f);
+                    controller.BoatServicesAvailable = true;
+                    Maintain(damaged.Id, 0);
+                    yield return Pump(tick, .2f);
+                    check(fixture.Requests == beforeRequests,
+                        "Unupdated service API and Sinbad construction dialogue cannot authorize harbor maintenance.");
+                    player.transform.position = harbor.transform.position + Vector3.right;
+                    SocialGameplaySmokeTest.Send(client, player.GetComponent<PlayerMovement>(), "CmdInteractWithNpc",
+                        w => w.WriteNetworkIdentity(harbor.netIdentity));
+                    yield return Pump(tick, .2f);
+                    check(player.GetComponent<PlayerMovement>().ActiveNpc == harbor,
+                        "Original Shirley model opens the authoritative harbor service over KCP.");
+                    Maintain(Guid.NewGuid().ToString(), 0);
+                    Maintain(damaged.Id, -1);
+                    controller.Gold = 304;
+                    Maintain(damaged.Id, 0);
+                    yield return Pump(tick, .3f);
+                    check(fixture.Requests == beforeRequests && !controller.BoatOperationPending,
+                        "Harbor service rejects foreign ship IDs, invalid actions and insufficient funds before any save.");
+                    controller.Gold = 20030;
+                    AcknowledgeService();
+                    Maintain(damaged.Id, 0);
+                    yield return Pump(tick, .1f);
+                    check(controller.BoatOperationPending && inventory.HasQuestTransaction
+                        && controller.OwnedBoats[0].Health == 1819 && controller.Gold == 20030,
+                        "Repair reserves inventory and leaves health/gold unchanged until durable acknowledgement.");
+                    Maintain(damaged.Id, 0);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(controller.OwnedBoats[0].Health == 1919 && controller.Gold == 19725
+                        && fixture.Requests == beforeRequests && !inventory.HasQuestTransaction,
+                        "Duplicate repair commands restore native maximum HP and charge exactly 305 gold once.");
+                    request = JsonUtility.FromJson<RewardRequest>(fixture.Bodies.ToArray().Last());
+                    check(request.Character.Boats[0].Health == 1919 && request.Character.Gold == 19725
+                        && request.Character.BoatServicesVersion == 1,
+                        "Repair state and price persist together with an explicit service-capability acknowledgement requirement.");
+                    fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_REJECTED\"}");
+                    Maintain(damaged.Id, 1);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(controller.OwnedBoats[0].Fuel == 400 && controller.Gold == 19725 && !inventory.HasQuestTransaction,
+                        "Rejected refuel does not add fuel or charge gold.");
+                    fixture.Reply("{\"success\":false,\"error\":\"DB_ERROR\"}");
+                    AcknowledgeService();
+                    Maintain(damaged.Id, 1);
+                    beforeRequests += 2;
+                    yield return AwaitBoatSave(tick, controller, fixture, beforeRequests);
+                    bodies = fixture.Bodies.ToArray();
+                    check(controller.OwnedBoats[0].Fuel == 500 && controller.Gold == 19325
+                        && bodies[bodies.Length - 1] == bodies[bodies.Length - 2],
+                        "Transient refuel retry resends one immutable operation and charges exactly 400 gold once.");
+                    Maintain(damaged.Id, 0);
+                    Maintain(damaged.Id, 1);
+                    yield return Pump(tick, .3f);
+                    check(fixture.Requests == beforeRequests && controller.Gold == 19325,
+                        "Fully repaired/refueled ships cannot charge repeated maintenance fees.");
+                    var sunkenFleet = controller.OwnedBoats.Select(boat => boat.CopySnapshot()).ToList();
+                    sunkenFleet[0].IsSunk = true;
+                    sunkenFleet[0].Health = 0;
+                    synchronize.Invoke(controller, new object[] { sunkenFleet });
+                    Maintain(damaged.Id, 0);
+                    Maintain(damaged.Id, 1);
+                    yield return Pump(tick, .3f);
+                    check(fixture.Requests == beforeRequests, "Sunken ships cannot be repaired or refueled before salvage.");
+                    AcknowledgeService();
+                    Maintain(damaged.Id, 2);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(!controller.OwnedBoats[0].IsSunk && controller.OwnedBoats[0].Health == 0 && controller.Gold == 18325,
+                        "Original 1000-gold salvage clears sunk status without inventing free HP or fuel.");
+                    controller.Level = 10;
+                    AcknowledgeService();
+                    Maintain(damaged.Id, 0);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(controller.OwnedBoats[0].Health == 1919 && controller.Gold == 18325,
+                        "Original level <=10 repair exemption restores HP with zero charge.");
                 }
                 finally
                 {
                     rootField.SetValue(null, oldRoot);
                     controller.Level = oldLevel; controller.Gold = oldGold;
                     controller.BoatOwnershipAvailable = oldCapability;
+                    controller.BoatServicesAvailable = oldServices;
+                    data.BoatServicesVersion = oldServiceVersion;
                     data.SaveRevision = oldRevision;
                     synchronize.Invoke(controller, new object[] { oldBoats });
                     data.Boats = oldBoats;

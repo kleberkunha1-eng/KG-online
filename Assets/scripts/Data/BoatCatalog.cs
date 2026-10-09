@@ -16,6 +16,9 @@ namespace TOP.Data
         public int Level = 1;
         public int HullId, EngineId, BowId, CannonId, ComponentId;
         public int Health, Fuel;
+        public bool IsSunk;
+
+        public BoatData CopySnapshot() => (BoatData)MemberwiseClone();
     }
 
     public sealed class BoatDefinition
@@ -86,6 +89,27 @@ namespace TOP.Data
             Load();
             return definitions.TryGetValue(typeId, out var definition) && level >= definition.MinimumLevel
                 && (definition.Classes[0] == -1 || definition.Classes.Contains(job));
+        }
+
+        public static BoatBuildQuote Quote(BoatData boat) =>
+            Quote(boat.TypeId, boat.EngineId, boat.BowId, boat.CannonId, boat.ComponentId);
+
+        public static int MaximumHealth(BoatData boat)
+        {
+            int health = Quote(boat).Health;
+            if (boat.Level < 1 || boat.Level > 100)
+                throw new InvalidOperationException("Original boat level must be between 1 and 100.");
+            return boat.Level < 60 ? checked((int)((long)health * (boat.Level + 100) / 120))
+                : checked((int)((long)health * 160 / 120 + (boat.Level - 60) * 20));
+        }
+
+        public static int MaintenancePrice(BoatData boat, int characterLevel, bool refuel)
+        {
+            if (characterLevel < 1 || boat.IsSunk)
+                throw new InvalidOperationException("A sunken boat must be salvaged before maintenance.");
+            int missing = refuel ? Quote(boat).Fuel - boat.Fuel : MaximumHealth(boat) - boat.Health;
+            if (missing <= 0 || characterLevel <= 10) return 0;
+            return checked((refuel ? missing : missing / 20) + characterLevel * 20);
         }
 
         public static BoatBuildQuote Quote(int typeId, int engineId, int bowId, int cannonId, int componentId)

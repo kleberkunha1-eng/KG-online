@@ -84,10 +84,36 @@ namespace TOP.UI
                 var controller = NetworkClient.localPlayer.GetComponent<PlayerController>();
                 GUILayout.Label("Frota (" + controller.OwnedBoats.Count + "/3)");
                 foreach (var boat in controller.OwnedBoats)
+                {
                     GUILayout.Label(boat.Name + " - " + (BoatCatalog.Definitions.TryGetValue(boat.TypeId, out var ship)
                         ? ship.Name : "Tipo nao configurado " + boat.TypeId) + " - porto " + boat.BerthId
-                        + " - HP " + boat.Health + " - combustivel " + boat.Fuel);
-                GUILayout.Label("Navegacao, reparo e carga ainda nao habilitados nesta etapa.");
+                        + " - HP " + boat.Health + " - combustivel " + boat.Fuel + (boat.IsSunk ? " - afundado" : ""));
+                    if (npc.NpcId == "88" && boat.BerthId == 1)
+                    {
+                        bool previousService = GUI.enabled;
+                        GUI.enabled = previousService && controller.BoatServicesAvailable && !controller.BoatOperationPending;
+                        if (boat.IsSunk)
+                        {
+                            GUI.enabled &= controller.Gold >= 1000;
+                            if (GUILayout.Button("Resgatar " + boat.Name + " - 1000 ouro")) controller.CmdMaintainBoat(boat.Id, 2);
+                        }
+                        else
+                        {
+                            int repair = BoatCatalog.MaintenancePrice(boat, controller.Level, false);
+                            int refuel = BoatCatalog.MaintenancePrice(boat, controller.Level, true);
+                            GUI.enabled = previousService && controller.BoatServicesAvailable && !controller.BoatOperationPending
+                                && boat.Health < BoatCatalog.MaximumHealth(boat) && controller.Gold >= (ulong)repair;
+                            if (GUILayout.Button("Reparar " + boat.Name + " - " + repair + " ouro")) controller.CmdMaintainBoat(boat.Id, 0);
+                            GUI.enabled = previousService && controller.BoatServicesAvailable && !controller.BoatOperationPending
+                                && boat.Fuel < BoatCatalog.Quote(boat).Fuel && controller.Gold >= (ulong)refuel;
+                            if (GUILayout.Button("Abastecer " + boat.Name + " - " + refuel + " ouro")) controller.CmdMaintainBoat(boat.Id, 1);
+                        }
+                        GUI.enabled = previousService;
+                    }
+                }
+                GUILayout.Label("Navegacao e carga ainda nao habilitadas.");
+                if (npc.NpcId == "88" && !controller.BoatServicesAvailable)
+                    GUILayout.Label("API naval ainda nao confirmou suporte a manutencao/resgate.");
                 if (!controller.BoatOwnershipAvailable)
                     GUILayout.Label("API naval ainda nao atualizada: construcao bloqueada para proteger seu ouro.");
                 if (npc.NpcId != "87") return;

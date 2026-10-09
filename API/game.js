@@ -106,6 +106,7 @@ module.exports = function register(app, db) {
                 SaveRevision: Number(r.save_revision || 0),
                 Boats: JSON.parse(r.boats_json || '[]'),
                 BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
+                BoatServicesVersion: r.boats_json !== undefined ? 1 : 0,
                 CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
                 BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
                 Gold: Number(r.gold || 0), StatPoints: r.stat_points || 0, SkillPoints: r.skill_points || 0, PkPoints: r.pk_points || 0, Reputation: r.reputation || 0,
@@ -151,7 +152,8 @@ module.exports = function register(app, db) {
                 || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
                 || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
                     .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
-                || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1)))
+                || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1 || boat.Level > 100
+                || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean'))))
             return res.json({ success: false, error: 'INVALID_BOATS' });
         const conn = await db.getConnection();
         try {
@@ -162,7 +164,7 @@ module.exports = function register(app, db) {
             if (receipts.length) {
                 await conn.rollback();
                 return res.json(receipts[0].payload_hash === hash
-                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1, boatOwnershipVersion: 1 }
+                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 }
                     : { success: false, error: 'OPERATION_MISMATCH' });
             }
             if (Number(characters[0].save_revision) !== c.SaveRevision) {
@@ -202,7 +204,7 @@ module.exports = function register(app, db) {
                     await conn.execute('INSERT INTO skills (character_id, skill_id, level, exp) VALUES (?, ?, ?, ?)', [id, int(s.SkillId), int(s.Level), Math.max(0, num(s.Exp))]);
             }
             await conn.commit();
-            res.json({ success: true, revision: c.SaveRevision + 1, boatOwnershipVersion: 1 });
+            res.json({ success: true, revision: c.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 });
         } catch (e) {
             await conn.rollback();
             throw e;

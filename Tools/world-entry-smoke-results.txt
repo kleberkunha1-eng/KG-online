@@ -28,7 +28,7 @@ PASS Server tracks the connected synthetic client.
 PASS Ready during login produces zero world spawns.
 PASS Selected synthetic character is initialized but not sent before Ready.
 PASS World Ready associates the selected player with its connection.
-PASS World Ready delivers owner=True, spawns=74, observing=74, server spawned=74, send rate=60, ticks=8, loading=False.
+PASS World Ready delivers owner=True, spawns=74, observing=74, server spawned=74, send rate=60, ticks=5, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
 PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
@@ -49,9 +49,9 @@ PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,062240
 PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
 PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
 PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,02033657
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,001791418
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02489907
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,008599699
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004618108
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02842957
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
@@ -68,7 +68,7 @@ PASS Original Argent offerings and ship level thresholds are preserved.
 PASS Boat names enforce the native 2-16 byte limit and reject control/markup characters.
 PASS Second synthetic player connects over KCP.
 PASS Remote player has a live collider available to actual pointer raycasts.
-PASS Social fixture ready: hp=220/102, ready=True/True, distance=1.
+PASS Social fixture ready: hp=209/102, ready=True/True, distance=1.
 PASS Server validates fixture players as available for duel.
 PASS Player attack is rejected without an accepted duel.
 PASS Duel invitation arrives over real KCP; no attack permission before acceptance.
@@ -240,4 +240,18 @@ PASS Naval ownership, original stats, gold and prior revision share one immutabl
 PASS Definitively rejected boat save leaves gold and ownership unchanged and releases reservation.
 PASS Transient naval save retries identical boat ID/body and confirms one charge, not duplicate ships.
 PASS Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.
+PASS Native ship level-1 HP=1919, repair=floor(missingHP*.05)+level*20, refuel=missingFuel+level*20; level <=10 is free.
+PASS Naval snapshots and fleet synchronization deep-copy mutable boat records before preparing a save.
+PASS Unupdated service API and Sinbad construction dialogue cannot authorize harbor maintenance.
+PASS Original Shirley model opens the authoritative harbor service over KCP.
+PASS Harbor service rejects foreign ship IDs, invalid actions and insufficient funds before any save.
+PASS Repair reserves inventory and leaves health/gold unchanged until durable acknowledgement.
+PASS Duplicate repair commands restore native maximum HP and charge exactly 305 gold once.
+PASS Repair state and price persist together with an explicit service-capability acknowledgement requirement.
+PASS Rejected refuel does not add fuel or charge gold.
+PASS Transient refuel retry resends one immutable operation and charges exactly 400 gold once.
+PASS Fully repaired/refueled ships cannot charge repeated maintenance fees.
+PASS Sunken ships cannot be repaired or refueled before salvage.
+PASS Original 1000-gold salvage clears sunk status without inventing free HP or fuel.
+PASS Original level <=10 repair exemption restores HP with zero charge.
 No account authentication or database writes were performed.

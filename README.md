@@ -200,8 +200,47 @@ um save de barco ignorado.
 As duas APIs receberam a migration aditiva `0006_boat_ownership.sql`.
 Ela nao foi aplicada em producao nesta etapa. Saves antigos sem Boats preservam
 a frota; uma lista vazia explicita remove a frota. Esta implementacao cobre
-construcao e propriedade persistida, nao lancamento/atracacao, navegacao,
-montagem visual do navio, combustivel, reparo, carga ou deed 3988.
+construcao, propriedade persistida e manutencao no porto, nao lancamento/atracacao,
+navegacao, montagem visual do navio, consumo de combustivel, carga ou deed 3988.
+
+Shirley (88) recebeu reparo, abastecimento e resgate de barcos no berth Argent 1.
+Os comandos exigem a interacao autoritativa com seu modelo original, personagem
+vivo, ausencia de duelo/trade e operacoes atomicas pendentes, frota propria e
+saldo suficiente. Reparo custa `floor(HP faltante * .05) + nivelPersonagem * 20`;
+abastecimento custa `combustivel faltante + nivelPersonagem * 20`. Os dois
+servicos sao gratuitos para nivel <=10 e nao cobram quando nao ha necessidade.
+O HP maximo neutro usa `Boat_plus_Mxhp` original, incluindo a mudanca no nivel
+60: o Guppy nivel 1 possui 1919 HP efetivos (2280 e o valor base das pecas,
+antes do modificador de nivel). Bonus de skills navais ainda nao foram portados.
+Resgate custa 1000 ouro e apenas remove o estado afundado, sem dar HP/combustivel
+gratuitos. Barcos afundados precisam ser resgatados antes de manutencao.
+
+Ouro e barco mudam somente depois da confirmacao revisionada da API. Reservas
+de inventario bloqueiam operacoes concorrentes; retry usa o mesmo corpo/ID,
+rejeicao definitiva nao cobra, e respostas incertas obrigam reload autoritativo.
+Snapshots da frota copiam cada registro mutavel para nao alterar o barco vivo
+antes da confirmacao. As APIs anunciam/confirmam `BoatServicesVersion = 1`;
+manutencao fica bloqueada em APIs antigas, mesmo se suportarem construcao.
+O campo `IsSunk` usa o JSON naval existente, sem outra migration.
+
+Validacao da manutencao: 256 checks Unity e sete testes API passaram. Os
+comandos reais por KCP cobrem acesso a Shirley, capability ausente, navio de
+outro dono, acao invalida, fundos insuficientes, duplicatas, snapshot isolado,
+confirmacao atrasada, rejeicao/retry, gratuidade <=10 e resgate sem HP gratis.
+Cliente e Dedicated Server pareados foram gerados com zero erros em
+`Build/GameProjectKG.gameplay-client-20261009-151159` e
+`Build/GameProjectKG.gameplay-server-20261009-151159`. O servidor isolado
+UDP17894 passou duas sessoes de 12 segundos, com 11 pongs cada e sem
+desconexao/spawn prematuro. Somente staging foi encerrado; o servidor publicado
+PID30220 UDP7777 ficou intacto. Nenhuma migration/publicacao/commit foi feita.
+
+A arena original exige mais que o terreno teampk: `entry.lua` exige exatamente
+uma Medal of Valor (3849), limites de honra armazenados nos atributos do item,
+desafios individuais ou entre parties e copias isoladas (20 copias em ctrl.lua).
+As equipes usam Party PVP 1/2; a copia fecha 11 segundos apos o resultado e
+retorna os participantes ao Argent Bar. Os atributos originais de honra/fusao
+dos itens ainda nao existem na persistencia Unity; entrada e outros mapas
+letais permanecem bloqueados ate preservar esses dados e regras.
 
 Garner continua sem PK livre. Combate letal so e permitido no mapa teampk,
 com protecao da mesma party e verificacao dos atributos originais de terreno

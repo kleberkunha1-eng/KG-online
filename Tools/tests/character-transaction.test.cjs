@@ -85,11 +85,13 @@ async function lifecycle(call, read) {
     assert.equal(reloaded.Inventory.length, 1);
     assert.equal(reloaded.Inventory[0].UniqueItemId, snapshot.Inventory[0].UniqueItemId);
     assert.deepEqual(reloaded.Character.Boats, []);
+    assert.equal(reloaded.Character.BoatServicesVersion, 1);
     const boat = { Id: randomUUID(), Name: 'Guppy Test', TypeId: 1, BerthId: 1, Level: 1,
         HullId: 43, EngineId: 15, BowId: 8, CannonId: 53, ComponentId: 73, Health: 2280, Fuel: 200 };
     const purchase = { ...save, OperationId: randomUUID(),
         Character: { ...save.Character, SaveRevision: 3, Gold: 100, Boats: [boat] } };
     for (const Boats of [[{ ...boat, Name: 'x' }], [{ ...boat, Health: -1 }], [{ ...boat, Id: 'not-an-id' }],
+        [{ ...boat, IsSunk: 'false' }], [{ ...boat, Level: 101 }],
         [boat, boat], Array.from({ length: 4 }, () => ({ ...boat, Id: randomUUID() }))])
         assert.equal((await call({ ...purchase, Character: { ...purchase.Character, Boats } })).error, 'INVALID_BOATS');
     assert.equal((await call(purchase)).revision, 4);
@@ -108,6 +110,23 @@ async function lifecycle(call, read) {
     assert.deepEqual(JSON.parse(state.character.boats_json), [boat], 'Inventory failure rolls back boat replacement and funds.');
     assert.equal(Number(state.character.gold), 200);
     assert.equal(Number(state.character.save_revision), 5);
+    const salvage = { ...legacySave, OperationId: randomUUID(),
+        Character: { ...legacySave.Character, SaveRevision: 5, Boats: [{ ...boat, IsSunk: true, Health: 0 }] } };
+    const salvageResult = await call(salvage);
+    assert.equal(salvageResult.revision, 6);
+    assert.equal(salvageResult.boatServicesVersion, 1);
+    assert.equal((await call(salvage)).boatServicesVersion, 1);
+    const salvaged = { ...salvage, OperationId: randomUUID(),
+        Character: { ...salvage.Character, SaveRevision: 6, Gold: 100,
+            Boats: [{ ...boat, IsSunk: false, Health: 0 }] } };
+    assert.equal((await call(salvaged)).revision, 7);
+    const serviced = { ...salvaged, OperationId: randomUUID(),
+        Character: { ...salvaged.Character, SaveRevision: 7, Gold: 0,
+            Boats: [{ ...boat, IsSunk: false, Health: 1919, Fuel: 500 }] } };
+    assert.equal((await call(serviced)).revision, 8);
+    const restored = await call(null, 100, 'GET');
+    assert.deepEqual(restored.Character.Boats, serviced.Character.Boats);
+    assert.equal(Number(restored.Character.Gold), 0);
 }
 
 test('D1 atomic character/quest save: retries, stale autosave, concurrent replay and full rollback', async () => {
