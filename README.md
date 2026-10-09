@@ -305,7 +305,7 @@ de conta real. Resultados em `Tools/gameplay-staging-build-results.txt` e
 `Tools/gameplay-staging-runtime-results.txt`. As novas builds nao foram
 publicadas, e a migracao de recibos nao foi aplicada ao D1 de producao.
 
-### Regras originais de XP e recuperacao de progresso (desenvolvimento)
+### Regras originais de XP e recuperacao de progresso
 
 Foi lida a implementacao nativa `lua_AddExp` em
 `E:\PrivateTop\meu_servidor\sources\Server\GameServer\src\CharScript.cpp`.
@@ -358,6 +358,19 @@ permaneceu ativo. Os resultados de build/runtime atuais estao em
 `Tools/gameplay-staging-build-results.txt` e
 `Tools/gameplay-staging-runtime-results.txt`. Nenhuma publicacao ou migracao
 de producao foi executada nesta etapa; o probe nao testa uma conta real.
+
+Publicacao posterior autorizada em 09/10/2026: a revisao
+`bd566dbf148097803364fd9164387f155bffe38d` foi enviada ao GitHub main.
+Apos backup SQL privado do D1, o servidor antigo foi parado antes da troca
+do contrato de save; a migracao `0004_character_save_transactions.sql` e a
+API correspondente foram publicadas (`0377dcd9.gamekg.pages.dev`).
+As builds pareadas `20261009-102221` foram promovidas; cliente itch Windows
+2092791, versao `2026.10.09-quests-atomic-progress`, com processamento concluido.
+O servidor anterior foi preservado e o novo listener UDP 7777 foi verificado.
+Duas sessoes pelo endpoint publico tiveram 11 pongs em 12 segundos cada,
+sem desconexao ou entrada no mundo sem autenticacao. GET/PUT de personagem
+sem credenciais retornaram HTTP 401. Esses probes nao validam login JWT
+ou saves de uma conta real. Relatorio em `Tools/gameplay-publication-results.txt`.
 
 `GameBuild.BuildGameplayStagingBatch` gera cliente Windows e Dedicated Server
 em pastas novas com timestamp, sem substituir builds anteriores ou publicar.
