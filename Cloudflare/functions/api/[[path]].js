@@ -313,15 +313,20 @@ const itemRow = (id, i) => [
 const COLS = ['unique_item_id', 'character_id', 'slot_index', 'item_id', 'quantity', 'durability', 'refine_level', 'gem_slot_1', 'gem_slot_2', 'gem_slot_3', 'is_equipped', 'is_locked', 'owner_character_id'];
 
 game.put('/characters/:id', async c => {
-    const u = c.get('user'), id = int(c.req.param('id')), b = await body(c);
+    const u = c.get('user'), id = Number(c.req.param('id')), b = await body(c);
+    if (!Number.isSafeInteger(id) || id <= 0) return c.json({ success: false, error: 'INVALID_CHARACTER' });
     if (!(await owned(c, id, u.id))) return c.json({ success: false, error: 'NOT_FOUND' });
     const ch = b.Character || {}, inv = b.Inventory, skills = b.Skills;
-    const questId = b.QuestId || 0;
-    if (typeof b.OperationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(b.OperationId)
-        || !Number.isSafeInteger(ch.SaveRevision) || ch.SaveRevision < 0
+    const questId = b.QuestId === undefined ? 0 : b.QuestId;
+    if (typeof b.OperationId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.OperationId)
+        || !Number.isSafeInteger(ch.SaveRevision) || ch.SaveRevision < 0 || ch.SaveRevision >= Number.MAX_SAFE_INTEGER
         || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
         return c.json({ success: false, error: 'INVALID_TRANSACTION' });
     if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS))) return c.json({ success: false, error: 'INVALID' });
+    if (questId > 0 && (!Array.isArray(inv) || !Array.isArray(skills)))
+        return c.json({ success: false, error: 'INVALID_TRANSACTION' });
+    if (!Number.isSafeInteger(ch.Gold) || ch.Gold < 0 || !Number.isSafeInteger(ch.Exp) || ch.Exp < 0)
+        return c.json({ success: false, error: 'INVALID_CHARACTER_VALUES' });
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(b)))))
         .map(value => value.toString(16).padStart(2, '0')).join('');
     const receipt = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);

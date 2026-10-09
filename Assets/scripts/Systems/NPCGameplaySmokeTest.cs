@@ -154,6 +154,7 @@ namespace TOP.Testing
                 check(controller.Gold == gold && inventory.GetInventoryData().Count == 40,
                     "Full inventory purchase does not charge gold.");
                 inventory.InitializeFromData(new List<InventoryItemData>());
+                root.transform.position = new Vector3(Mathf.Round(root.transform.position.x), root.transform.position.y, root.transform.position.z);
                 player.transform.position = root.transform.position + Vector3.right * 3;
                 check(npc.CanInteract(movement), "NPC interaction allows exactly the configured 3-meter range.");
                 player.transform.position = root.transform.position + Vector3.right * 3.01f;

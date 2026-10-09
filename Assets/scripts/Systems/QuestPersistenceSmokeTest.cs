@@ -30,6 +30,8 @@ namespace TOP.Testing
             int requests;
             public int Requests => Volatile.Read(ref requests);
             public string Root { get; }
+            public readonly ConcurrentQueue<string> Bodies = new ConcurrentQueue<string>();
+            public readonly ConcurrentQueue<string> RequestLines = new ConcurrentQueue<string>();
 
             public ApiFixture()
             {
@@ -67,6 +69,8 @@ namespace TOP.Testing
                             if (count == 0) throw new IOException("Quest fixture received an incomplete HTTP body.");
                             received += count;
                         }
+                        Bodies.Enqueue(new string(body));
+                        RequestLines.Enqueue(first);
                         Interlocked.Increment(ref requests);
                         if (!replies.TryDequeue(out string json))
                             throw new InvalidOperationException("Unexpected quest fixture request: " + first);
@@ -157,6 +161,14 @@ namespace TOP.Testing
                         "Talking to the configured quest target advances its persisted objective.");
 
                     var controller = quests.GetComponent<PlayerController>();
+                    ulong exp5 = PkoTables.ExpToNextLevel(5), exp6 = PkoTables.ExpToNextLevel(6);
+                    var rewardSnapshot = new CharacterData { Level = 5, Exp = 0, StatPoints = 3, SkillPoints = 2,
+                        CurrentHp = 1, MaxHp = 100, CurrentMp = 1, MaxMp = 50, CurrentSp = 1, MaxSp = 100 };
+                    PlayerController.ApplyExperience(rewardSnapshot, exp5 + exp6 + 1);
+                    check(rewardSnapshot.Level == 7 && rewardSnapshot.Exp == 1 && rewardSnapshot.StatPoints == 13
+                        && rewardSnapshot.SkillPoints == 4 && rewardSnapshot.CurrentHp == 100
+                        && rewardSnapshot.CurrentMp == 50 && rewardSnapshot.CurrentSp == 100,
+                        "Durable reward snapshots share the exact multi-level XP, points and refill rules with live level-up.");
                     ulong gold = controller.Gold;
                     fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_FAILURE\"}");
                     quests.ServerTurnInQuest(1);
@@ -164,16 +176,22 @@ namespace TOP.Testing
                     check(quests.HasActiveQuest(1) && controller.Gold == gold,
                         "Rejected talk-quest completion retains the quest and grants no gold.");
 
-                    fixture.Reply("{\"success\":true}");
+                    fixture.Reply("");
+                    fixture.Reply("{\"success\":true,\"revision\":1}");
                     before = fixture.Requests;
                     quests.ServerTurnInQuest(1);
                     quests.ServerTurnInQuest(1);
                     quests.ServerAbandonQuest(1);
                     refresh.Invoke(quests, null);
-                    yield return Pump(tick);
-                    check(fixture.Requests == before + 1 && !quests.HasActiveQuest(1)
+                    yield return Pump(tick, 1.4f);
+                    check(fixture.Requests == before + 2 && !quests.HasActiveQuest(1)
                         && controller.Gold == gold + 50 && quests.CompletedQuests.Count == 2,
                         "Repeated talk-quest completion grants the exact reward once and blocks overlapping abandonment/refresh.");
+                    var requests = fixture.Bodies.ToArray();
+                    check(requests[requests.Length - 1] == requests[requests.Length - 2]
+                        && fixture.RequestLines.ToArray().Last().StartsWith("PUT /api/game/characters/", StringComparison.Ordinal)
+                        && requests.Last().Contains("\"QuestId\":1") && controller.GetCharacterData().SaveRevision == 1,
+                        "A lost completion response retries the identical atomic character/quest operation and acknowledges its revision once.");
 
                     fixture.Reply("{\"success\":true}");
                     before = fixture.Requests;
@@ -190,6 +208,37 @@ namespace TOP.Testing
                     check(quests.ActiveQuests.Count == 0 && quests.CompletedQuests.Count == 0,
                         "An explicit successful empty quest response clears state normally.");
                     yield return CheckCollectDelivery(quests, fixture, tick, check);
+                    var uncertainData = new CharacterData { Id = 990003, AccountId = 9, Level = 1, Gold = 13 };
+                    before = fixture.Requests;
+                    uncertainData.Gold = DatabaseService.MaxExactApiInteger + 1;
+                    var invalidSave = DatabaseService.Instance.SaveCharacterAsync(uncertainData, "isolated-token");
+                    yield return Pump(tick, .1f);
+                    check(invalidSave.IsCompleted && !invalidSave.Result && fixture.Requests == before
+                        && !DatabaseService.Instance.RequiresCharacterReload(uncertainData.Id),
+                        "Gold outside the API exact numeric range is explicitly rejected before HTTP rather than rounded or saved.");
+                    uncertainData.Gold = 13;
+                    fixture.Reply("");
+                    fixture.Reply("");
+                    fixture.Reply("");
+                    var uncertain = DatabaseService.Instance.PersistCharacterAsync(uncertainData.Id, () => uncertainData, "isolated-token", 0);
+                    yield return Pump(tick, 1.5f);
+                    requests = fixture.Bodies.ToArray();
+                    check(uncertain.IsCompleted && !uncertain.Result.success && uncertain.Result.error == "RELOAD_REQUIRED"
+                        && fixture.Requests == before + 3 && requests[requests.Length - 1] == requests[requests.Length - 2]
+                        && requests[requests.Length - 2] == requests[requests.Length - 3]
+                        && DatabaseService.Instance.RequiresCharacterReload(uncertainData.Id),
+                        "Three lost save acknowledgements block the character and reuse one operation ID/payload on every attempt.");
+                    before = fixture.Requests;
+                    var blocked = DatabaseService.Instance.SaveCharacterAsync(uncertainData, "isolated-token");
+                    yield return Pump(tick, .1f);
+                    check(blocked.IsCompleted && !blocked.Result && fixture.Requests == before,
+                        "An uncertain character cannot overwrite a possibly committed reward with a new save.");
+                    fixture.Reply("{\"success\":true,\"Character\":{\"Id\":990003,\"AccountId\":9,\"SaveRevision\":1,\"Gold\":13},\"Inventory\":[],\"Skills\":[]}");
+                    var reloaded = DatabaseService.Instance.LoadCharacterAsync(uncertainData.Id, 9, "isolated-token");
+                    yield return Pump(tick);
+                    check(reloaded.IsCompleted && reloaded.Result != null && reloaded.Result.SaveRevision == 1
+                        && reloaded.Result.Gold == 13 && !DatabaseService.Instance.RequiresCharacterReload(uncertainData.Id),
+                        "Authoritative character reload restores its committed revision and releases the uncertain-save block.");
                 }
                 finally
                 {
@@ -201,6 +250,7 @@ namespace TOP.Testing
             static IEnumerator CheckCollectDelivery(PlayerQuests quests, ApiFixture fixture, Action tick, Action<bool, string> check)
             {
                 const int questId = 990001;
+                const int multiQuestId = 990002;
                 const BindingFlags fields = BindingFlags.NonPublic | BindingFlags.Instance;
                 var inventory = quests.GetComponent<PlayerInventory>();
                 var npc = quests.GetComponent<PlayerMovement>().ActiveNpc;
@@ -211,13 +261,25 @@ namespace TOP.Testing
                 var oldInventory = inventory.GetInventoryData();
                 var material = PkoTables.Items.Values.First(i => i.Stack >= 20);
                 var reward = PkoTables.Items.Values.First(i => i.Id != material.Id && i.Stack >= 1);
-                if (QuestTable.All.ContainsKey(questId)) throw new InvalidOperationException("Synthetic quest ID already exists.");
+                var secondMaterial = PkoTables.Items.Values.First(i => i.Id != material.Id && i.Id != reward.Id && i.Stack >= 5);
+                var controller = quests.GetComponent<PlayerController>();
+                int oldLevel = controller.Level;
+                if (QuestTable.All.ContainsKey(questId) || QuestTable.All.ContainsKey(multiQuestId))
+                    throw new InvalidOperationException("Synthetic quest ID already exists.");
                 QuestTable.All.Add(questId, new QuestDef { Id = questId, Name = "Synthetic collection", RewardItemId = reward.Id,
                     RewardItemQty = 1, Objective = new QuestObjective { Type = QuestObjectiveType.Collect, ItemId = material.Id, Required = 10 } });
+                var multi = new QuestDef { Id = multiQuestId, Name = "Synthetic multiple materials", RequiredLevel = 5, MaximumLevel = 6,
+                    RewardGold = 7, RewardItemId = reward.Id, RewardItemQty = 1,
+                    Objective = new QuestObjective { Type = QuestObjectiveType.Collect, CollectionItems = new[]
+                    {
+                        new QuestCollectionItem { ItemId = material.Id, Quantity = 10 },
+                        new QuestCollectionItem { ItemId = secondMaterial.Id, Quantity = 3 }
+                    } } };
+                QuestTable.All.Add(multiQuestId, multi);
                 try
                 {
-                    available.SetValue(npc, new[] { questId.ToString() });
-                    receives.SetValue(npc, new[] { questId.ToString() });
+                    available.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString() });
+                    receives.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString() });
                     quests.ServerOfferQuest(questId);
                     fixture.Reply("{\"success\":true}");
                     quests.ServerAcceptQuest(questId);
@@ -277,7 +339,7 @@ namespace TOP.Testing
                     check(!quests.CanTurnIn(questId), "Quest completion availability uses the same protected-material rules as delivery.");
 
                     inventory.InitializeFromData(items);
-                    fixture.Reply("{\"success\":true}");
+                    fixture.Reply("{\"success\":true,\"revision\":2}");
                     before = fixture.Requests;
                     quests.ServerTurnInQuest(questId);
                     quests.ServerTurnInQuest(questId);
@@ -287,20 +349,91 @@ namespace TOP.Testing
                         && inventory.GetSlot(0)?.ItemId == reward.Id && inventory.GetSlot(0)?.Quantity == 1
                         && inventory.GetSlot(1)?.Quantity == 3,
                         "Confirmed collection consumes exactly ten materials across slots and grants its exact ID reward once.");
+                    check(quests.GetComponent<PlayerController>().GetCharacterData().SaveRevision == 2
+                        && fixture.Bodies.ToArray().Last().Contains("\"QuestId\":" + questId),
+                        "Collection advances the character revision and uses the same durable save endpoint as its rewards.");
                     check(result.Single(i => i.SlotIndex == 1).UniqueItemId == "fixture-b"
                         && result.Single(i => i.SlotIndex == 1).Durability == 12
                         && inventory.GetSlot(2)?.RefineLevel == 3 && inventory.GetSlot(2)?.Gems[0] == 10
                         && result.Single(i => i.SlotIndex == 3).IsLocked
                         && result.Single(i => i.SlotIndex == 3).OwnerCharacterId == 99,
                         "Collection commit preserves remaining item IDs, durability, gems, refinement and ownership locks.");
+
+                    check(!multi.CanAcceptAtLevel(4) && multi.CanAcceptAtLevel(5) && multi.CanAcceptAtLevel(6)
+                        && !multi.CanAcceptAtLevel(7), "Quest acceptance uses inclusive original-style minimum and maximum level bands.");
+                    check(TOP.UI.QuestLogUI.RowHeight(multi) == 114
+                        && TOP.UI.QuestLogUI.RowHeight(QuestTable.All[questId]) == 96,
+                        "Quest log allocates one objective line per material without overlapping rewards or delivery buttons.");
+                    controller.Level = 5;
+                    quests.ServerOfferQuest(multiQuestId);
+                    before = fixture.Requests;
+                    controller.Level = 7;
+                    quests.ServerAcceptQuest(multiQuestId);
+                    check(quests.GetOfferableQuestsFor(new[] { multiQuestId }).Count == 0,
+                        "An NPC cannot offer a quest above its configured maximum level.");
+                    controller.Level = 4;
+                    quests.ServerAcceptQuest(multiQuestId);
+                    check(fixture.Requests == before && !quests.HasActiveQuest(multiQuestId),
+                        "Acceptance outside either level boundary makes no persistence request.");
+                    controller.Level = 5;
+                    fixture.Reply("{\"success\":true}");
+                    quests.ServerAcceptQuest(multiQuestId);
+                    yield return Pump(tick);
+                    check(quests.HasActiveQuest(multiQuestId), "A previously offered multi-material quest accepts at the exact minimum level.");
+
+                    var multiItems = new List<InventoryItemData>
+                    {
+                        new InventoryItemData { SlotIndex = 0, ItemId = material.Id, Quantity = 10, UniqueItemId = "multi-primary" },
+                        new InventoryItemData { SlotIndex = 1, ItemId = secondMaterial.Id, Quantity = 5, UniqueItemId = "multi-secondary", Durability = 13 }
+                    };
+                    inventory.InitializeFromData(new List<InventoryItemData>
+                    { new InventoryItemData { SlotIndex = 0, ItemId = material.Id, Quantity = 10 } });
+                    string generatedId = inventory.GetInventoryData()[0].UniqueItemId;
+                    check(Guid.TryParse(generatedId, out _) && inventory.GetInventoryData()[0].UniqueItemId == generatedId,
+                        "New inventory instances retain one valid UUID across repeated persistence snapshots.");
+                    inventory.InitializeFromData(new List<InventoryItemData> { multiItems[0] });
+                    before = fixture.Requests;
+                    quests.ServerTurnInQuest(multiQuestId);
+                    yield return Pump(tick, .2f);
+                    check(!quests.CanTurnIn(multiQuestId) && fixture.Requests == before && !inventory.HasQuestTransaction
+                        && inventory.GetItemCount(material.Id) == 10,
+                        "A missing secondary collection material cannot consume the primary material or call the API.");
+                    check(inventory.PrepareQuestTransaction(new[]
+                    {
+                        new QuestCollectionItem { ItemId = material.Id, Quantity = 1 },
+                        new QuestCollectionItem { ItemId = material.Id, Quantity = 1 }
+                    }, 0, 0, out _) == null && !inventory.HasQuestTransaction,
+                        "Duplicate material IDs in a quest definition are explicitly rejected without reserving inventory.");
+                    inventory.InitializeFromData(multiItems);
+                    ulong beforeGold = controller.Gold;
+                    fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_FAILURE\"}");
+                    quests.ServerTurnInQuest(multiQuestId);
+                    yield return Pump(tick);
+                    check(quests.HasActiveQuest(multiQuestId) && !inventory.HasQuestTransaction
+                        && inventory.GetItemCount(material.Id) == 10 && inventory.GetItemCount(secondMaterial.Id) == 5
+                        && controller.Gold == beforeGold,
+                        "Rejected multi-material delivery preserves every material and grants no reward.");
+                    controller.Level = 7;
+                    check(quests.CanTurnIn(multiQuestId), "An already accepted quest remains deliverable after leaving its acceptance level band.");
+                    fixture.Reply("{\"success\":true,\"revision\":3}");
+                    quests.ServerTurnInQuest(multiQuestId);
+                    yield return Pump(tick);
+                    check(!quests.HasActiveQuest(multiQuestId) && controller.GetCharacterData().SaveRevision == 3
+                        && controller.Gold == beforeGold + 7 && inventory.GetItemCount(material.Id) == 0
+                        && inventory.GetItemCount(secondMaterial.Id) == 2 && inventory.GetItemCount(reward.Id) == 1
+                        && inventory.GetInventoryData().Single(i => i.ItemId == secondMaterial.Id).UniqueItemId == "multi-secondary",
+                        "Atomic delivery consumes each exact material quantity, preserves the remainder and grants gold/item rewards once.");
                 }
                 finally
                 {
                     available.SetValue(npc, oldAvailable);
                     receives.SetValue(npc, oldReceives);
                     QuestTable.All.Remove(questId);
+                    QuestTable.All.Remove(multiQuestId);
                     inventory.InitializeFromData(oldInventory);
+                    controller.Level = oldLevel;
                 }
+
             }
         }
     }

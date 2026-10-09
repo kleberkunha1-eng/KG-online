@@ -4,9 +4,12 @@ namespace TOP.Data
 {
     public enum QuestObjectiveType { TalkTo, Kill, Collect }
 
-    // Objetivo unico por quest (os primeiros mission ids do cliente original sao, em sua grande
-    // maioria, tarefas simples de uma unica etapa: falar com alguem, matar N monstros ou coletar
-    // N itens).
+    public class QuestCollectionItem
+    {
+        public int ItemId;
+        public int Quantity;
+    }
+
     public class QuestObjective
     {
         public QuestObjectiveType Type;
@@ -16,6 +19,7 @@ namespace TOP.Data
         public string Target;
         public int ItemId; // Original item ID; zero preserves legacy name-based definitions.
         public int Required = 1;
+        public QuestCollectionItem[] CollectionItems;
     }
 
     public class QuestDef
@@ -24,6 +28,7 @@ namespace TOP.Data
         public string Name;
         public string Description;
         public int RequiredLevel;
+        public int MaximumLevel; // Zero means no upper acceptance limit.
         public int PrerequisiteId; // 0 = nenhum
         public QuestObjective Objective;
         public int RewardExp;
@@ -35,6 +40,8 @@ namespace TOP.Data
         // com esta quest em availableQuests/completesQuests.
         public string GiverNpcId = "";
         public string TurnInNpcId = "";
+
+        public bool CanAcceptAtLevel(int level) => level >= RequiredLevel && (MaximumLevel == 0 || level <= MaximumLevel);
     }
 
     // Tabela de quests seedada com os IDs e nomes REAIS do cliente original

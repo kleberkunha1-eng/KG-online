@@ -49,9 +49,9 @@ PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,062240
 PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
 PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
 PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004227102
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,008243024
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,01383644
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01543945
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004001081
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02816254
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
@@ -104,8 +104,10 @@ PASS Delayed refresh cannot overwrite newer kill progress while its HTTP respons
 PASS Repeated acceptance and overlapping refresh/abandon cannot duplicate the quest or its API request.
 PASS Failed abandonment retains the accepted quest.
 PASS Talking to the configured quest target advances its persisted objective.
+PASS Durable reward snapshots share the exact multi-level XP, points and refill rules with live level-up.
 PASS Rejected talk-quest completion retains the quest and grants no gold.
 PASS Repeated talk-quest completion grants the exact reward once and blocks overlapping abandonment/refresh.
+PASS A lost completion response retries the identical atomic character/quest operation and acknowledges its revision once.
 PASS Successful abandonment removes the quest once and suppresses overlapping refresh.
 PASS An explicit successful empty quest response clears state normally.
 PASS Invalid material quantity or missing exact reward ID cannot reserve or mutate inventory.
@@ -118,7 +120,23 @@ PASS Full inventory with no freed material slot rejects the reward before any AP
 PASS Refined, socketed and locked materials cannot satisfy consumable quest requirements.
 PASS Quest completion availability uses the same protected-material rules as delivery.
 PASS Confirmed collection consumes exactly ten materials across slots and grants its exact ID reward once.
+PASS Collection advances the character revision and uses the same durable save endpoint as its rewards.
 PASS Collection commit preserves remaining item IDs, durability, gems, refinement and ownership locks.
+PASS Quest acceptance uses inclusive original-style minimum and maximum level bands.
+PASS Quest log allocates one objective line per material without overlapping rewards or delivery buttons.
+PASS An NPC cannot offer a quest above its configured maximum level.
+PASS Acceptance outside either level boundary makes no persistence request.
+PASS A previously offered multi-material quest accepts at the exact minimum level.
+PASS New inventory instances retain one valid UUID across repeated persistence snapshots.
+PASS A missing secondary collection material cannot consume the primary material or call the API.
+PASS Duplicate material IDs in a quest definition are explicitly rejected without reserving inventory.
+PASS Rejected multi-material delivery preserves every material and grants no reward.
+PASS An already accepted quest remains deliverable after leaving its acceptance level band.
+PASS Atomic delivery consumes each exact material quantity, preserves the remainder and grants gold/item rewards once.
+PASS Gold outside the API exact numeric range is explicitly rejected before HTTP rather than rounded or saved.
+PASS Three lost save acknowledgements block the character and reuse one operation ID/payload on every attempt.
+PASS An uncertain character cannot overwrite a possibly committed reward with a new save.
+PASS Authoritative character reload restores its committed revision and releases the uncertain-save block.
 PASS Real KCP purchase gives exact quantity and charges the original table price once.
 PASS Negative/excess quantities and non-catalog items cannot change inventory or gold.
 PASS Sale uses original half-price rule and removes only the requested quantity.

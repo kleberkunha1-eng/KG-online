@@ -26,16 +26,29 @@ namespace TOP.Player
         public QuestInventoryTransaction PrepareQuestTransaction(int collectItemId, int collectQuantity,
             int rewardItemId, int rewardQuantity, out string error)
         {
+            if (collectQuantity < 0)
+            { error = "Requisitos de inventario da missao invalidos."; return null; }
+            return PrepareQuestTransaction(collectQuantity > 0
+                ? new[] { new QuestCollectionItem { ItemId = collectItemId, Quantity = collectQuantity } }
+                : Array.Empty<QuestCollectionItem>(), rewardItemId, rewardQuantity, out error);
+        }
+
+        [Server]
+        public QuestInventoryTransaction PrepareQuestTransaction(IReadOnlyList<QuestCollectionItem> materials,
+            int rewardItemId, int rewardQuantity, out string error)
+        {
             error = null;
-            if (collectQuantity < 0 || rewardQuantity < 0 || (collectQuantity > 0 && !PkoTables.Items.ContainsKey(collectItemId)))
+            if (materials == null || rewardQuantity < 0
+                || materials.Any(item => item == null || item.Quantity <= 0 || !PkoTables.Items.ContainsKey(item.ItemId))
+                || materials.Select(item => item.ItemId).Distinct().Count() != materials.Count)
             { error = "Requisitos de inventario da missao invalidos."; return null; }
             if (HasQuestTransaction || (GetComponent<PlayerTrade>()?.InTrade ?? false)
                 || (GetComponent<PlayerMail>()?.InventoryRequestPending ?? false))
             { error = "Aguarde a operacao de inventario em andamento."; return null; }
             var snapshot = GetInventoryData();
-            if (collectQuantity > 0)
+            foreach (var material in materials)
             {
-                if (!TryConsumeMaterials(snapshot, collectItemId, collectQuantity))
+                if (!TryConsumeMaterials(snapshot, material.ItemId, material.Quantity))
                 { error = "Faltam itens de missao disponiveis (sem equipamento, refino ou gemas)."; return null; }
             }
             if (rewardQuantity > 0)
@@ -80,6 +93,8 @@ namespace TOP.Player
                 this.inventory = inventory;
                 this.result = result;
             }
+
+            internal List<InventoryItemData> PreparedItems => result;
 
             public void Commit()
             {

@@ -207,14 +207,33 @@ namespace TOP.Player
         [Server]
         public void AddExp(ulong amount)
         {
-            Exp += amount;
-            while (Level < 100 && Exp >= ExperienceToNextLevel)
+            var result = new CharacterData { Level = Level, Exp = Exp, StatPoints = StatPoints, SkillPoints = SkillPoints };
+            ApplyExperience(result, amount);
+            int previousLevel = Level;
+            Exp = result.Exp;
+            Level = result.Level;
+            StatPoints = result.StatPoints;
+            SkillPoints = result.SkillPoints;
+            for (int level = previousLevel + 1; level <= Level; level++)
             {
-                Exp -= ExperienceToNextLevel;
-                Level++; StatPoints += 5; SkillPoints++;
                 _playerStats?.SetCurrentHpMpSp(_playerStats.MaxHp, _playerStats.MaxMp, _playerStats.MaxSp);
-                RpcShowMessage($"Nível {Level}!", PlayerMessageType.LevelUp);
+                RpcShowMessage($"Nível {level}!", PlayerMessageType.LevelUp);
                 RpcLevelUp();
+            }
+        }
+
+        internal static void ApplyExperience(CharacterData data, ulong amount)
+        {
+            data.Exp = checked(data.Exp + amount);
+            while (data.Level < 100 && data.Exp >= TOP.Data.PkoTables.ExpToNextLevel(data.Level))
+            {
+                data.Exp -= TOP.Data.PkoTables.ExpToNextLevel(data.Level);
+                data.Level++;
+                data.StatPoints = checked(data.StatPoints + 5);
+                data.SkillPoints = checked(data.SkillPoints + 1);
+                data.CurrentHp = data.MaxHp;
+                data.CurrentMp = data.MaxMp;
+                data.CurrentSp = data.MaxSp;
             }
         }
 

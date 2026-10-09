@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 using Mirror;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,8 +11,8 @@ using TOP.Network;
 namespace TOP.Player
 {
     // Sistema de quests server-autoritativo. O catalogo (QuestTable) e estatico/local; so o
-    // progresso por personagem e persistido via API (tabela quest_progress), no mesmo padrao de
-    // PlayerFriends/PlayerMail/PlayerGuild. Os ganchos de progresso automatico (matar monstro,
+    // progresso por personagem e persistido via API; a entrega grava quest e personagem juntos.
+    // Os ganchos de progresso automatico (matar monstro,
     // falar com NPC) sao chamados pelo EnemyStats/NPCInteractable via metodos [Server] publicos.
     public class PlayerQuests : NetworkBehaviour
     {
@@ -34,6 +35,7 @@ namespace TOP.Player
         public event System.Action<int> OnQuestOffered;
         public List<(int questId, int progress)> ActiveQuests => _active.Select(a => (a.QuestId, a.Progress)).ToList();
         public IReadOnlyCollection<int> CompletedQuests => _completed;
+        public bool HasPendingCompletion => _pendingTurnIns.Count != 0;
 
         void Awake()
         {
@@ -95,15 +97,15 @@ namespace TOP.Player
         {
             if (_pc == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
-                || _pendingTurnIns.Contains(questId))
+                || _pendingTurnIns.Count != 0)
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             if (!CanUseQuestNpc(questId, false) || !_offers.TryGetValue(questId, out var offer)
                 || offer.npc != GetComponent<PlayerMovement>().ActiveNpc || Time.time > offer.expires)
             { _pc.RpcShowMessage("Consulte a missao no NPC correto antes de aceitar.", PlayerMessageType.Warning); return; }
             if (_active.Any(a => a.QuestId == questId) || _completed.Contains(questId))
             { _pc.RpcShowMessage("Voce ja possui ou ja concluiu essa missao.", PlayerMessageType.Warning); return; }
-            if (_pc.Level < def.RequiredLevel)
-            { _pc.RpcShowMessage("Nivel insuficiente para essa missao.", PlayerMessageType.Warning); return; }
+            if (!def.CanAcceptAtLevel(_pc.Level))
+            { _pc.RpcShowMessage("Seu nivel esta fora da faixa permitida para essa missao.", PlayerMessageType.Warning); return; }
             if (def.PrerequisiteId != 0 && !_completed.Contains(def.PrerequisiteId))
             { _pc.RpcShowMessage("Voce precisa concluir uma missao anterior primeiro.", PlayerMessageType.Warning); return; }
 
@@ -129,7 +131,7 @@ namespace TOP.Player
         public async void ServerAbandonQuest(int questId)
         {
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
-                || _pendingTurnIns.Contains(questId))
+                || _pendingTurnIns.Count != 0)
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             if (!_active.Any(a => a.QuestId == questId)) return;
             _pendingAbandons.Add(questId);
@@ -158,43 +160,62 @@ namespace TOP.Player
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
-                || _pendingTurnIns.Contains(questId))
+                || _pendingTurnIns.Count != 0)
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             _stateRevision++;
             if (!CanUseQuestNpc(questId, true))
             { _pc.RpcShowMessage("Entregue a missao ao NPC correto, estando perto dele.", PlayerMessageType.Warning); return; }
 
-            if (!IsObjectiveComplete(def, entry, out int itemIdForCollect))
+            if (!IsObjectiveComplete(def, entry, out var collectItems))
             { _pc.RpcShowMessage("Objetivo ainda nao concluido.", PlayerMessageType.Warning); return; }
             if (def.RewardGold < 0 || def.RewardExp < 0 || def.RewardItemQty < 0
-                || ulong.MaxValue - _pc.Gold < (ulong)def.RewardGold || ulong.MaxValue - _pc.Exp < (ulong)def.RewardExp)
+                || _pc.Gold > DatabaseService.MaxExactApiInteger || _pc.Exp > DatabaseService.MaxExactApiInteger
+                || DatabaseService.MaxExactApiInteger - _pc.Gold < (ulong)def.RewardGold
+                || DatabaseService.MaxExactApiInteger - _pc.Exp < (ulong)def.RewardExp)
             { _pc.RpcShowMessage("Recompensa invalida ou limite de ouro/experiencia excedido.", PlayerMessageType.Warning); return; }
 
             PlayerInventory.QuestInventoryTransaction inventoryTransaction = null;
-            if (def.Objective.Type == QuestObjectiveType.Collect || def.RewardItemQty > 0)
+            if (_inventory != null)
             {
                 if (_inventory == null)
                 { _pc.RpcShowMessage("Inventario indisponivel para entregar a missao.", PlayerMessageType.Warning); return; }
                 int rewardId = def.RewardItemQty > 0
                     ? (def.RewardItemId > 0 ? def.RewardItemId : ResolveItemIdByName(def.RewardItemName)) : 0;
-                inventoryTransaction = _inventory.PrepareQuestTransaction(itemIdForCollect,
-                    def.Objective.Type == QuestObjectiveType.Collect ? def.Objective.Required : 0,
-                    rewardId, def.RewardItemQty, out string error);
+                inventoryTransaction = _inventory.PrepareQuestTransaction(collectItems, rewardId, def.RewardItemQty, out string error);
                 if (inventoryTransaction == null)
                 { _pc.RpcShowMessage(error, PlayerMessageType.Warning); return; }
             }
             _pendingTurnIns.Add(questId);
             try
             {
-                bool ok = await DatabaseService.Instance.CompleteQuestAsync(_pc.CharacterId, questId, Token);
-                if (!ok)
+                CharacterData liveData = null;
+                CharacterData rewardedData = null;
+                var result = await DatabaseService.Instance.PersistCharacterAsync(_pc.CharacterId, () =>
+                {
+                    if (_pc == null) throw new InvalidOperationException("Jogador desconectou antes de iniciar a entrega.");
+                    liveData = _pc.GetCharacterData();
+                    rewardedData = liveData.CopySnapshot();
+                    if (inventoryTransaction != null) rewardedData.Inventory = inventoryTransaction.PreparedItems;
+                    if (def.RewardExp > 0) PlayerController.ApplyExperience(rewardedData, (ulong)def.RewardExp);
+                    rewardedData.Gold = checked(rewardedData.Gold + (ulong)def.RewardGold);
+                    return rewardedData;
+                }, Token, questId);
+                if (!result.success)
                 {
                     if (this != null && connectionToClient != null)
-                        _pc.RpcShowMessage("Nao foi possivel concluir a missao. Seus itens foram preservados.", PlayerMessageType.Warning);
+                    {
+                        if (result.error == "RELOAD_REQUIRED" || result.error == "SAVE_CONFLICT" || result.error == "OPERATION_MISMATCH")
+                        {
+                            _pc.RpcShowMessage("Reconecte para recuperar a confirmacao da missao com seguranca.", PlayerMessageType.Warning);
+                            connectionToClient.Disconnect();
+                        }
+                        else _pc.RpcShowMessage("Nao foi possivel concluir a missao. Seus itens foram preservados.", PlayerMessageType.Warning);
+                    }
                     return;
                 }
+                liveData.SaveRevision = rewardedData.SaveRevision;
                 if (this == null)
-                { Debug.LogError("[Quests] Confirmacao recebida apos destruir o jogador; entrega requer reconciliacao."); return; }
+                { Debug.Log("[Quests] Entrega persistida apos desconexao; inventario e recompensas serao recuperados no login."); return; }
                 inventoryTransaction?.Commit();
 
                 _active.Remove(entry);
@@ -212,17 +233,22 @@ namespace TOP.Player
         }
 
         [Server]
-        bool IsObjectiveComplete(QuestDef def, ActiveQuest entry, out int collectItemId)
+        bool IsObjectiveComplete(QuestDef def, ActiveQuest entry, out IReadOnlyList<QuestCollectionItem> materials)
         {
-            collectItemId = -1;
+            materials = Array.Empty<QuestCollectionItem>();
             switch (def.Objective.Type)
             {
                 case QuestObjectiveType.TalkTo: return entry.Progress >= 1;
                 case QuestObjectiveType.Kill: return entry.Progress >= def.Objective.Required;
                 case QuestObjectiveType.Collect:
-                    collectItemId = def.Objective.ItemId > 0 ? def.Objective.ItemId : ResolveItemIdByName(def.Objective.Target);
-                    if (collectItemId <= 0 || _inventory == null) return false;
-                    return PlayerInventory.TryConsumeMaterials(_inventory.GetInventoryData(), collectItemId, def.Objective.Required);
+                    materials = def.Objective.CollectionItems != null && def.Objective.CollectionItems.Length > 0
+                        ? def.Objective.CollectionItems
+                        : new[] { new QuestCollectionItem { ItemId = def.Objective.ItemId > 0
+                            ? def.Objective.ItemId : ResolveItemIdByName(def.Objective.Target), Quantity = def.Objective.Required } };
+                    if (_inventory == null || materials.Any(item => item == null || item.Quantity <= 0 || !PkoTables.Items.ContainsKey(item.ItemId))
+                        || materials.Select(item => item.ItemId).Distinct().Count() != materials.Count) return false;
+                    var available = _inventory.GetInventoryData();
+                    return materials.All(item => PlayerInventory.TryConsumeMaterials(available, item.ItemId, item.Quantity));
                 default: return false;
             }
         }
@@ -285,7 +311,7 @@ namespace TOP.Player
             {
                 if (!QuestTable.All.TryGetValue(id, out var def)) continue;
                 if (_active.Any(a => a.QuestId == id) || _completed.Contains(id)) continue;
-                if (_pc.Level < def.RequiredLevel) continue;
+                if (!def.CanAcceptAtLevel(_pc.Level)) continue;
                 if (def.PrerequisiteId != 0 && !_completed.Contains(def.PrerequisiteId)) continue;
                 result.Add(id);
             }

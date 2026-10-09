@@ -17,6 +17,7 @@ namespace TOP.Services
     public class DatabaseService : MonoBehaviour
     {
         public static DatabaseService Instance { get; private set; }
+        public const ulong MaxExactApiInteger = 9007199254740991UL;
         public bool IsConnected => TOP.Network.LoginNetworkClient.IsLoggedIn;
 
         void Awake()
@@ -27,7 +28,7 @@ namespace TOP.Services
         }
 
         // ---- DTOs (JsonUtility) ----
-        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; }
+        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; public long revision; }
 
         [Serializable] class PreviewDto
         {
@@ -47,7 +48,17 @@ namespace TOP.Services
             public bool success; public string error; public CharacterData Character;
             public List<ItemDto> Inventory = new List<ItemDto>(); public List<SkillDto> Skills = new List<SkillDto>();
         }
-        [Serializable] class SaveDto { public CharacterData Character; public List<ItemDto> Inventory; public List<SkillDto> Skills; }
+        [Serializable] class SaveDto { public string OperationId; public int QuestId; public CharacterData Character; public List<ItemDto> Inventory; public List<SkillDto> Skills; }
+        readonly Dictionary<long, SemaphoreSlim> characterSaveGates = new Dictionary<long, SemaphoreSlim>();
+        readonly HashSet<long> uncertainCharacterSaves = new HashSet<long>();
+        public bool RequiresCharacterReload(long characterId) => uncertainCharacterSaves.Contains(characterId);
+
+        SemaphoreSlim CharacterSaveGate(long id)
+        {
+            if (!characterSaveGates.TryGetValue(id, out var gate))
+                characterSaveGates.Add(id, gate = new SemaphoreSlim(1, 1));
+            return gate;
+        }
         [Serializable] class CityDto { public string map; public float x, y, z, rotY; }
         [Serializable] class CreateDto { public string name; public int slot, job, gender, hairStyle, hairColor, faceStyle; public CityDto city; }
         [Serializable] class DeleteDto { public string password; }
@@ -109,6 +120,8 @@ namespace TOP.Services
                 }
                 TOP.Diagnostics.GameTrace.Http(req, traceStarted);
                 string text = req.downloadHandler.text;
+                if (req.responseCode >= 500)
+                    throw new Exception("Falha temporaria da API (" + req.responseCode + ")");
                 if (req.result == UnityWebRequest.Result.ConnectionError)
                     throw new Exception("Sem conexao com a API: " + req.error);
                 if (string.IsNullOrEmpty(text)) throw new Exception("Resposta vazia da API (" + req.responseCode + ")");
@@ -175,6 +188,8 @@ namespace TOP.Services
 
         public async Task<CharacterData> LoadCharacterAsync(long charId, long accountId, string token, CancellationToken ct = default)
         {
+            var gate = CharacterSaveGate(charId);
+            await gate.WaitAsync(ct);
             try
             {
                 var dto = JsonUtility.FromJson<LoadDto>(await SendAsync("GET", "/characters/" + charId, null, token, ct));
@@ -191,17 +206,41 @@ namespace TOP.Services
                     });
                 c.Skills = new List<CharacterSkillData>();
                 foreach (var s in dto.Skills) c.Skills.Add(new CharacterSkillData { Id = s.Id, SkillId = s.SkillId, Level = s.Level, Exp = s.Exp });
+                uncertainCharacterSaves.Remove(charId);
                 return c;
             }
             catch (Exception e) { Debug.LogError("[API] LoadCharacter: " + e.Message); return null; }
+            finally { gate.Release(); }
         }
 
         public async Task<bool> SaveCharacterAsync(CharacterData data, string token, CancellationToken ct = default)
         {
-            if (data == null) return false;
+            if (data == null) { Debug.LogError("[API] Cannot save a missing character."); return false; }
+            return (await PersistCharacterAsync(data.Id, () => data, token, 0, ct)).success;
+        }
+
+        public async Task<(bool success, string error)> PersistCharacterAsync(long characterId,
+            Func<CharacterData> snapshot, string token, int questId, CancellationToken ct = default)
+        {
+            var gate = CharacterSaveGate(characterId);
+            await gate.WaitAsync(ct);
             try
             {
-                var save = new SaveDto { Character = data, Inventory = new List<ItemDto>(), Skills = new List<SkillDto>() };
+                if (uncertainCharacterSaves.Contains(characterId))
+                {
+                    Debug.LogError("[API] Character must reconnect to reload authoritative data before saving again.");
+                    return (false, "RELOAD_REQUIRED");
+                }
+                var data = snapshot();
+                if (data == null || data.Id != characterId)
+                    throw new InvalidOperationException("Character snapshot is unavailable or has a different owner.");
+                if (data.Gold > MaxExactApiInteger || data.Exp > MaxExactApiInteger)
+                {
+                    Debug.LogError("[API] Character gold/experience exceeds the exact numeric range of the API.");
+                    return (false, "INVALID_CHARACTER_VALUES");
+                }
+                var save = new SaveDto { OperationId = Guid.NewGuid().ToString(), QuestId = questId,
+                    Character = data, Inventory = new List<ItemDto>(), Skills = new List<SkillDto>() };
                 if (data.Inventory != null)
                     foreach (var i in data.Inventory)
                     {
@@ -216,10 +255,42 @@ namespace TOP.Services
                     }
                 if (data.Skills != null)
                     foreach (var s in data.Skills) save.Skills.Add(new SkillDto { Id = s.Id, SkillId = s.SkillId, Level = s.Level, Exp = s.Exp });
-                var r = JsonUtility.FromJson<Ok>(await SendAsync("PUT", "/characters/" + data.Id, JsonUtility.ToJson(save), token, ct));
-                return r.success;
+                string body = JsonUtility.ToJson(save);
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    try
+                    {
+                        var r = JsonUtility.FromJson<Ok>(await SendAsync("PUT", "/characters/" + data.Id, body, token, ct));
+                        if (r == null) throw new InvalidOperationException("Invalid character-save response.");
+                        if (!r.success && (r.error == "DB_ERROR" || r.error == "SERVER_ERROR"))
+                            throw new InvalidOperationException("Database confirmation is unavailable.");
+                        if (r.success)
+                        {
+                            if (r.revision != data.SaveRevision + 1)
+                                throw new InvalidOperationException("Character-save revision acknowledgement does not match.");
+                            data.SaveRevision = r.revision;
+                            return (true, null);
+                        }
+                        if (r.error == "SAVE_CONFLICT" || r.error == "OPERATION_MISMATCH")
+                            uncertainCharacterSaves.Add(characterId);
+                        Debug.LogWarning("[API] Character save rejected: " + r.error);
+                        return (false, r.error ?? "INVALID_RESPONSE");
+                    }
+                    catch (Exception e) when (!(e is OperationCanceledException))
+                    {
+                        Debug.LogWarning("[API] Retrying the same character operation after uncertain response: " + e.Message);
+                        if (attempt == 2) throw;
+                    }
+                }
+                throw new InvalidOperationException("Character transaction retry limit exceeded.");
             }
-            catch (Exception e) { Debug.LogError("[API] SaveCharacter: " + e.Message); return false; }
+            catch (Exception e)
+            {
+                uncertainCharacterSaves.Add(characterId);
+                Debug.LogError("[API] SaveCharacter requires authoritative reload: " + e.Message);
+                return (false, "RELOAD_REQUIRED");
+            }
+            finally { gate.Release(); }
         }
 
         public async Task<(bool success, string error)> DeleteCharacterAsync(long charId, long accountId, string password, string token, CancellationToken ct = default)

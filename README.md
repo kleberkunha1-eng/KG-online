@@ -221,15 +221,88 @@ continuam aceitando nomes. O diario mostra o nome do item pelo ID e a recompensa
 de item, sem sobrepor os botoes. Nao foram substituidas as definicoes inferidas
 pelas missoes originais neste passo.
 
-Os 146 checks de gameplay passaram, incluindo recusa HTTP, inventario cheio,
+Os 146 checks da reserva de gameplay passaram, incluindo recusa HTTP, inventario cheio,
 IDs/quantidades invalidos, materiais protegidos, operacoes concorrentes e
 confirmacao repetida. Isso e protecao em runtime: conclusao da quest e save do
 personagem continuam sendo pedidos separados. Crash, desconexao durante entrega
 ou perda da resposta depois de o banco confirmar ainda exigem uma transacao
 persistente/idempotente com reconciliacao. Nao considerar a atomicidade duravel
 concluida nem ativar em massa novas missoes de coleta antes desse passo.
-Essas alteracoes continuam somente no desenvolvimento; itch e servidor publicado
+Naquela etapa, essas alteracoes continuavam somente no desenvolvimento; itch e servidor publicado
 permanecem na revisao `2026.10.09-gameplay-npcs-social`.
+
+### Entrega atomica e saves versionados (desenvolvimento)
+
+O desenvolvimento posterior substitui a entrega em dois pedidos por um unico
+`PUT /api/game/characters/:id`, com `OperationId`, `QuestId` e
+`Character.SaveRevision`. O mesmo save persiste inventario, skills, ouro, XP,
+niveis/pontos e conclusao da missao, em uma transacao MariaDB ou um batch D1.
+Um recibo persistente guarda hash do pedido e revisao: repeticao com o mesmo
+conteudo retorna a confirmacao anterior, sem reaplicar itens/recompensas;
+conteudo diferente com o mesmo ID e recusado. Saves atrasados sao rejeitados.
+No D1, o trigger de recibos verifica revisao e missao ativa dentro do batch.
+
+O Unity serializa saves e entregas por personagem, envia um corpo imutavel nas
+tentativas e nao faz autosave/save de desconexao de um inventario reservado.
+Se a confirmacao continuar incerta apos tres tentativas, bloqueia novos saves e
+pede reconexao para recarregar os dados autoritativos; nao tenta desfazer uma
+transacao que pode ja ter sido confirmada. XP de recompensa utiliza a mesma
+regra de level-up do personagem. Uma entrega confirmada depois de destruir o
+objeto do jogador continua recuperavel no proximo carregamento.
+
+Migracoes novas: `Cloudflare/migrations/0004_character_save_transactions.sql`
+e `API/migrations/0004_character_save_transactions.sql`. A API MariaDB aplica
+seu schema aditivo ao iniciar. No D1, a migracao precisa ser aplicada
+explicitamente antes de publicar as Functions novas. **Nao publicar somente
+a API ou iniciar o servidor Unity de desenvolvimento contra a API antiga**:
+o contrato de save mudou; coordenar migracao, API, Dedicated Server e cliente.
+Essas migracoes ainda nao foram aplicadas em producao.
+
+`node --test Tools/tests/character-transaction.test.cjs Tools/tests/quest-api.test.cjs Tools/tests/new-character-api.test.cjs`
+valida transacao, rollback de inventario invalido, retry/replay, conflito de
+conteudo, autosave antigo e recarregamento do personagem. Com
+`TOP_TEST_MARIADB=1`, tambem usa SQL MariaDB real em tabelas temporarias,
+sem alterar personagens reais. O fixture Unity testa HTTP real com resposta
+perdida, repeticao do mesmo corpo e confirmacao unica da revisao.
+Esses testes nao equivalem a um teste de crash do processo dedicado em producao.
+Ainda faltam roteiros originais, objetivos mistos e flags; correio, banco e outros
+sistemas economicos nao foram convertidos para esta transacao neste passo.
+Ouro/XP fora do limite inteiro exato de JSON/JavaScript (9007199254740991)
+sao recusados explicitamente, em vez de arredondados silenciosamente.
+
+Missao de coleta agora pode declarar `Objective.CollectionItems` com varios
+IDs/quantidades exatos. Todos os materiais sao verificados e consumidos no mesmo
+snapshot/transacao; faltar um deles nao consome os outros. IDs repetidos ou
+invalidos na definicao sao recusados. O diario cresce por linha de material,
+sem sobrepor as recompensas ou botoes. `RequiredLevel`/`MaximumLevel` definem
+uma faixa inclusiva para aceitar/oferecer; zero no maximo preserva quests antigas
+sem teto. Uma missao ja aceita continua entregavel depois dessa faixa.
+As definicoes/IDs antigos nao foram substituidos: o script original de
+`Leaves Collection` usa ID persistente 721, dez itens 1573 e tres itens 1574,
+niveis 5-6; ele nao equivale ao catalogo inferido atual. A semantica nativa dos
+dois argumentos de `AddExp` e das repeticoes ainda precisa ser confirmada antes
+de ativar essa definicao com migracao de progresso.
+
+Validacao desta etapa: 164 checks Unity de mundo/social/NPC/quests passaram,
+incluindo perda de tres confirmacoes, bloqueio de save incerto e recarregamento
+autoritativo, UUID estavel dos itens, coleta com varios materiais e limites
+de nivel. Os sete testes de API passaram, incluindo SQLite em memoria e SQL
+MariaDB real isolado. Resultados persistidos em `Tools/social-gameplay-results.txt`
+e `Tools/quest-api-results.txt`; nenhuma conta real ou banco de producao foi
+alterado por esses testes. O teste do limite de tres metros usa uma coordenada
+X inteira no NPC sintetico para medir exatamente a borda, sem arredondamento
+do deslocamento por ponto flutuante.
+
+Foram geradas builds pareadas desta etapa em
+`Build/GameProjectKG.gameplay-client-20261009-093843` (972 MB) e
+`Build/GameProjectKG.gameplay-server-20261009-093843`, ambas com zero erros.
+O servidor novo foi iniciado apenas em UDP 17894 e passou duas sessoes KCP
+locais de 12 segundos, com 11 pongs em cada uma, sem desconexao ou spawn sem
+autenticacao. Somente o processo de staging foi encerrado; o processo publicado
+continuou ativo. Esse probe verifica transporte, nao login JWT ou persistencia
+de conta real. Resultados em `Tools/gameplay-staging-build-results.txt` e
+`Tools/gameplay-staging-runtime-results.txt`. As novas builds nao foram
+publicadas, e a migracao de recibos nao foi aplicada ao D1 de producao.
 
 `GameBuild.BuildGameplayStagingBatch` gera cliente Windows e Dedicated Server
 em pastas novas com timestamp, sem substituir builds anteriores ou publicar.

@@ -68,7 +68,10 @@ namespace TOP.UI
 
         void Draw(int id)
         {
-            scroll = GUI.BeginScrollView(new Rect(10, 24, win.width - 20, win.height - 34), scroll, new Rect(0, 0, win.width - 40, Mathf.Max(200, local.ActiveQuests.Count * 96)));
+            float contentHeight = 0;
+            foreach (var (questId, _) in local.ActiveQuests)
+                if (QuestTable.All.TryGetValue(questId, out var definition)) contentHeight += RowHeight(definition);
+            scroll = GUI.BeginScrollView(new Rect(10, 24, win.width - 20, win.height - 34), scroll, new Rect(0, 0, win.width - 40, Mathf.Max(200, contentHeight)));
             float y = 0;
             foreach (var (questId, progress) in local.ActiveQuests)
             {
@@ -81,22 +84,37 @@ namespace TOP.UI
                     QuestObjectiveType.Collect => $"Coletar: {ItemLabel(def.Objective.ItemId, def.Objective.Target)} x{def.Objective.Required}",
                     _ => "",
                 };
-                GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
-                GUI.Label(new Rect(0, y + 36, win.width - 50, 18), $"Recompensa: {def.RewardExp} exp, {def.RewardGold} ouro");
+                float extra = RowHeight(def) - 96;
+                if (def.Objective.Type == QuestObjectiveType.Collect && def.Objective.CollectionItems != null
+                    && def.Objective.CollectionItems.Length > 0)
+                {
+                    for (int i = 0; i < def.Objective.CollectionItems.Length; i++)
+                    {
+                        var required = def.Objective.CollectionItems[i];
+                        GUI.Label(new Rect(0, y + 18 + i * 18, win.width - 50, 18),
+                            required == null ? "Material de missao invalido" : $"Coletar: {ItemLabel(required.ItemId, "")} x{required.Quantity}");
+                    }
+                }
+                else GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
+                GUI.Label(new Rect(0, y + 36 + extra, win.width - 50, 18), $"Recompensa: {def.RewardExp} exp, {def.RewardGold} ouro");
                 if (def.RewardItemQty > 0)
-                    GUI.Label(new Rect(0, y + 54, win.width - 50, 18),
+                    GUI.Label(new Rect(0, y + 54 + extra, win.width - 50, 18),
                         $"Item: {ItemLabel(def.RewardItemId, def.RewardItemName)} x{def.RewardItemQty}");
 
-                if (GUI.Button(new Rect(0, y + 74, 90, 20), "Abandonar"))
+                if (GUI.Button(new Rect(0, y + 74 + extra, 90, 20), "Abandonar"))
                     local.CmdAbandonQuest(questId);
-                if (GUI.Button(new Rect(100, y + 74, 90, 20), "Entregar"))
+                if (GUI.Button(new Rect(100, y + 74 + extra, 90, 20), "Entregar"))
                     local.CmdTurnInQuest(questId);
 
-                y += 96;
+                y += RowHeight(def);
             }
+
             GUI.EndScrollView();
             GUI.DragWindow(new Rect(0, 0, win.width, 20));
         }
+
+        internal static float RowHeight(QuestDef definition) => 96 + (definition.Objective.Type == QuestObjectiveType.Collect
+            ? 18 * Mathf.Max(0, (definition.Objective.CollectionItems?.Length ?? 1) - 1) : 0);
 
         static string ItemLabel(int itemId, string legacyName) => itemId > 0
             ? (PkoTables.Items.TryGetValue(itemId, out var item) ? item.Name : "#" + itemId) : legacyName;

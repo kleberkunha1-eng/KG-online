@@ -67,6 +67,8 @@ namespace TOP.Player
             {
                 var slot = _slots[i];
                 if (slot == null || slot.IsEmpty) continue;
+                if (string.IsNullOrWhiteSpace(slot.UniqueItemId))
+                    slot.UniqueItemId = System.Guid.NewGuid().ToString();
 
                 items.Add(new InventoryItemData
                 {

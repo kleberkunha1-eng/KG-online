@@ -968,6 +968,11 @@ namespace TOP.Network
         async Task SavePlayerAsync(PlayerConnection playerConn)
         {
             if (playerConn?.PlayerController == null) return;
+            if (playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false)
+            {
+                Debug.Log("[SavePlayer] Entrega atomica em andamento; nao salvar um snapshot anterior.");
+                return;
+            }
 
             CharacterData data = playerConn.PlayerController.GetCharacterData();
             if (data != null)
@@ -981,13 +986,21 @@ namespace TOP.Network
                 if (saved)
                     Debug.Log($"[SavePlayer] ✅ {data.Name} salvo em {data.MapName} ({data.PosX:F1}, {data.PosY:F1}, {data.PosZ:F1})");
                 else
+                {
                     Debug.LogError($"[SavePlayer] Falha ao salvar {data.Name}; verifique a API de persistencia.");
+                    if (DatabaseService.Instance.RequiresCharacterReload(data.Id) && playerConn.PlayerController != null)
+                    {
+                        playerConn.PlayerController.RpcShowMessage("Reconecte para recuperar seu personagem com seguranca.", PlayerMessageType.Warning);
+                        playerConn.Connection?.Disconnect();
+                    }
+                }
             }
         }
 
         async Task SaveAndDisconnectAsync(PlayerConnection playerConn)
         {
-            if (playerConn?.PlayerController != null)
+            if (playerConn?.PlayerController != null
+                && !(playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false))
             {
                 CharacterData data = playerConn.PlayerController.GetCharacterData();
                 if (data != null)

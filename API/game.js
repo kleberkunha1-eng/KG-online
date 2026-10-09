@@ -122,19 +122,25 @@ module.exports = function register(app, db) {
     }));
 
     app.put(`${g}/characters/:id`, wrap(async (req, res) => {
-        const id = int(req.params.id);
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.json({ success: false, error: 'INVALID_CHARACTER' });
         if (!(await owned(id, req.user.id))) return res.json({ success: false, error: 'NOT_FOUND' });
         const c = (req.body || {}).Character || {};
         const inv = (req.body || {}).Inventory;
         const skills = (req.body || {}).Skills;
-        const operationId = (req.body || {}).OperationId, questId = (req.body || {}).QuestId || 0;
-        if (typeof operationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(operationId)
-            || !Number.isSafeInteger(c.SaveRevision) || c.SaveRevision < 0
+        const operationId = (req.body || {}).OperationId;
+        const questId = (req.body || {}).QuestId === undefined ? 0 : req.body.QuestId;
+        if (typeof operationId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(operationId)
+            || !Number.isSafeInteger(c.SaveRevision) || c.SaveRevision < 0 || c.SaveRevision >= Number.MAX_SAFE_INTEGER
             || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
             return res.json({ success: false, error: 'INVALID_TRANSACTION' });
         const hash = createHash('sha256').update(JSON.stringify(req.body)).digest('hex');
         if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS)))
             return res.json({ success: false, error: 'INVALID' });
+        if (questId > 0 && (!Array.isArray(inv) || !Array.isArray(skills)))
+            return res.json({ success: false, error: 'INVALID_TRANSACTION' });
+        if (!Number.isSafeInteger(c.Gold) || c.Gold < 0 || !Number.isSafeInteger(c.Exp) || c.Exp < 0)
+            return res.json({ success: false, error: 'INVALID_CHARACTER_VALUES' });
         const conn = await db.getConnection();
         try {
             await conn.beginTransaction();

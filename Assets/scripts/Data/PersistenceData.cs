@@ -9,6 +9,7 @@ namespace TOP.Data
     {
         public long Id;
         public long AccountId;
+        public long SaveRevision;
         public string Name;
         public byte Job;
         public byte Gender;
@@ -48,6 +49,8 @@ namespace TOP.Data
         public List<CharacterSkillData> Skills = new List<CharacterSkillData>();
 
         public Vector3 Position => new Vector3(PosX, PosY, PosZ);
+
+        internal CharacterData CopySnapshot() => (CharacterData)MemberwiseClone();
 
         public void SetPosition(Vector3 position)
         {

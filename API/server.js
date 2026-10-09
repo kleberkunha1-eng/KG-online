@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: [path.join(__dirname, '.env.local'), path.join(__dirname, '.env')] });
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) { console.error('JWT_SECRET ausente ou curto (min 32).'); process.exit(1); }
 const express = require('express');
@@ -366,6 +367,9 @@ async function migrate() {
         UNIQUE KEY uniq_char_quest (character_id, quest_id),
         INDEX idx_char (character_id)
     )`);
+    const transactionSchema = fs.readFileSync(path.join(__dirname, 'migrations', '0004_character_save_transactions.sql'), 'utf8');
+    for (const sql of transactionSchema.split(';').map(statement => statement.trim()).filter(Boolean))
+        await dbPool.query(sql);
 }
 
 require('./routes')(app, dbPool);
