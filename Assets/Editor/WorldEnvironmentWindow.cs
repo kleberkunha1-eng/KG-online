@@ -162,6 +162,7 @@ public sealed class WorldEnvironmentWindow : EditorWindow
         controls.sunAzimuth = EditorGUILayout.Slider("Direcao do sol", controls.sunAzimuth, -180, 180);
         controls.sunIntensity = EditorGUILayout.Slider("Intensidade do sol", controls.sunIntensity, 0, 5);
         controls.sunDiameter = EditorGUILayout.Slider("Diametro do sol (graus)", controls.sunDiameter, .1f, 5);
+        controls.moonDiameter = EditorGUILayout.Slider("Tamanho da lua (graus)", controls.moonDiameter, .1f, 30);
         controls.skyRotation = EditorGUILayout.Slider("Rotacao do sky", controls.skyRotation, -180, 180);
         controls.skyExposure = EditorGUILayout.Slider("Exposicao do sky", controls.skyExposure, .1f, 4);
         EditorGUILayout.HelpBox("Skybox e um panorama no infinito: sua posicao e controlada por rotacao, "
@@ -237,6 +238,10 @@ public sealed class WorldEnvironmentWindow : EditorWindow
         EnvironmentCycle.Weights(0, clear, weights); check(weights[7] > .999f, "Variacao Moonless.");
         clear.sunIntensity = float.NaN; check(!clear.IsValid, "NaN rejeitado no controle do servidor.");
         clear = asset.defaults; clear.sunDiameter = 20; check(!clear.IsValid, "Diametro fora do limite rejeitado.");
+        clear = asset.defaults; clear.moonDiameter = float.NaN;
+        check(!clear.IsValid, "Tamanho lunar NaN rejeitado.");
+        clear = asset.defaults; clear.moonDiameter = 31;
+        check(!clear.IsValid, "Tamanho lunar acima de 30 graus rejeitado.");
         check(Mathf.Abs(Mathf.Asin(EnvironmentCycle.MoonDirection(0, 45).y) * Mathf.Rad2Deg - 25) < .001f
             && Mathf.Abs(EnvironmentCycle.MoonDirection(18, 45).y) < .001f
             && Mathf.Abs(EnvironmentCycle.MoonDirection(6, 45).y) < .001f,
@@ -327,8 +332,9 @@ public sealed class WorldEnvironmentWindow : EditorWindow
             image.ReadPixels(new Rect(0, 0, 64, 64), 0, 0);
             image.Apply();
             var moonPixels = image.GetPixels();
-            check(Mathf.Abs(RenderSettings.skybox.GetFloat("_MoonRadius") * Mathf.Rad2Deg * 2 - 6) < .001f,
-                "Lua com diametro aparente de 6 graus, cinco vezes maior.");
+            check(Mathf.Abs(RenderSettings.skybox.GetFloat("_MoonRadius") * Mathf.Rad2Deg * 2
+                - environment.previewControls.moonDiameter) < .001f,
+                "Shader recebe o tamanho lunar configurado.");
             var lunarLight = root.GetComponentsInChildren<Light>().Single(light => light.name == "World Moon");
             check(Mathf.Abs(lunarLight.intensity - WorldEnvironment.MoonLightIntensity) < .00001f
                 && lunarLight.color.b > lunarLight.color.r && lunarLight.intensity < .2f,
@@ -354,6 +360,17 @@ public sealed class WorldEnvironmentWindow : EditorWindow
             check(lunarSurface.Max()-lunarSurface.Min() > .03f,
                 "Superficie lunar com variacao de albedo/crateras, nao um disco de luz uniforme.");
             root.SetActive(false);
+            foreach (float diameter in new[] { .1f, 12f, 30f })
+            {
+                environment.previewControls.moonDiameter = diameter;
+                root.SetActive(true);
+                check(Mathf.Abs(RenderSettings.skybox.GetFloat("_MoonRadius") * Mathf.Rad2Deg * 2 - diameter) < .001f
+                    && Mathf.Abs(root.GetComponentsInChildren<Light>().Single(light => light.name == "World Moon").intensity
+                        - WorldEnvironment.MoonLightIntensity) < .00001f,
+                    "Tamanho lunar aplicado sem mudar luz: " + diameter + " graus.");
+                root.SetActive(false);
+            }
+            environment.previewControls.moonDiameter = asset.defaults.moonDiameter;
             environment.previewControls.moonless = true;
             root.SetActive(true);
             camera.Render();

@@ -367,7 +367,8 @@ namespace TOP.Testing
                     && environmentSnapshot.utcOffsetMinutes == (int)now.Offset.TotalMinutes,
                     "Server clock and timezone arrive through a real KCP snapshot, independently of client clock.");
                 Check(environmentSnapshots > 0 && environmentSnapshot.controls.IsValid
-                    && environmentSnapshot.controls.weather == control.weather,
+                    && environmentSnapshot.controls.weather == control.weather
+                    && Mathf.Abs(environmentSnapshot.controls.moonDiameter - control.moonDiameter) < .0001f,
                     "Environment controls survive Mirror serialization.");
             }
             finally { field.SetValue(auth, false); }

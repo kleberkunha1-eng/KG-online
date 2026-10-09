@@ -118,6 +118,7 @@ public static class GameBuild
             scenes = scenes,
             locationPathName = staging + "/GameProjectKG.exe",
             target = BuildTarget.StandaloneWindows64,
+            subtarget = (int)StandaloneBuildSubtarget.Player,
             options = BuildOptions.None,
         };
         var r = BuildPipeline.BuildPlayer(opts);
