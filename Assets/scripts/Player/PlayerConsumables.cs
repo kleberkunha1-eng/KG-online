@@ -27,6 +27,7 @@ namespace TOP.Player
         public bool UseItemOnServer(ushort slotIndex)
         {
             if (_inventory == null || _stats == null) return false;
+            if (_inventory.RejectQuestMutation()) return false;
 
             InventoryItem item = _inventory.GetItem(slotIndex);
             if (item == null || item.IsEmpty || item.IsEquipped) return false;

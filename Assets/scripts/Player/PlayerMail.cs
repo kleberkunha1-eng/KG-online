@@ -39,6 +39,19 @@ namespace TOP.Player
         [Command]
         public async void CmdSendMail(string targetName, string subject, string body, long gold, int itemId, int itemQuantity, int itemRefine)
         {
+            if (InventoryRequestPending)
+            { _pc?.RpcShowMessage("Aguarde a operacao de correio em andamento.", PlayerMessageType.Warning); return; }
+            if (_inventory != null && _inventory.RejectQuestMutation()) return;
+            InventoryRequestPending = true;
+            try { await SendMailInternal(targetName, subject, body, gold, itemId, itemQuantity, itemRefine); }
+            finally { InventoryRequestPending = false; }
+        }
+
+        public bool InventoryRequestPending { get; private set; }
+
+        async System.Threading.Tasks.Task SendMailInternal(string targetName, string subject, string body,
+            long gold, int itemId, int itemQuantity, int itemRefine)
+        {
             if (_pc == null || string.IsNullOrWhiteSpace(targetName)) return;
             gold = System.Math.Max(0, gold);
 
@@ -65,6 +78,16 @@ namespace TOP.Player
 
         [Command]
         public async void CmdClaimMail(long mailId)
+        {
+            if (InventoryRequestPending)
+            { _pc?.RpcShowMessage("Aguarde a operacao de correio em andamento.", PlayerMessageType.Warning); return; }
+            if (_inventory != null && _inventory.RejectQuestMutation()) return;
+            InventoryRequestPending = true;
+            try { await ClaimMailInternal(mailId); }
+            finally { InventoryRequestPending = false; }
+        }
+
+        async System.Threading.Tasks.Task ClaimMailInternal(long mailId)
         {
             if (_pc == null) return;
             var (success, gold, itemId, itemQuantity, itemRefine) = await DatabaseService.Instance.ClaimMailAsync(_pc.CharacterId, mailId, Token);

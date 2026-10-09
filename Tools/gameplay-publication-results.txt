@@ -1,0 +1,20 @@
+Gameplay publication: 2026-10-09
+User approved coordinated API/server/client update and player disconnection.
+Cloudflare: gamekg.pages.dev, deployment bd010aef.gamekg.pages.dev.
+D1: private backup created before additive 0003_quest_progress.sql; quest_progress table verified.
+API health: API Online. Unauthenticated quest route: HTTP 401.
+Itch channel: kg-online/kg-online:windows.
+Itch build: 2092000, processed successfully, previous build 2091095.
+Version: 2026.10.09-gameplay-npcs-social.
+Client source: Build\GameProjectKG.gameplay-client-20261009-025703.
+Server source: Build\GameProjectKG.gameplay-server-20261009-025703.
+Activated dedicated server: Build\GameProjectKG.editorserver\GameProjectKG.exe.
+Old dedicated build preserved in Build\GameProjectKG.editorserver.previous.<deployment timestamp>.
+Server started with --server-port=7777 --api=https://gamekg.pages.dev.
+Public endpoint: pgsql-henderson.tun.ply.gg:22538.
+Public KCP probe 1: 12 seconds, 11 pongs, no disconnect, no unauthenticated world spawn.
+Public KCP probe 2: 12 seconds, 11 pongs, no disconnect, no unauthenticated world spawn.
+Authenticated login and player saves were not tested by those transport probes.
+Startup pending: TOP-DedicatedServer remains disabled; required administrator UAC approval was cancelled.
+No Git commit/push. No source, secrets or database backups uploaded to itch.
+Quest synchronization changes made after this release remain development-only until the next matched build.

@@ -14,6 +14,7 @@ namespace TOP.Data
         // Kill: substring (case-insensitive) do nome do monstro (EnemyStats).
         // Collect: substring (case-insensitive) do nome do item (ItemDatabase.itemName).
         public string Target;
+        public int ItemId; // Original item ID; zero preserves legacy name-based definitions.
         public int Required = 1;
     }
 
@@ -29,6 +30,7 @@ namespace TOP.Data
         public int RewardGold;
         public string RewardItemName = ""; // resolvido por nome contra ItemDatabase (vazio = sem item)
         public int RewardItemQty;
+        public int RewardItemId;
         // NPC que entrega e/ou recebe a quest (NPCInteractable.NpcId). Vazio = qualquer NPC marcado
         // com esta quest em availableQuests/completesQuests.
         public string GiverNpcId = "";

@@ -1,6 +1,7 @@
 // API de jogo (/api/game): o cliente Unity nunca acessa o banco, so esta API (autenticada por JWT).
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+const { createHash } = require('node:crypto');
 
 const BASE_STATS = {
     0: [15, 10, 12, 8, 10, 150, 50, 100],
@@ -102,6 +103,7 @@ module.exports = function register(app, db) {
             success: true,
             Character: {
                 Id: Number(r.id), AccountId: Number(r.account_id), Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: Number(r.exp || 0),
+                SaveRevision: Number(r.save_revision || 0),
                 CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
                 BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
                 Gold: Number(r.gold || 0), StatPoints: r.stat_points || 0, SkillPoints: r.skill_points || 0, PkPoints: r.pk_points || 0, Reputation: r.reputation || 0,
@@ -125,13 +127,37 @@ module.exports = function register(app, db) {
         const c = (req.body || {}).Character || {};
         const inv = (req.body || {}).Inventory;
         const skills = (req.body || {}).Skills;
+        const operationId = (req.body || {}).OperationId, questId = (req.body || {}).QuestId || 0;
+        if (typeof operationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(operationId)
+            || !Number.isSafeInteger(c.SaveRevision) || c.SaveRevision < 0
+            || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
+            return res.json({ success: false, error: 'INVALID_TRANSACTION' });
+        const hash = createHash('sha256').update(JSON.stringify(req.body)).digest('hex');
         if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS)))
             return res.json({ success: false, error: 'INVALID' });
         const conn = await db.getConnection();
         try {
             await conn.beginTransaction();
+            const [characters] = await conn.execute('SELECT save_revision FROM characters WHERE id = ? AND account_id = ? AND is_deleted = 0 FOR UPDATE', [id, req.user.id]);
+            if (!characters.length) { await conn.rollback(); return res.json({ success: false, error: 'NOT_FOUND' }); }
+            const [receipts] = await conn.execute('SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', [id, operationId]);
+            if (receipts.length) {
+                await conn.rollback();
+                return res.json(receipts[0].payload_hash === hash
+                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1 }
+                    : { success: false, error: 'OPERATION_MISMATCH' });
+            }
+            if (Number(characters[0].save_revision) !== c.SaveRevision) {
+                await conn.rollback(); return res.json({ success: false, error: 'SAVE_CONFLICT' });
+            }
+            if (questId > 0) {
+                const [result] = await conn.execute('UPDATE quest_progress SET completed_at = NOW() WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [id, questId]);
+                if (!result.affectedRows) { await conn.rollback(); return res.json({ success: false, error: 'QUEST_NOT_ACTIVE' }); }
+            }
+            await conn.execute('INSERT INTO character_save_receipts (character_id, operation_id, payload_hash, expected_revision, quest_id) VALUES (?, ?, ?, ?, ?)',
+                [id, operationId, hash, c.SaveRevision, questId]);
             await conn.execute(
-                `UPDATE characters SET level=?, exp=?, current_hp=?, current_mp=?, current_sp=?, pos_x=?, pos_y=?, pos_z=?, rotation_y=?, map_name=?,
+                `UPDATE characters SET save_revision=save_revision+1, level=?, exp=?, current_hp=?, current_mp=?, current_sp=?, pos_x=?, pos_y=?, pos_z=?, rotation_y=?, map_name=?,
                     base_str=?, base_agi=?, base_con=?, base_spr=?, base_sta=?, max_hp=?, max_mp=?, max_sp=?,
                     gold=?, stat_points=?, skill_points=?, pk_points=?, reputation=?, last_online=NOW() WHERE id = ? AND account_id = ?`,
                 [Math.max(1, int(c.Level, 1)), Math.max(0, num(c.Exp)), int(c.CurrentHp), int(c.CurrentMp), int(c.CurrentSp),
@@ -156,7 +182,7 @@ module.exports = function register(app, db) {
                     await conn.execute('INSERT INTO skills (character_id, skill_id, level, exp) VALUES (?, ?, ?, ?)', [id, int(s.SkillId), int(s.Level), Math.max(0, num(s.Exp))]);
             }
             await conn.commit();
-            res.json({ success: true });
+            res.json({ success: true, revision: c.SaveRevision + 1 });
         } catch (e) {
             await conn.rollback();
             throw e;

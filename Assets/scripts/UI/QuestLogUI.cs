@@ -68,7 +68,7 @@ namespace TOP.UI
 
         void Draw(int id)
         {
-            scroll = GUI.BeginScrollView(new Rect(10, 24, win.width - 20, win.height - 34), scroll, new Rect(0, 0, win.width - 40, Mathf.Max(200, local.ActiveQuests.Count * 76)));
+            scroll = GUI.BeginScrollView(new Rect(10, 24, win.width - 20, win.height - 34), scroll, new Rect(0, 0, win.width - 40, Mathf.Max(200, local.ActiveQuests.Count * 96)));
             float y = 0;
             foreach (var (questId, progress) in local.ActiveQuests)
             {
@@ -78,22 +78,28 @@ namespace TOP.UI
                 {
                     QuestObjectiveType.TalkTo => progress >= 1 ? "Conversa realizada" : "Fale com o alvo indicado",
                     QuestObjectiveType.Kill => $"Derrotar: {progress}/{def.Objective.Required} ({def.Objective.Target})",
-                    QuestObjectiveType.Collect => $"Coletar: {def.Objective.Target} x{def.Objective.Required}",
+                    QuestObjectiveType.Collect => $"Coletar: {ItemLabel(def.Objective.ItemId, def.Objective.Target)} x{def.Objective.Required}",
                     _ => "",
                 };
                 GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
                 GUI.Label(new Rect(0, y + 36, win.width - 50, 18), $"Recompensa: {def.RewardExp} exp, {def.RewardGold} ouro");
+                if (def.RewardItemQty > 0)
+                    GUI.Label(new Rect(0, y + 54, win.width - 50, 18),
+                        $"Item: {ItemLabel(def.RewardItemId, def.RewardItemName)} x{def.RewardItemQty}");
 
-                if (GUI.Button(new Rect(0, y + 54, 90, 20), "Abandonar"))
+                if (GUI.Button(new Rect(0, y + 74, 90, 20), "Abandonar"))
                     local.CmdAbandonQuest(questId);
-                if (GUI.Button(new Rect(100, y + 54, 90, 20), "Entregar"))
+                if (GUI.Button(new Rect(100, y + 74, 90, 20), "Entregar"))
                     local.CmdTurnInQuest(questId);
 
-                y += 76;
+                y += 96;
             }
             GUI.EndScrollView();
             GUI.DragWindow(new Rect(0, 0, win.width, 20));
         }
+
+        static string ItemLabel(int itemId, string legacyName) => itemId > 0
+            ? (PkoTables.Items.TryGetValue(itemId, out var item) ? item.Name : "#" + itemId) : legacyName;
 
         void DrawOffer(int id)
         {

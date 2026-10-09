@@ -19,6 +19,11 @@ namespace TOP.Player
 
         PlayerController _pc;
         PlayerInventory _inventory;
+        bool _refreshPending;
+        int _stateRevision;
+        readonly HashSet<int> _pendingAccepts = new HashSet<int>();
+        readonly HashSet<int> _pendingAbandons = new HashSet<int>();
+        readonly HashSet<int> _pendingTurnIns = new HashSet<int>();
 
         readonly List<ActiveQuest> _active = new List<ActiveQuest>();
         readonly HashSet<int> _completed = new HashSet<int>();
@@ -48,13 +53,32 @@ namespace TOP.Player
         [Server]
         async void RefreshQuestsInternal()
         {
-            if (_pc == null) return;
-            var (active, completed) = await DatabaseService.Instance.GetQuestsAsync(_pc.CharacterId, Token);
-            _active.Clear();
-            foreach (var a in active) _active.Add(new ActiveQuest { QuestId = a.questId, Progress = a.progress });
-            _completed.Clear();
-            foreach (var c in completed) _completed.Add(c);
-            PushState();
+            if (_pc == null || _refreshPending || _pendingAccepts.Count != 0 || _pendingAbandons.Count != 0
+                || _pendingTurnIns.Count != 0) return;
+            if (DatabaseService.Instance == null)
+            {
+                _pc.RpcShowMessage("Servico de missoes indisponivel.", PlayerMessageType.Warning);
+                return;
+            }
+            _refreshPending = true;
+            int revision = _stateRevision;
+            try
+            {
+                var result = await DatabaseService.Instance.GetQuestsAsync(_pc.CharacterId, Token);
+                if (this == null || connectionToClient == null) return;
+                if (!result.success)
+                {
+                    _pc.RpcShowMessage("Nao foi possivel atualizar as missoes. O progresso atual foi preservado.", PlayerMessageType.Warning);
+                    return;
+                }
+                if (revision != _stateRevision) return;
+                _active.Clear();
+                foreach (var a in result.active) _active.Add(new ActiveQuest { QuestId = a.questId, Progress = a.progress });
+                _completed.Clear();
+                foreach (var c in result.completed) _completed.Add(c);
+                PushState();
+            }
+            finally { _refreshPending = false; }
         }
 
         [Command]
@@ -70,6 +94,9 @@ namespace TOP.Player
         public async void ServerAcceptQuest(int questId)
         {
             if (_pc == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
+            if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
+                || _pendingTurnIns.Contains(questId))
+            { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             if (!CanUseQuestNpc(questId, false) || !_offers.TryGetValue(questId, out var offer)
                 || offer.npc != GetComponent<PlayerMovement>().ActiveNpc || Time.time > offer.expires)
             { _pc.RpcShowMessage("Consulte a missao no NPC correto antes de aceitar.", PlayerMessageType.Warning); return; }
@@ -80,12 +107,19 @@ namespace TOP.Player
             if (def.PrerequisiteId != 0 && !_completed.Contains(def.PrerequisiteId))
             { _pc.RpcShowMessage("Voce precisa concluir uma missao anterior primeiro.", PlayerMessageType.Warning); return; }
 
-            bool ok = await DatabaseService.Instance.AcceptQuestAsync(_pc.CharacterId, questId, Token);
-            if (!ok) { _pc.RpcShowMessage("Nao foi possivel aceitar a missao.", PlayerMessageType.Warning); return; }
-            _active.Add(new ActiveQuest { QuestId = questId, Progress = 0 });
-            _offers.Remove(questId);
-            _pc.RpcShowMessage("Missao aceita: " + def.Name, PlayerMessageType.QuestUpdate);
-            PushState();
+            _pendingAccepts.Add(questId);
+            _stateRevision++;
+            try
+            {
+                bool ok = await DatabaseService.Instance.AcceptQuestAsync(_pc.CharacterId, questId, Token);
+                if (this == null || connectionToClient == null) return;
+                if (!ok) { _pc.RpcShowMessage("Nao foi possivel aceitar a missao.", PlayerMessageType.Warning); return; }
+                _active.Add(new ActiveQuest { QuestId = questId, Progress = 0 });
+                _offers.Remove(questId);
+                _pc.RpcShowMessage("Missao aceita: " + def.Name, PlayerMessageType.QuestUpdate);
+                PushState();
+            }
+            finally { _pendingAccepts.Remove(questId); }
         }
 
         [Command]
@@ -94,12 +128,22 @@ namespace TOP.Player
         [Server]
         public async void ServerAbandonQuest(int questId)
         {
+            if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
+                || _pendingTurnIns.Contains(questId))
+            { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             if (!_active.Any(a => a.QuestId == questId)) return;
-            if (await DatabaseService.Instance.AbandonQuestAsync(_pc.CharacterId, questId, Token))
+            _pendingAbandons.Add(questId);
+            _stateRevision++;
+            try
             {
+                bool ok = await DatabaseService.Instance.AbandonQuestAsync(_pc.CharacterId, questId, Token);
+                if (this == null || connectionToClient == null) return;
+                if (!ok)
+                { _pc.RpcShowMessage("Nao foi possivel abandonar a missao. O progresso foi preservado.", PlayerMessageType.Warning); return; }
                 _active.RemoveAll(a => a.QuestId == questId);
                 PushState();
             }
+            finally { _pendingAbandons.Remove(questId); }
         }
 
         // ------------------------------------------------------------------------------
@@ -113,39 +157,58 @@ namespace TOP.Player
         {
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
+            if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
+                || _pendingTurnIns.Contains(questId))
+            { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
+            _stateRevision++;
             if (!CanUseQuestNpc(questId, true))
             { _pc.RpcShowMessage("Entregue a missao ao NPC correto, estando perto dele.", PlayerMessageType.Warning); return; }
 
             if (!IsObjectiveComplete(def, entry, out int itemIdForCollect))
             { _pc.RpcShowMessage("Objetivo ainda nao concluido.", PlayerMessageType.Warning); return; }
+            if (def.RewardGold < 0 || def.RewardExp < 0 || def.RewardItemQty < 0
+                || ulong.MaxValue - _pc.Gold < (ulong)def.RewardGold || ulong.MaxValue - _pc.Exp < (ulong)def.RewardExp)
+            { _pc.RpcShowMessage("Recompensa invalida ou limite de ouro/experiencia excedido.", PlayerMessageType.Warning); return; }
 
-            // Para quests de coleta, consome os itens no momento da entrega.
-            if (def.Objective.Type == QuestObjectiveType.Collect && itemIdForCollect > 0)
+            PlayerInventory.QuestInventoryTransaction inventoryTransaction = null;
+            if (def.Objective.Type == QuestObjectiveType.Collect || def.RewardItemQty > 0)
             {
-                if (_inventory == null || !_inventory.RemoveItemById(itemIdForCollect, def.Objective.Required))
-                { _pc.RpcShowMessage("Os itens exigidos nao estao mais no seu inventario.", PlayerMessageType.Warning); return; }
+                if (_inventory == null)
+                { _pc.RpcShowMessage("Inventario indisponivel para entregar a missao.", PlayerMessageType.Warning); return; }
+                int rewardId = def.RewardItemQty > 0
+                    ? (def.RewardItemId > 0 ? def.RewardItemId : ResolveItemIdByName(def.RewardItemName)) : 0;
+                inventoryTransaction = _inventory.PrepareQuestTransaction(itemIdForCollect,
+                    def.Objective.Type == QuestObjectiveType.Collect ? def.Objective.Required : 0,
+                    rewardId, def.RewardItemQty, out string error);
+                if (inventoryTransaction == null)
+                { _pc.RpcShowMessage(error, PlayerMessageType.Warning); return; }
             }
-
-            bool ok = await DatabaseService.Instance.CompleteQuestAsync(_pc.CharacterId, questId, Token);
-            if (!ok) return;
-
-            _active.Remove(entry);
-            _completed.Add(questId);
-
-            if (def.RewardExp > 0) _pc.AddExp((ulong)def.RewardExp);
-            if (def.RewardGold > 0) _pc.AddGold((ulong)def.RewardGold);
-            if (!string.IsNullOrEmpty(def.RewardItemName) && def.RewardItemQty > 0 && _inventory != null)
+            _pendingTurnIns.Add(questId);
+            try
             {
-                int rewardItemId = ResolveItemIdByName(def.RewardItemName);
-                if (rewardItemId > 0)
+                bool ok = await DatabaseService.Instance.CompleteQuestAsync(_pc.CharacterId, questId, Token);
+                if (!ok)
                 {
-                    int slot = _inventory.FindEmptySlot();
-                    if (slot >= 0) _inventory.AddItem(rewardItemId, def.RewardItemQty, (ushort)slot);
+                    if (this != null && connectionToClient != null)
+                        _pc.RpcShowMessage("Nao foi possivel concluir a missao. Seus itens foram preservados.", PlayerMessageType.Warning);
+                    return;
+                }
+                if (this == null)
+                { Debug.LogError("[Quests] Confirmacao recebida apos destruir o jogador; entrega requer reconciliacao."); return; }
+                inventoryTransaction?.Commit();
+
+                _active.Remove(entry);
+                _completed.Add(questId);
+
+                if (def.RewardExp > 0) _pc.AddExp((ulong)def.RewardExp);
+                if (def.RewardGold > 0) _pc.AddGold((ulong)def.RewardGold);
+                if (connectionToClient != null)
+                {
+                    _pc.RpcShowMessage("Missao concluida: " + def.Name, PlayerMessageType.QuestUpdate);
+                    PushState();
                 }
             }
-
-            _pc.RpcShowMessage("Missao concluida: " + def.Name, PlayerMessageType.QuestUpdate);
-            PushState();
+            finally { inventoryTransaction?.Dispose(); _pendingTurnIns.Remove(questId); }
         }
 
         [Server]
@@ -157,15 +220,9 @@ namespace TOP.Player
                 case QuestObjectiveType.TalkTo: return entry.Progress >= 1;
                 case QuestObjectiveType.Kill: return entry.Progress >= def.Objective.Required;
                 case QuestObjectiveType.Collect:
-                    collectItemId = ResolveItemIdByName(def.Objective.Target);
+                    collectItemId = def.Objective.ItemId > 0 ? def.Objective.ItemId : ResolveItemIdByName(def.Objective.Target);
                     if (collectItemId <= 0 || _inventory == null) return false;
-                    int have = 0;
-                    for (int i = 0; i < _inventory.totalSlots; i++)
-                    {
-                        var s = _inventory.GetSlot(i);
-                        if (s != null && s.ItemId == collectItemId && !s.IsEquipped) have += s.Quantity;
-                    }
-                    return have >= def.Objective.Required;
+                    return PlayerInventory.TryConsumeMaterials(_inventory.GetInventoryData(), collectItemId, def.Objective.Required);
                 default: return false;
             }
         }
@@ -194,6 +251,7 @@ namespace TOP.Player
                 if (!lower.Contains(def.Objective.Target.ToLowerInvariant())) continue;
                 if (a.Progress >= def.Objective.Required) continue;
                 a.Progress++;
+                _stateRevision++;
                 changed = true;
                 _ = DatabaseService.Instance.SaveQuestProgressAsync(_pc.CharacterId, a.QuestId, a.Progress, Token);
                 if (a.Progress >= def.Objective.Required) _pc.RpcShowMessage("Objetivo concluido: " + def.Name, PlayerMessageType.QuestUpdate);
@@ -211,6 +269,7 @@ namespace TOP.Player
                 if (!QuestTable.All.TryGetValue(a.QuestId, out var def) || def.Objective.Type != QuestObjectiveType.TalkTo) continue;
                 if (def.Objective.Target != npcId || a.Progress >= 1) continue;
                 a.Progress = 1;
+                _stateRevision++;
                 changed = true;
                 _ = DatabaseService.Instance.SaveQuestProgressAsync(_pc.CharacterId, a.QuestId, a.Progress, Token);
             }

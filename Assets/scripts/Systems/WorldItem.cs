@@ -132,6 +132,7 @@ namespace TOP.Systems
         public void Pickup(PlayerInventory inventory)
         {
             if (isPickedUp || inventory == null) return;
+            if (inventory.RejectQuestMutation()) return;
 
             isPickedUp = true;
 

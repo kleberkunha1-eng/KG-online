@@ -104,6 +104,8 @@ namespace TOP.Testing
                 check(quests.CanUseQuestNpc(1, false) && quests.CanUseQuestNpc(1, true),
                     "Quest context recognizes only configured offers/turn-ins of the current nearby NPC.");
                 check(!quests.CanUseQuestNpc(704, false), "Unlisted quest cannot be offered by the current NPC.");
+                yield return QuestPersistenceSmokeTest.Run(quests, tick, check);
+                gold = controller.Gold;
                 SocialGameplaySmokeTest.Send(client, npc, "CmdBuyItem", w => { w.Write(item.Id); w.Write(2); });
                 yield return Pump(tick);
                 check(inventory.GetSlot(0)?.ItemId == item.Id && inventory.GetSlot(0)?.Quantity == 2
@@ -258,9 +260,11 @@ namespace TOP.Testing
                 player.transform.position = root.transform.position + Vector3.right * 10;
                 SocialGameplaySmokeTest.Send(client, movement, "CmdInteractWithNpc", w => w.WriteNetworkIdentity(npc.netIdentity));
                 yield return Pump(tick, .2f);
-                SocialGameplaySmokeTest.Send(client, movement, "CmdMoveTo", w => w.WriteVector3(player.transform.position));
+                Vector3 newDestination = player.transform.position;
+                SocialGameplaySmokeTest.Send(client, movement, "CmdMoveTo", w => w.WriteVector3(newDestination));
                 yield return Pump(tick, .5f);
-                check(movement.ActiveNpc == null && !movement.IsMoving,
+                check(movement.ActiveNpc == null && typeof(PlayerMovement).GetField("pendingNpc", Fields).GetValue(movement) == null
+                    && Vector3.Distance(movement.TargetPosition, newDestination) < .001f,
                     "A new ground movement command cancels the pending NPC approach.");
             }
             finally { stats.enabled = statsEnabled; movement.Stop(); NetworkServer.Destroy(root); }

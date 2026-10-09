@@ -31,27 +31,27 @@ PASS World Ready associates the selected player with its connection.
 PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=8, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
-PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
 PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
-PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
 PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
-PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
-PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
-PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
-PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
-PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
-PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
-PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
-PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
-PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
-PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
-PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
-PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
-PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
 PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,02131313
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,001085699
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02757603
+PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
+PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
+PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
+PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
+PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
+PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
+PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
+PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
+PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
+PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
+PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
+PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
+PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
+PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
+PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004227102
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,008243024
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,01383644
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
@@ -98,6 +98,27 @@ PASS Clicking a nearby NPC actually approaches, stops inside range and opens tha
 PASS NPC dialogue and authoritative catalog arrive over a real owner-targeted KCP RPC.
 PASS Quest context recognizes only configured offers/turn-ins of the current nearby NPC.
 PASS Unlisted quest cannot be offered by the current NPC.
+PASS Quest refresh loads persisted state and duplicate refresh sends only one isolated HTTP request.
+PASS Rejected quest refresh preserves both active progress and completed records.
+PASS Delayed refresh cannot overwrite newer kill progress while its HTTP response is in flight.
+PASS Repeated acceptance and overlapping refresh/abandon cannot duplicate the quest or its API request.
+PASS Failed abandonment retains the accepted quest.
+PASS Talking to the configured quest target advances its persisted objective.
+PASS Rejected talk-quest completion retains the quest and grants no gold.
+PASS Repeated talk-quest completion grants the exact reward once and blocks overlapping abandonment/refresh.
+PASS Successful abandonment removes the quest once and suppresses overlapping refresh.
+PASS An explicit successful empty quest response clears state normally.
+PASS Invalid material quantity or missing exact reward ID cannot reserve or mutate inventory.
+PASS Collection reserves inventory without consuming any materials before API acknowledgement.
+PASS Moving, adding, removing and dropping items are rejected while collection delivery is pending.
+PASS Deleting a pending mission material does not alter the reserved inventory.
+PASS NPC purchase/sale/recipe, forge, mail claim and snapshot replacement cannot change a pending quest inventory or charge gold.
+PASS Rejected collection completion releases inventory and preserves exact slots, quantities and instance IDs.
+PASS Full inventory with no freed material slot rejects the reward before any API call or consumption.
+PASS Refined, socketed and locked materials cannot satisfy consumable quest requirements.
+PASS Quest completion availability uses the same protected-material rules as delivery.
+PASS Confirmed collection consumes exactly ten materials across slots and grants its exact ID reward once.
+PASS Collection commit preserves remaining item IDs, durability, gems, refinement and ownership locks.
 PASS Real KCP purchase gives exact quantity and charges the original table price once.
 PASS Negative/excess quantities and non-catalog items cannot change inventory or gold.
 PASS Sale uses original half-price rule and removes only the requested quantity.

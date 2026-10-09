@@ -43,6 +43,7 @@ namespace TOP.NPC
         {
             controller = sender?.identity != null ? sender.identity.GetComponent<PlayerController>() : null;
             inventory = controller != null ? controller.GetComponent<PlayerInventory>() : null;
+            if (inventory != null && inventory.RejectQuestMutation()) return false;
             var movement = controller != null ? controller.GetComponent<PlayerMovement>() : null;
             if (movement != null && movement.ActiveNpc == this && inventory != null && CanInteract(movement)) return true;
             controller?.RpcShowMessage("Interacao indisponivel. Fale com o NPC e mantenha-se perto dele, vivo e sem duelo/comercio.", PlayerMessageType.Warning);
@@ -152,8 +153,8 @@ namespace TOP.NPC
             if (controller.Gold < (ulong)recipe.GoldCost)
             { controller.RpcShowMessage("Ouro insuficiente para preparar a receita.", PlayerMessageType.Warning); return; }
             var snapshot = inventory.GetInventoryData();
-            if (!ConsumeMaterial(snapshot, recipe.BottleItemId, 1)
-                || !ConsumeMaterial(snapshot, recipe.MaterialItemId, recipe.MaterialQuantity))
+            if (!PlayerInventory.TryConsumeMaterials(snapshot, recipe.BottleItemId, 1)
+                || !PlayerInventory.TryConsumeMaterials(snapshot, recipe.MaterialItemId, recipe.MaterialQuantity))
             { controller.RpcShowMessage("Materiais insuficientes ou protegidos (equipados/refinados/com sockets).", PlayerMessageType.Warning); return; }
             int slot = 0;
             while (slot < inventory.totalSlots && snapshot.Any(item => item.SlotIndex == slot)) slot++;
@@ -167,20 +168,5 @@ namespace TOP.NPC
             controller.RpcShowMessage("Preparado: " + result.Name + ".", PlayerMessageType.Success);
         }
 
-        static bool ConsumeMaterial(List<InventoryItemData> items, int itemId, int amount)
-        {
-            var eligible = items.Where(item => item.ItemId == itemId && !item.IsEquipped && !item.IsLocked
-                && item.RefineLevel == 0 && item.GemSlot1 == null && item.GemSlot2 == null && item.GemSlot3 == null).ToArray();
-            if (eligible.Sum(item => (long)item.Quantity) < amount) return false;
-            foreach (var item in eligible)
-            {
-                int take = Mathf.Min(amount, item.Quantity);
-                item.Quantity -= take;
-                amount -= take;
-                if (item.Quantity == 0) items.Remove(item);
-                if (amount == 0) break;
-            }
-            return true;
-        }
     }
 }

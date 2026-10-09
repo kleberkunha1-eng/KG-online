@@ -26,7 +26,7 @@ namespace TOP.Testing
                 {
                     netId = component.netId,
                     componentIndex = (byte)Array.IndexOf(component.GetComponents<NetworkBehaviour>(), component),
-                    functionHash = AdminGenerationSmokeTest.FunctionHash(command),
+                    functionHash = AdminGenerationSmokeTest.FunctionHash(command, component.GetType()),
                     payload = payload.ToArraySegment()
                 }, message);
                 batcher.AddMessage(message.ToArraySegment(), Time.realtimeSinceStartupAsDouble);

@@ -24,7 +24,7 @@ namespace TOP.Testing
         static string message;
         static int requestId, responseRequestId;
 
-        public static ushort FunctionHash(string name)
+        public static ushort FunctionHash(string name, Type declaringType = null)
         {
             var calls = typeof(Mirror.RemoteCalls.RemoteProcedureCalls);
             var delegates = (IDictionary)calls.GetField("remoteCallDelegates",
@@ -32,11 +32,12 @@ namespace TOP.Testing
             foreach (DictionaryEntry entry in delegates)
             {
                 var function = (Delegate)entry.Value.GetType().GetField("function").GetValue(entry.Value);
+                if (declaringType != null && function.Method.DeclaringType != declaringType) continue;
                 if (function.Method.Name == "InvokeUserCode_" + name
                     || function.Method.Name.StartsWith("InvokeUserCode_" + name + "__", StringComparison.Ordinal))
                     return (ushort)entry.Key;
             }
-            throw new InvalidOperationException("Mirror function not registered: " + name);
+            throw new InvalidOperationException("Mirror function not registered: " + declaringType + "." + name);
         }
 
         public static void Receive(RpcMessage rpc)

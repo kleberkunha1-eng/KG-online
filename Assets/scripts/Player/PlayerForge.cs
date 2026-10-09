@@ -28,6 +28,7 @@ namespace TOP.Player
         public void CmdForgeItem(int slotIndex)
         {
             if (_inventory == null || _pc == null) return;
+            if (_inventory.RejectQuestMutation()) return;
             var item = _inventory.GetSlot(slotIndex);
             if (item == null) { _pc.RpcShowMessage("Slot vazio.", PlayerMessageType.Warning); return; }
             if (item.IsEquipped) { _pc.RpcShowMessage("Desequipe o item antes de forjar.", PlayerMessageType.Warning); return; }

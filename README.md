@@ -172,9 +172,10 @@ nem concluem duas vezes. Progresso atrasado nao reduz a contagem, e uma missao
 concluida nao pode ser apagada pelo comando de abandono.
 
 A migracao aditiva `Cloudflare/migrations/0003_quest_progress.sql` cria somente
-a tabela ausente. Nenhuma migracao remota ou publicacao foi executada: para ativar
-isso no endpoint publicado e necessario aplicar a migracao D1 e publicar as
-Functions em uma janela de atualizacao coordenada. Isso nao importa os roteiros
+a tabela ausente. Em 9 de outubro de 2026, com autorizacao para atualizar os
+jogadores, foi aplicado esse SQL no D1 depois de um backup privado e publicadas
+as Functions em `gamekg.pages.dev`. A API respondeu ao health check e a rota de
+quests recusou acesso sem autenticacao com HTTP 401. Isso nao importa os roteiros
 originais nem corrige a atomicidade entre recompensas/inventario e conclusao da
 missao; essa integracao ainda precisa ser implementada antes da ativacao ampla.
 
@@ -185,6 +186,50 @@ a migracao. Com `TOP_TEST_MARIADB=1`, tambem testa o SQL real no MariaDB local,
 usando apenas tabelas temporarias da conexao e a precedencia `.env.local`/`.env`
 da API. Foram executados os cinco testes, incluindo MariaDB, sem falhas.
 O resultado fica em `Tools/quest-api-results.txt`.
+
+No desenvolvimento posterior a essa publicacao, refresh recusado passou a
+preservar o estado local, e uma resposta atrasada nao sobrescreve progresso
+alterado durante o pedido. Aceitar, abandonar e entregar a mesma missao
+suprimem pedidos simultaneos; falhas de abandono/conclusao exibem aviso.
+O fixture `QuestPersistenceSmokeTest` usa HTTP real em localhost com respostas
+atrasadas e recusadas, sem tocar a API publicada. Essas mudancas posteriores
+nao estao na build itch descrita abaixo. A atomicidade de itens/recompensas
+na entrega de coleta permanece pendente.
+Os 135 checks do teste social/NPC/quest passaram. Os comandos sinteticos agora
+resolvem o hash Mirror pelo tipo do componente, evitando confundir metodos
+homonimos de `PlayerController` e `PlayerMovement`. O cancelamento de aproximacao
+confere o NPC pendente e o destino realmente recebido, nao apenas se o
+personagem parou.
+
+### Entrega de coleta: reserva de inventario (desenvolvimento)
+
+A entrega agora prepara consumo e recompensa em um snapshot, sem remover
+materiais antes da resposta da API. Durante a confirmacao, bolsa, equipamento,
+consumiveis, forja, lojas/receitas, trade e correio nao podem alterar o inventario
+reservado. Uma operacao de correio ja em andamento tambem impede abrir a reserva.
+Uma resposta recusada libera a reserva e deixa os itens originais intactos.
+
+Consumo entre stacks e espaco para recompensa sao verificados antes de chamar
+a API, incluindo o slot liberado ao consumir completamente um material.
+Itens equipados, bloqueados, refinados ou com sockets sao protegidos. A
+confirmacao aplica o snapshot uma unica vez; instancias restantes preservam
+ID, durabilidade, refino, gemas e bloqueio/proprietario. O hook de inventario no
+host nao reconstrui os itens autoritativos a partir do payload reduzido do cliente.
+
+Objetivos e recompensas podem usar IDs de itens exatos; definicoes antigas
+continuam aceitando nomes. O diario mostra o nome do item pelo ID e a recompensa
+de item, sem sobrepor os botoes. Nao foram substituidas as definicoes inferidas
+pelas missoes originais neste passo.
+
+Os 146 checks de gameplay passaram, incluindo recusa HTTP, inventario cheio,
+IDs/quantidades invalidos, materiais protegidos, operacoes concorrentes e
+confirmacao repetida. Isso e protecao em runtime: conclusao da quest e save do
+personagem continuam sendo pedidos separados. Crash, desconexao durante entrega
+ou perda da resposta depois de o banco confirmar ainda exigem uma transacao
+persistente/idempotente com reconciliacao. Nao considerar a atomicidade duravel
+concluida nem ativar em massa novas missoes de coleta antes desse passo.
+Essas alteracoes continuam somente no desenvolvimento; itch e servidor publicado
+permanecem na revisao `2026.10.09-gameplay-npcs-social`.
 
 `GameBuild.BuildGameplayStagingBatch` gera cliente Windows e Dedicated Server
 em pastas novas com timestamp, sem substituir builds anteriores ou publicar.
@@ -199,6 +244,22 @@ do validador foram sobrescritos pela linha de comando para localhost: nenhuma
 dessas sessoes testou o endpoint publico. Resultado em
 `Tools/gameplay-staging-runtime-results.txt`. Somente o processo de staging
 foi encerrado; o servidor compartilhado UDP 7777 permaneceu ativo.
+
+### Publicacao gameplay de 9 de outubro de 2026
+
+O cliente de staging foi publicado no canal `kg-online/kg-online:windows`,
+build itch `2092000`, versao `2026.10.09-gameplay-npcs-social`. O servidor
+correspondente foi copiado para `Build/GameProjectKG.editorserver`, preservando
+a versao anterior em uma pasta `.previous.<data>`, e iniciado com API Cloudflare
+e UDP 7777. O endpoint playit publico passou em duas sessoes KCP de 12 segundos,
+11 pongs por sessao, sem desconexao. Isso verifica transporte, nao login real.
+O relatorio fica em `Tools/gameplay-publication-results.txt`.
+
+A tarefa `TOP-DedicatedServer` continuou desabilitada: a alteracao exigiu
+administrador e a confirmacao UAC foi cancelada. O servidor foi iniciado
+manualmente; a inicializacao automatica depois de reiniciar o Windows ainda
+precisa ser habilitada com privilegios administrativos. Nao foram feitos
+commit/push nem publicacao de fontes, credenciais ou backup.
 
 ### Ceu, sol e horario do servidor
 

@@ -402,16 +402,21 @@ namespace TOP.Services
         }
 
         // ---- Quests ----
-        public async Task<(List<(int questId, int progress)> active, List<int> completed)> GetQuestsAsync(long charId, string token, CancellationToken ct = default)
+        public async Task<(bool success, List<(int questId, int progress)> active, List<int> completed)> GetQuestsAsync(long charId, string token, CancellationToken ct = default)
         {
             try
             {
                 var dto = JsonUtility.FromJson<QuestListDto>(await SendAsync("GET", "/quests/" + charId, null, token, ct));
                 var active = new List<(int, int)>();
-                if (dto != null && dto.success) foreach (var a in dto.active) active.Add((a.questId, a.progress));
-                return (active, dto != null && dto.success ? dto.completed : new List<int>());
+                if (dto == null || !dto.success || dto.active == null || dto.completed == null)
+                {
+                    Debug.LogWarning("[API] GetQuests: resposta invalida ou pedido recusado.");
+                    return (false, null, null);
+                }
+                foreach (var a in dto.active) active.Add((a.questId, a.progress));
+                return (true, active, dto.completed);
             }
-            catch (Exception e) { Debug.LogError("[API] GetQuests: " + e.Message); return (new List<(int, int)>(), new List<int>()); }
+            catch (Exception e) { Debug.LogError("[API] GetQuests: " + e.Message); return (false, null, null); }
         }
 
         public async Task<bool> AcceptQuestAsync(long charId, int questId, string token, CancellationToken ct = default)

@@ -10,7 +10,7 @@ using TOP.Core;
 
 namespace TOP.Player
 {
-    public class PlayerInventory : NetworkBehaviour
+    public partial class PlayerInventory : NetworkBehaviour
     {
         [SyncVar(hook = nameof(OnInventoryDataChanged))]
         private string _inventoryData = "";
@@ -29,6 +29,7 @@ namespace TOP.Player
         // =================================================================================
         public void InitializeFromData(List<InventoryItemData> items)
         {
+            if (RejectQuestMutation()) return;
             for (int i = 0; i < _slots.Length; i++)
                 _slots[i] = null;
 
@@ -44,6 +45,10 @@ namespace TOP.Player
                         Durability = (int)item.Durability,
                         RefineLevel = item.RefineLevel,
                         IsEquipped = item.IsEquipped,
+                        DatabaseId = item.Id,
+                        UniqueItemId = item.UniqueItemId,
+                        IsLocked = item.IsLocked,
+                        OwnerCharacterId = item.OwnerCharacterId,
                         Gems = new[] { item.GemSlot1 ?? -1, item.GemSlot2 ?? -1, item.GemSlot3 ?? -1 }
                     };
                 }
@@ -71,6 +76,10 @@ namespace TOP.Player
                     Durability = (ushort)slot.Durability,
                     RefineLevel = slot.RefineLevel,
                     IsEquipped = slot.IsEquipped,
+                    Id = slot.DatabaseId,
+                    UniqueItemId = slot.UniqueItemId,
+                    IsLocked = slot.IsLocked,
+                    OwnerCharacterId = slot.OwnerCharacterId,
                     GemSlot1 = slot.Gems[0] >= 0 ? slot.Gems[0] : (int?)null,
                     GemSlot2 = slot.Gems[1] >= 0 ? slot.Gems[1] : (int?)null,
                     GemSlot3 = slot.Gems[2] >= 0 ? slot.Gems[2] : (int?)null
@@ -142,6 +151,7 @@ namespace TOP.Player
         [Server]
         public bool AddItem(int itemId, int quantity, ushort slotIndex = 0)
         {
+            if (RejectQuestMutation()) return false;
             if (slotIndex == 0 && _slots[0] != null)
             {
                 int empty = FindEmptySlot();
@@ -171,6 +181,7 @@ namespace TOP.Player
         [Server]
         public void RemoveItem(ushort slotIndex, int quantity)
         {
+            if (RejectQuestMutation()) return;
             if (slotIndex >= _slots.Length || _slots[slotIndex] == null) return;
 
             _slots[slotIndex].Quantity -= quantity;
@@ -196,6 +207,7 @@ namespace TOP.Player
         [Server]
         public bool SetItemRefine(int slotIndex, int refineLevel)
         {
+            if (RejectQuestMutation()) return false;
             if (slotIndex < 0 || slotIndex >= _slots.Length || _slots[slotIndex] == null) return false;
             _slots[slotIndex].RefineLevel = Mathf.Clamp(refineLevel, 0, TOP.Data.PkoGems.MaxRefine);
             SerializeInventory();
@@ -208,6 +220,7 @@ namespace TOP.Player
         [Server]
         public bool RemoveItemById(int itemId, int quantity)
         {
+            if (RejectQuestMutation()) return false;
             if (quantity <= 0) return true;
             int total = 0;
             for (int i = 0; i < _slots.Length; i++)
@@ -381,6 +394,7 @@ namespace TOP.Player
         [Command]
         public void CmdDeleteItem(ushort slotIndex)
         {
+            if (RejectQuestMutation()) return;
             if (slotIndex >= _slots.Length || _slots[slotIndex] == null || _slots[slotIndex].IsEquipped) return;
             _slots[slotIndex] = null;
             SerializeInventory();
@@ -446,6 +460,7 @@ namespace TOP.Player
         [Server]
         public bool MoveItemOnServer(ushort fromSlot, ushort toSlot)
         {
+            if (RejectQuestMutation()) return false;
             if (fromSlot >= _slots.Length || toSlot >= _slots.Length) return false;
             if ((_slots[fromSlot] != null && _slots[fromSlot].IsEquipped) || (_slots[toSlot] != null && _slots[toSlot].IsEquipped)) return false;
 
@@ -476,6 +491,7 @@ namespace TOP.Player
         [Server]
         public bool DropItemOnServer(ushort slotIndex, int quantity, Vector3 dropPosition)
         {
+            if (RejectQuestMutation()) return false;
             if (slotIndex >= _slots.Length || quantity <= 0) return false;
             InventoryItem item = _slots[slotIndex];
             if (item == null || item.IsEquipped || item.Quantity < quantity) return false;
@@ -518,6 +534,7 @@ namespace TOP.Player
         [Server]
         public bool UnequipItemToSlotOnServer(EquipmentSlot slot, ushort toSlot)
         {
+            if (RejectQuestMutation()) return false;
             PlayerEquipment equipment = GetComponent<PlayerEquipment>();
             if (equipment == null || toSlot >= _slots.Length) return false;
             InventoryItem equippedItem = equipment.GetEquippedItem(slot);
@@ -539,6 +556,7 @@ namespace TOP.Player
         [Server]
         public void ReleaseEquipped(int itemId)
         {
+            if (RejectQuestMutation()) return;
             for (int i = 0; i < _slots.Length; i++)
                 if (_slots[i] != null && _slots[i].IsEquipped && _slots[i].ItemId == itemId) { _slots[i].IsEquipped = false; break; }
             SerializeInventory();
@@ -547,6 +565,7 @@ namespace TOP.Player
         [Server]
         public void ReleaseEquippedSlot(ushort slotIndex, int itemId)
         {
+            if (RejectQuestMutation()) return;
             if (slotIndex < _slots.Length && _slots[slotIndex] != null && _slots[slotIndex].IsEquipped && _slots[slotIndex].ItemId == itemId)
             {
                 _slots[slotIndex].IsEquipped = false;
@@ -584,6 +603,8 @@ namespace TOP.Player
 
         void OnInventoryDataChanged(string oldValue, string newValue)
         {
+            // Host hooks must not replace server instances with the client's reduced payload.
+            if (isServer) { OnInventoryChanged?.Invoke(); return; }
             DeserializeInventory(newValue);
             OnInventoryChanged?.Invoke();
         }

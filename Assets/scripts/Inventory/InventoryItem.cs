@@ -13,6 +13,10 @@ namespace TOP.Inventory
         public int Durability;
         public int RefineLevel;
         public bool IsEquipped;
+        public long DatabaseId;
+        public string UniqueItemId;
+        public bool IsLocked;
+        public long? OwnerCharacterId;
         // Sockets: -1 = sem socket, 0 = socket vazio, >0 = id do item da gema.
         public int[] Gems = { -1, -1, -1 };
 

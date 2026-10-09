@@ -289,6 +289,7 @@ game.get('/characters/:id', async c => {
         success: true,
         Character: {
             Id: r.id, AccountId: r.account_id, Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: r.exp,
+            SaveRevision: r.save_revision || 0,
             CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
             BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
             Gold: r.gold, StatPoints: r.stat_points, SkillPoints: r.skill_points, PkPoints: r.pk_points, Reputation: r.reputation,
@@ -315,10 +316,27 @@ game.put('/characters/:id', async c => {
     const u = c.get('user'), id = int(c.req.param('id')), b = await body(c);
     if (!(await owned(c, id, u.id))) return c.json({ success: false, error: 'NOT_FOUND' });
     const ch = b.Character || {}, inv = b.Inventory, skills = b.Skills;
+    const questId = b.QuestId || 0;
+    if (typeof b.OperationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(b.OperationId)
+        || !Number.isSafeInteger(ch.SaveRevision) || ch.SaveRevision < 0
+        || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
+        return c.json({ success: false, error: 'INVALID_TRANSACTION' });
     if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS))) return c.json({ success: false, error: 'INVALID' });
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(b)))))
+        .map(value => value.toString(16).padStart(2, '0')).join('');
+    const receipt = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);
+    const replay = saved => saved.payload_hash === hash
+        ? c.json({ success: true, revision: saved.expected_revision + 1 })
+        : c.json({ success: false, error: 'OPERATION_MISMATCH' });
+    if (receipt) return replay(receipt);
     const db = c.env.DB, stmts = [];
+    stmts.push(db.prepare('INSERT INTO character_save_receipts (character_id, operation_id, payload_hash, expected_revision, quest_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(id, b.OperationId, hash, ch.SaveRevision, questId));
+    if (questId > 0)
+        stmts.push(db.prepare('UPDATE quest_progress SET completed_at = ? WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL')
+            .bind(now(), id, questId));
     stmts.push(db.prepare(
-        `UPDATE characters SET level=?, exp=?, current_hp=?, current_mp=?, current_sp=?, pos_x=?, pos_y=?, pos_z=?, rotation_y=?, map_name=?,
+        `UPDATE characters SET save_revision=save_revision+1, level=?, exp=?, current_hp=?, current_mp=?, current_sp=?, pos_x=?, pos_y=?, pos_z=?, rotation_y=?, map_name=?,
             base_str=?, base_agi=?, base_con=?, base_spr=?, base_sta=?, max_hp=?, max_mp=?, max_sp=?,
             gold=?, stat_points=?, skill_points=?, pk_points=?, reputation=?, last_online=? WHERE id = ? AND account_id = ?`).bind(
         Math.max(1, int(ch.Level, 1)), Math.max(0, num(ch.Exp)), int(ch.CurrentHp), int(ch.CurrentMp), int(ch.CurrentSp),
@@ -355,8 +373,16 @@ game.put('/characters/:id', async c => {
         }
         for (const sid of cur.keys()) if (!seen.has(sid)) stmts.push(db.prepare('DELETE FROM skills WHERE character_id = ? AND skill_id = ?').bind(id, sid));
     }
-    await db.batch(stmts);
-    return c.json({ success: true });
+    try {
+        await db.batch(stmts);
+    } catch (error) {
+        const saved = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);
+        if (saved) return replay(saved);
+        if (String(error.message).includes('SAVE_CONFLICT')) return c.json({ success: false, error: 'SAVE_CONFLICT' });
+        if (String(error.message).includes('QUEST_NOT_ACTIVE')) return c.json({ success: false, error: 'QUEST_NOT_ACTIVE' });
+        throw error;
+    }
+    return c.json({ success: true, revision: ch.SaveRevision + 1 });
 });
 
 game.post('/characters/:id/delete', async c => {

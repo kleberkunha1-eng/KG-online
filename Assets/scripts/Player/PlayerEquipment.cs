@@ -44,6 +44,7 @@ namespace TOP.Player
         [Server]
         public void EquipItem(InventoryItem item, EquipmentSlot slot)
         {
+            if (_inventory != null && _inventory.RejectQuestMutation()) return;
             EquipmentData itemData = ItemDatabase.Instance?.GetEquipment(item.ItemId);
             if (itemData == null) return;
 
@@ -70,6 +71,7 @@ namespace TOP.Player
         [Server]
         public void UnequipItem(EquipmentSlot slot)
         {
+            if (_inventory != null && _inventory.RejectQuestMutation()) return;
             if (!_equippedItems.ContainsKey(slot)) return;
 
             EquipmentEntry equipped = _equippedItems[slot];
@@ -314,6 +316,7 @@ namespace TOP.Player
         public bool EquipFromInventory(ushort inventorySlot, EquipmentSlot targetSlot)
         {
             if (_inventory == null || inventorySlot >= _inventory.totalSlots) return false;
+            if (_inventory.RejectQuestMutation()) return false;
 
             InventoryItem item = _inventory.GetSlot(inventorySlot);
             if (item == null || item.IsEmpty || item.IsEquipped) return false;
