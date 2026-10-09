@@ -39,11 +39,96 @@ namespace TOP.Testing
             while (Time.realtimeSinceStartup < until) { tick(); yield return null; }
         }
 
+        static void CaptureOriginalModel(NPCInteractable npc, string path)
+        {
+            var preview = new UnityEditor.PreviewRenderUtility();
+            Texture2D image = null;
+            try
+            {
+                var original = npc.transform.Find("NPC_" + (int.Parse(npc.NpcId) - 1) + "_" + npc.NpcName);
+                var model = UnityEngine.Object.Instantiate(original.gameObject);
+                preview.AddSingleGO(model);
+                var renderers = model.GetComponentsInChildren<MeshFilter>()
+                    .Where(filter => filter.sharedMesh != null).Select(filter => filter.GetComponent<Renderer>()).ToArray();
+                var bounds = renderers[0].bounds;
+                foreach (var renderer in renderers.Skip(1)) bounds.Encapsulate(renderer.bounds);
+                float radius = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z) * .7f;
+                preview.camera.orthographic = true;
+                preview.camera.orthographicSize = radius;
+                preview.camera.transform.position = bounds.center + Vector3.back * (radius * 3 + 1);
+                preview.camera.transform.LookAt(bounds.center);
+                preview.camera.nearClipPlane = .01f;
+                preview.camera.farClipPlane = radius * 10 + 10;
+                preview.camera.clearFlags = CameraClearFlags.SolidColor;
+                preview.camera.backgroundColor = new Color(.1f, .12f, .17f);
+                preview.lights[0].intensity = 1.3f;
+                preview.lights[0].transform.rotation = Quaternion.Euler(35, 30, 0);
+                preview.BeginStaticPreview(new Rect(0, 0, 512, 512));
+                preview.Render(true);
+                image = preview.EndStaticPreview();
+                System.IO.File.WriteAllBytes(path, image.EncodeToPNG());
+            }
+            finally
+            {
+                if (image != null) UnityEngine.Object.DestroyImmediate(image);
+                preview.Cleanup();
+            }
+        }
+
         public static IEnumerator Run(GameObject player, KcpClient client, Action tick, Action<bool, string> check)
         {
             var actual = UnityEngine.Object.FindObjectsByType<NPCInteractable>(FindObjectsSortMode.None)
                 .Where(npc => npc.gameObject.scene.name == "GameScene").ToArray();
+            var disabledJackpot = Resources.FindObjectsOfTypeAll<NPCInteractable>()
+                .Single(npc => npc.gameObject.scene.name == "GameScene" && npc.NpcId == "154");
+            check(!disabledJackpot.gameObject.activeInHierarchy && disabledJackpot.GetComponent<NetworkIdentity>().netId == 0,
+                "Original-disabled Jackpot stays inactive and unspawned after Mirror activates scene identities.");
             check(actual.Length > 0, "World contains interactable original NPCs: " + actual.Length);
+            check(actual.Length == 55 && actual.All(npc => npc.GetComponent<MeshRenderer>() == null
+                && npc.GetComponent<MeshFilter>() == null
+                && npc.GetComponentsInChildren<MeshFilter>().Any(filter => filter.sharedMesh != null
+                    && UnityEditor.AssetDatabase.GetAssetPath(filter.sharedMesh).StartsWith("Assets/ImportedClient/Models/model/character/"))),
+                "All 55 active NPC services use existing original map models; no root capsule/sphere placeholder is rendered.");
+            check(actual.Select(npc => npc.NpcId).Distinct().Count() == actual.Length
+                && actual.All(npc => npc.GetComponentsInChildren<Collider>().Any(collider => collider.enabled
+                    && collider.GetComponentInParent<NetworkIdentity>() == npc.netIdentity)),
+                "Original NPC model colliders resolve to one preserved service/network identity per catalog ID.");
+            var localController = player.GetComponent<PlayerController>();
+            check(actual.All(npc => npc.GetComponentsInChildren<Collider>().Where(collider => collider.enabled)
+                    .All(collider => TOP.UI.GameplayCursor.Classify(collider, localController) == TOP.UI.GameplayCursorKind.Hand)),
+                "Hover over every existing original NPC collider classifies as an open-hand interaction.");
+            var goldieCollider = actual.Single(npc => npc.NpcName == "Blacksmith - Goldie")
+                .GetComponentsInChildren<Collider>().First(collider => collider.enabled);
+            Physics.SyncTransforms();
+            check(Physics.Raycast(goldieCollider.bounds.center + Vector3.up * (goldieCollider.bounds.extents.y + 2),
+                    Vector3.down, out var npcHit, 10)
+                && npcHit.collider.GetComponentInParent<NPCInteractable>() == goldieCollider.GetComponentInParent<NPCInteractable>()
+                && TOP.UI.GameplayCursor.Classify(npcHit.collider, localController) == TOP.UI.GameplayCursorKind.Hand,
+                "Real world raycast hits the original Goldie model collider and selects the interaction hand.");
+            var hand = Resources.Load<Texture2D>("PKOCursors/mouseon");
+            var sword = Resources.Load<Texture2D>("PKOCursors/attack");
+            check(hand != null && sword != null && hand.width == 32 && hand.height == 32 && sword.width == 32 && sword.height == 32
+                && hand.isReadable && sword.isReadable && !hand.GetPixels32().SequenceEqual(sword.GetPixels32()),
+                "Original open-hand and sword cursor textures are distinct, readable 32x32 assets.");
+            check(TOP.UI.GameplayCursor.Classify(null, localController) == TOP.UI.GameplayCursorKind.Default
+                && TOP.UI.GameplayCursor.Classify(player.GetComponentsInChildren<Collider>().First(collider => collider.enabled),
+                    localController) == TOP.UI.GameplayCursorKind.Default
+                && TOP.UI.GameplayCursor.Classify(Terrain.activeTerrain.GetComponent<TerrainCollider>(), localController)
+                    == TOP.UI.GameplayCursorKind.Default,
+                "Empty space and the local player's own collider reset to the normal cursor.");
+            var liveEnemy = NetworkServer.spawned.Values.Select(identity => identity.GetComponent<EnemyStats>())
+                .First(enemy => enemy != null && !enemy.IsDead);
+            var enemyCollider = liveEnemy.GetComponentsInChildren<Collider>().First(collider => collider.enabled);
+            var deadField = typeof(EnemyStats).GetField("_isDead", Fields);
+            try
+            {
+                check(TOP.UI.GameplayCursor.Classify(enemyCollider, localController) == TOP.UI.GameplayCursorKind.Sword,
+                    "Live monster body collider uses the original sword cursor.");
+                deadField.SetValue(liveEnemy, true);
+                check(TOP.UI.GameplayCursor.Classify(enemyCollider, localController) == TOP.UI.GameplayCursorKind.Default,
+                    "Replicated monster death immediately removes the attack cursor.");
+            }
+            finally { deadField.SetValue(liveEnemy, false); }
             check(actual.Single(n => n.NpcName == "Blacksmith - Goldie").ShopItemIds().Length == 78
                 && actual.Single(n => n.NpcName == "Tailor - Granny Nila").ShopItemIds().Length == 39
                 && actual.Single(n => n.NpcName == "Physican - Ditto").ShopItemIds().Length == 14,
@@ -56,6 +141,9 @@ namespace TOP.Testing
                 && actual.Single(n => n.NpcName == "Nurse - Gina").FullHealCost == 200
                 && actual.Single(n => n.NpcName == "Nurse - Gina").NpcType == NPCType.Healer,
                 "Saved GameScene includes four verified Ditto recipes and Gina's original 200-gold recovery.");
+            CaptureOriginalModel(actual.Single(npc => npc.NpcId == "3"), "Tools/npc-original-goldie.png");
+            CaptureOriginalModel(actual.Single(npc => npc.NpcId == "87"), "Tools/npc-original-sinbad.png");
+            CaptureOriginalModel(actual.Single(npc => npc.NpcName == "Nurse - Gina"), "Tools/npc-original-gina.png");
             var catalogReport = actual.Select(npc => npc.NpcId + " | " + npc.NpcName + " | " + npc.NpcType
                 + " | shop-items=" + npc.ShopItemIds().Length + " | active=" + npc.isActiveAndEnabled).ToArray();
             System.IO.File.WriteAllLines("Tools/npc-catalog-audit.txt", catalogReport);

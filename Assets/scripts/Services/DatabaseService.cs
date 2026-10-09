@@ -28,7 +28,7 @@ namespace TOP.Services
         }
 
         // ---- DTOs (JsonUtility) ----
-        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; public long revision; }
+        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; public long revision; public int boatOwnershipVersion; }
 
         [Serializable] class PreviewDto
         {
@@ -269,6 +269,8 @@ namespace TOP.Services
                         {
                             if (r.revision != data.SaveRevision + 1)
                                 throw new InvalidOperationException("Character-save revision acknowledgement does not match.");
+                            if (data.Boats != null && data.Boats.Count > 0 && r.boatOwnershipVersion != 1)
+                                throw new InvalidOperationException("Boat ownership acknowledgement is missing.");
                             data.SaveRevision = r.revision;
                             return (true, null);
                         }

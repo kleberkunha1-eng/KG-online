@@ -68,9 +68,8 @@ namespace TOP.NPC
 
             OnPlayerInteract?.Invoke(player);
 
-            RpcPlayGreeting();
-
-            transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
+            FacePlayer(player.transform.position);
+            RpcPlayGreeting(player.transform.position);
 
             OpenNPCInterface(player);
             if (npcType != NPCType.Hairdresser && (npcType != NPCType.Blacksmith || ShopItemIds().Length > 0)
@@ -80,13 +79,21 @@ namespace TOP.NPC
         }
 
         [ClientRpc]
-        void RpcPlayGreeting()
+        void RpcPlayGreeting(Vector3 playerPosition)
         {
+            FacePlayer(playerPosition);
             if (npcAnimator != null)
             {
                 npcAnimator.SetTrigger(greetAnimation);
                 npcAnimator.SetTrigger(talkAnimation);
             }
+
+        }
+
+        void FacePlayer(Vector3 position)
+        {
+            var direction = new Vector3(position.x, transform.position.y, position.z) - transform.position;
+            if (direction.sqrMagnitude > .001f) transform.rotation = Quaternion.LookRotation(direction);
         }
 
         public string GetInteractionName()

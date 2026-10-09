@@ -14,7 +14,7 @@ namespace TOP.Player
         Success
     }
 
-    public class PlayerController : NetworkBehaviour
+    public partial class PlayerController : NetworkBehaviour
     {
         [Header("Dados do Personagem")]
         [SyncVar] public long CharacterId;
@@ -117,6 +117,8 @@ namespace TOP.Player
 
             MapName = data.MapName;
             PkPoints = data.PkPoints;
+            SynchronizeBoats(data.Boats);
+            BoatOwnershipAvailable = data.BoatOwnershipVersion == 1;
             Reputation = data.Reputation;
 
             if (_playerInventory != null)
@@ -164,6 +166,7 @@ namespace TOP.Player
             _characterData.PkPoints = PkPoints;
             _characterData.Reputation = Reputation;
             _characterData.MapName = MapName;
+            _characterData.Boats = ownedBoats;
 
             _characterData.PosX = transform.position.x;
             _characterData.PosY = transform.position.y;
@@ -265,6 +268,8 @@ namespace TOP.Player
         [Server]
         public bool SpendGold(ulong amount)
         {
+            if (BoatOperationPending)
+            { RpcShowMessage("Aguarde a confirmacao da construcao naval para gastar ouro.", PlayerMessageType.Warning); return false; }
             if (Gold < amount) return false;
             Gold -= amount;
             RpcSyncStat("gold", (int)Gold);

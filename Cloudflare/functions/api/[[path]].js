@@ -290,6 +290,8 @@ game.get('/characters/:id', async c => {
         Character: {
             Id: r.id, AccountId: r.account_id, Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: r.exp,
             SaveRevision: r.save_revision || 0,
+            Boats: JSON.parse(r.boats_json || '[]'),
+            BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
             CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
             BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
             Gold: r.gold, StatPoints: r.stat_points, SkillPoints: r.skill_points, PkPoints: r.pk_points, Reputation: r.reputation,
@@ -327,11 +329,21 @@ game.put('/characters/:id', async c => {
         return c.json({ success: false, error: 'INVALID_TRANSACTION' });
     if (!Number.isSafeInteger(ch.Gold) || ch.Gold < 0 || !Number.isSafeInteger(ch.Exp) || ch.Exp < 0)
         return c.json({ success: false, error: 'INVALID_CHARACTER_VALUES' });
+    const boats = ch.Boats;
+    if (boats !== undefined && (!Array.isArray(boats) || boats.length > 3
+        || new Set(boats.map(boat => boat && boat.Id)).size !== boats.length
+        || boats.some(boat => !boat || typeof boat.Id !== 'string'
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(boat.Id)
+            || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
+            || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
+                .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
+            || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1)))
+        return c.json({ success: false, error: 'INVALID_BOATS' });
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(b)))))
         .map(value => value.toString(16).padStart(2, '0')).join('');
     const receipt = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);
     const replay = saved => saved.payload_hash === hash
-        ? c.json({ success: true, revision: saved.expected_revision + 1 })
+        ? c.json({ success: true, revision: saved.expected_revision + 1, boatOwnershipVersion: 1 })
         : c.json({ success: false, error: 'OPERATION_MISMATCH' });
     if (receipt) return replay(receipt);
     const db = c.env.DB, stmts = [];
@@ -348,6 +360,8 @@ game.put('/characters/:id', async c => {
         num(ch.PosX), num(ch.PosY), num(ch.PosZ), num(ch.RotationY), String(ch.MapName || 'garner').slice(0, 64),
         int(ch.BaseStr), int(ch.BaseAgi), int(ch.BaseCon), int(ch.BaseSpr), int(ch.BaseSta), int(ch.MaxHp), int(ch.MaxMp), int(ch.MaxSp),
         Math.max(0, num(ch.Gold)), int(ch.StatPoints), int(ch.SkillPoints), int(ch.PkPoints), int(ch.Reputation), now(), id, u.id));
+    if (boats !== undefined)
+        stmts.push(db.prepare('UPDATE characters SET boats_json = ? WHERE id = ?').bind(JSON.stringify(boats), id));
 
     if (inv) {
         const cur = new Map((await all(c, 'SELECT * FROM inventory WHERE character_id = ?', id)).map(r => [r.unique_item_id, r]));
@@ -387,7 +401,7 @@ game.put('/characters/:id', async c => {
         if (String(error.message).includes('QUEST_NOT_ACTIVE')) return c.json({ success: false, error: 'QUEST_NOT_ACTIVE' });
         throw error;
     }
-    return c.json({ success: true, revision: ch.SaveRevision + 1 });
+    return c.json({ success: true, revision: ch.SaveRevision + 1, boatOwnershipVersion: 1 });
 });
 
 game.post('/characters/:id/delete', async c => {

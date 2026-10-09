@@ -47,6 +47,8 @@ namespace TOP.Data
 
         public List<InventoryItemData> Inventory = new List<InventoryItemData>();
         public List<CharacterSkillData> Skills = new List<CharacterSkillData>();
+        public List<BoatData> Boats = new List<BoatData>();
+        public int BoatOwnershipVersion;
 
         public Vector3 Position => new Vector3(PosX, PosY, PosZ);
 

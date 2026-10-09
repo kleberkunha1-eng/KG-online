@@ -265,8 +265,12 @@ namespace TOP.Testing
             Check(worldEntryErrors == 0, "No missing-scene spawns or invalid NavMesh agent creation occurred.");
             if (SessionState.GetBool("TOP.SocialSmoke", false))
             {
-                yield return SocialGameplaySmokeTest.Run(player, client, Tick, Check);
-                yield return NPCGameplaySmokeTest.Run(player, client, Tick, Check);
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "--boat-only") < 0)
+                {
+                    yield return SocialGameplaySmokeTest.Run(player, client, Tick, Check);
+                    yield return NPCGameplaySmokeTest.Run(player, client, Tick, Check);
+                }
+                yield return QuestPersistenceSmokeTest.RunBoatConstruction(player, client, Tick, Check);
             }
             if (SessionState.GetBool("TOP.AdminGenerationSmoke", false))
             {

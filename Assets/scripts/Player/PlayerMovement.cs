@@ -36,6 +36,7 @@ namespace TOP.Player
         [SyncVar] private bool running;
         public bool IsRunning => running;
         public bool InputEnabled { get; set; } = true;
+        public float PointerRaycastDistance => raycastDistance;
         [Command] void CmdSetRunning(bool value) { running = value; }
 
         // Lazy load do PlayerController
@@ -102,7 +103,7 @@ namespace TOP.Player
             if (requestedRun != running) CmdSetRunning(requestedRun);
             if (Input.GetMouseButtonDown(0))
             {
-                if ((EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) || TOP.UI.Pko.PkoUi.PointerOverWindow() || TOP.Admin.AdminPanel.BlocksMouse)
+                if (TOP.UI.GameplayCursor.PointerOverUi())
                     return;
 
                 Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -141,8 +142,7 @@ namespace TOP.Player
                     var otherPlayer = hit.collider.GetComponentInParent<PlayerController>();
                     if (otherPlayer != null && !otherPlayer.isLocalPlayer)
                     {
-                        var combat = GetComponent<PlayerCombat>();
-                        if (combat != null && combat.DuelOpponentNetId == otherPlayer.netId)
+                        if (TOP.UI.GameplayCursor.CanAttackPlayer(PlayerControllerRef, otherPlayer))
                             PlayerControllerRef?.CmdAttackTarget(otherPlayer.netIdentity, 0);
                         return;
                     }

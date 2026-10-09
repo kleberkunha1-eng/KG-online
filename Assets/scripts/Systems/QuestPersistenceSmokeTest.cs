@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using Mirror;
 using TOP.Data;
 using TOP.NPC;
 using TOP.Player;
@@ -100,6 +101,120 @@ namespace TOP.Testing
         {
             float end = Time.realtimeSinceStartup + seconds;
             while (Time.realtimeSinceStartup < end) { tick(); yield return null; }
+        }
+
+        static IEnumerator AwaitBoatSave(Action tick, PlayerController controller, ApiFixture fixture, int requests)
+        {
+            float deadline = Time.realtimeSinceStartup + 12;
+            while (Time.realtimeSinceStartup < deadline && (fixture.Requests < requests || controller.BoatOperationPending))
+            { tick(); yield return null; }
+            if (fixture.Requests < requests || controller.BoatOperationPending)
+                throw new TimeoutException("Isolated boat save did not finish within 12 seconds.");
+        }
+
+        public static IEnumerator RunBoatConstruction(GameObject player, kcp2k.KcpClient client, Action tick, Action<bool, string> check)
+        {
+            const BindingFlags fields = BindingFlags.NonPublic | BindingFlags.Instance;
+            var rootField = typeof(ApiConfig).GetField("root", BindingFlags.NonPublic | BindingFlags.Static);
+            string oldRoot = (string)rootField.GetValue(null);
+            var controller = player.GetComponent<PlayerController>();
+            var inventory = player.GetComponent<PlayerInventory>();
+            var builder = UnityEngine.Object.FindObjectsByType<NPCInteractable>(FindObjectsSortMode.None).Single(n => n.NpcId == "87");
+            int oldLevel = controller.Level;
+            ulong oldGold = controller.Gold;
+            Vector3 oldPosition = player.transform.position;
+            bool oldCapability = controller.BoatOwnershipAvailable;
+            var data = controller.GetCharacterData();
+            long oldRevision = data.SaveRevision;
+            var oldBoats = new List<BoatData>(controller.OwnedBoats);
+            var synchronize = typeof(PlayerController).GetMethod("SynchronizeBoats", fields);
+            GameObject service = null;
+            using (var fixture = new ApiFixture())
+            {
+                try
+                {
+                    rootField.SetValue(null, fixture.Root);
+                    if (DatabaseService.Instance == null) service = new GameObject("Isolated boat API", typeof(DatabaseService));
+                    controller.Level = 15;
+                    controller.Gold = 50000;
+                    controller.BoatOwnershipAvailable = false;
+                    player.transform.position = builder.transform.position + Vector3.right;
+                    SocialGameplaySmokeTest.Send(client, player.GetComponent<PlayerMovement>(), "CmdInteractWithNpc",
+                        w => w.WriteNetworkIdentity(builder.netIdentity));
+                    yield return Pump(tick, .2f);
+                    check(player.GetComponent<PlayerMovement>().ActiveNpc == builder && builder.CanInteract(player.GetComponent<PlayerMovement>()),
+                        "Actual KCP interaction selects verified Sinbad NPC 87 in range before construction.");
+                    void Build(string name = "Fixture ship") => SocialGameplaySmokeTest.Send(client, controller, "CmdBuildBoat", w =>
+                    { w.Write(1); w.WriteString(name); w.Write(15); w.Write(8); w.Write(53); w.Write(73); });
+                    Build();
+                    yield return Pump(tick, .2f);
+                    check(fixture.Requests == 0 && controller.Gold == 50000 && controller.OwnedBoats.Count == oldBoats.Count,
+                        "Old API without naval capability cannot charge gold or create a memory-only boat.");
+                    controller.BoatOwnershipAvailable = true;
+                    controller.Level = 14;
+                    Build();
+                    yield return Pump(tick, .2f);
+                    controller.Level = 15;
+                    Build("a");
+                    Build("<boat>");
+                    yield return Pump(tick, .2f);
+                    controller.Gold = 9989;
+                    Build();
+                    yield return Pump(tick, .2f);
+                    check(fixture.Requests == 0 && !controller.BoatOperationPending,
+                        "Actual KCP naval commands reject insufficient level/gold and invalid names before HTTP.");
+                    controller.Gold = 50000;
+                    fixture.Reply("{\"success\":true,\"revision\":" + (data.SaveRevision + 1) + ",\"boatOwnershipVersion\":1}");
+                    Build();
+                    yield return Pump(tick, .1f);
+                    check(controller.BoatOperationPending && inventory.HasQuestTransaction && controller.OwnedBoats.Count == oldBoats.Count
+                        && controller.Gold == 50000, "Boat purchase reserves inventory without exposing ship or charging gold before acknowledgement.");
+                    check(!controller.SpendGold(1) && controller.Gold == 50000, "Concurrent gold spending is blocked during atomic boat purchase.");
+                    Build();
+                    yield return AwaitBoatSave(tick, controller, fixture, 1);
+                    check(fixture.Requests == 1 && !controller.BoatOperationPending && !inventory.HasQuestTransaction
+                        && controller.OwnedBoats.Count == oldBoats.Count + 1 && controller.Gold == 40010,
+                        "Duplicate KCP construction creates one durable Guppy and charges exactly 9990 gold once.");
+                    var request = JsonUtility.FromJson<RewardRequest>(fixture.Bodies.ToArray().Last());
+                    check(request.Character.Boats.Count == oldBoats.Count + 1 && request.Character.Boats.Last().TypeId == 1
+                        && request.Character.Boats.Last().Health == 2280 && request.Character.Boats.Last().Fuel == 500
+                        && request.Character.Gold == 40010 && request.Character.SaveRevision == oldRevision,
+                        "Naval ownership, original stats, gold and prior revision share one immutable character-save body.");
+                    fixture.Reply("{\"success\":false,\"error\":\"FIXTURE_REJECTED\"}");
+                    Build("Rejected ship");
+                    yield return AwaitBoatSave(tick, controller, fixture, 2);
+                    check(controller.Gold == 40010 && controller.OwnedBoats.Count == oldBoats.Count + 1 && !inventory.HasQuestTransaction,
+                        "Definitively rejected boat save leaves gold and ownership unchanged and releases reservation.");
+                    int beforeRequests = fixture.Requests;
+                    fixture.Reply("{\"success\":false,\"error\":\"DB_ERROR\"}");
+                    fixture.Reply("{\"success\":true,\"revision\":" + (data.SaveRevision + 1) + ",\"boatOwnershipVersion\":1}");
+                    Build("Retried ship");
+                    yield return AwaitBoatSave(tick, controller, fixture, beforeRequests + 2);
+                    var bodies = fixture.Bodies.ToArray();
+                    check(fixture.Requests == beforeRequests + 2 && bodies[bodies.Length - 1] == bodies[bodies.Length - 2]
+                        && controller.Gold == 30020 && controller.OwnedBoats.Count == oldBoats.Count + 2,
+                        "Transient naval save retries identical boat ID/body and confirms one charge, not duplicate ships.");
+                    fixture.Reply("{\"success\":true,\"revision\":" + (data.SaveRevision + 1) + ",\"boatOwnershipVersion\":1}");
+                    Build("Third ship");
+                    yield return AwaitBoatSave(tick, controller, fixture, beforeRequests + 3);
+                    beforeRequests = fixture.Requests;
+                    Build("Fourth ship");
+                    yield return Pump(tick, .2f);
+                    check(controller.OwnedBoats.Count == 3 && controller.Gold == 20030 && fixture.Requests == beforeRequests,
+                        "Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.");
+                }
+                finally
+                {
+                    rootField.SetValue(null, oldRoot);
+                    controller.Level = oldLevel; controller.Gold = oldGold;
+                    controller.BoatOwnershipAvailable = oldCapability;
+                    data.SaveRevision = oldRevision;
+                    synchronize.Invoke(controller, new object[] { oldBoats });
+                    data.Boats = oldBoats;
+                    player.transform.position = oldPosition;
+                    if (service != null) UnityEngine.Object.Destroy(service);
+                }
+            }
         }
 
         public static IEnumerator Run(PlayerQuests quests, Action tick, Action<bool, string> check)

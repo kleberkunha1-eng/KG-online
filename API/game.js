@@ -104,6 +104,8 @@ module.exports = function register(app, db) {
             Character: {
                 Id: Number(r.id), AccountId: Number(r.account_id), Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: Number(r.exp || 0),
                 SaveRevision: Number(r.save_revision || 0),
+                Boats: JSON.parse(r.boats_json || '[]'),
+                BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
                 CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
                 BaseStr: r.base_str, BaseAgi: r.base_agi, BaseCon: r.base_con, BaseSpr: r.base_spr, BaseSta: r.base_sta,
                 Gold: Number(r.gold || 0), StatPoints: r.stat_points || 0, SkillPoints: r.skill_points || 0, PkPoints: r.pk_points || 0, Reputation: r.reputation || 0,
@@ -141,6 +143,16 @@ module.exports = function register(app, db) {
             return res.json({ success: false, error: 'INVALID_TRANSACTION' });
         if (!Number.isSafeInteger(c.Gold) || c.Gold < 0 || !Number.isSafeInteger(c.Exp) || c.Exp < 0)
             return res.json({ success: false, error: 'INVALID_CHARACTER_VALUES' });
+        const boats = c.Boats;
+        if (boats !== undefined && (!Array.isArray(boats) || boats.length > 3
+            || new Set(boats.map(boat => boat && boat.Id)).size !== boats.length
+            || boats.some(boat => !boat || typeof boat.Id !== 'string'
+                || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(boat.Id)
+                || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
+                || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
+                    .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
+                || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1)))
+            return res.json({ success: false, error: 'INVALID_BOATS' });
         const conn = await db.getConnection();
         try {
             await conn.beginTransaction();
@@ -150,7 +162,7 @@ module.exports = function register(app, db) {
             if (receipts.length) {
                 await conn.rollback();
                 return res.json(receipts[0].payload_hash === hash
-                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1 }
+                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1, boatOwnershipVersion: 1 }
                     : { success: false, error: 'OPERATION_MISMATCH' });
             }
             if (Number(characters[0].save_revision) !== c.SaveRevision) {
@@ -170,6 +182,8 @@ module.exports = function register(app, db) {
                     num(c.PosX), num(c.PosY), num(c.PosZ), num(c.RotationY), String(c.MapName || 'garner').slice(0, 64),
                     int(c.BaseStr), int(c.BaseAgi), int(c.BaseCon), int(c.BaseSpr), int(c.BaseSta), int(c.MaxHp), int(c.MaxMp), int(c.MaxSp),
                     Math.max(0, num(c.Gold)), int(c.StatPoints), int(c.SkillPoints), int(c.PkPoints), int(c.Reputation), id, req.user.id]);
+            if (boats !== undefined)
+                await conn.execute('UPDATE characters SET boats_json = ? WHERE id = ?', [JSON.stringify(boats), id]);
             if (inv) {
                 await conn.execute('DELETE FROM inventory WHERE character_id = ?', [id]);
                 for (const i of inv) {
@@ -188,7 +202,7 @@ module.exports = function register(app, db) {
                     await conn.execute('INSERT INTO skills (character_id, skill_id, level, exp) VALUES (?, ?, ?, ?)', [id, int(s.SkillId), int(s.Level), Math.max(0, num(s.Exp))]);
             }
             await conn.commit();
-            res.json({ success: true, revision: c.SaveRevision + 1 });
+            res.json({ success: true, revision: c.SaveRevision + 1, boatOwnershipVersion: 1 });
         } catch (e) {
             await conn.rollback();
             throw e;

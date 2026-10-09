@@ -371,6 +371,7 @@ async function migrate() {
     for (const sql of transactionSchema.split(';').map(statement => statement.trim()).filter(Boolean))
         await dbPool.query(sql);
     await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0005_quest_objectives.sql'), 'utf8'));
+    await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0006_boat_ownership.sql'), 'utf8'));
 }
 
 require('./routes')(app, dbPool);

@@ -84,6 +84,30 @@ async function lifecycle(call, read) {
     assert.equal(Number(reloaded.Character.Gold), 1000);
     assert.equal(reloaded.Inventory.length, 1);
     assert.equal(reloaded.Inventory[0].UniqueItemId, snapshot.Inventory[0].UniqueItemId);
+    assert.deepEqual(reloaded.Character.Boats, []);
+    const boat = { Id: randomUUID(), Name: 'Guppy Test', TypeId: 1, BerthId: 1, Level: 1,
+        HullId: 43, EngineId: 15, BowId: 8, CannonId: 53, ComponentId: 73, Health: 2280, Fuel: 200 };
+    const purchase = { ...save, OperationId: randomUUID(),
+        Character: { ...save.Character, SaveRevision: 3, Gold: 100, Boats: [boat] } };
+    for (const Boats of [[{ ...boat, Name: 'x' }], [{ ...boat, Health: -1 }], [{ ...boat, Id: 'not-an-id' }],
+        [boat, boat], Array.from({ length: 4 }, () => ({ ...boat, Id: randomUUID() }))])
+        assert.equal((await call({ ...purchase, Character: { ...purchase.Character, Boats } })).error, 'INVALID_BOATS');
+    assert.equal((await call(purchase)).revision, 4);
+    assert.equal((await call(purchase)).revision, 4);
+    state = await read();
+    assert.equal(Number(state.character.gold), 100);
+    assert.deepEqual(JSON.parse(state.character.boats_json), [boat]);
+    assert.equal((await call({ ...purchase, Character: { ...purchase.Character, Boats: [] } })).error, 'OPERATION_MISMATCH');
+    const legacySave = { ...save, OperationId: randomUUID(), Character: { ...save.Character, SaveRevision: 4, Gold: 200 } };
+    assert.equal((await call(legacySave)).revision, 5);
+    assert.deepEqual((await call(null, 100, 'GET')).Character.Boats, [boat], 'Old saves omitting boats preserve ownership.');
+    const rollback = { ...invalid, QuestId: 0, OperationId: randomUUID(),
+        Character: { ...purchase.Character, SaveRevision: 5, Boats: [{ ...boat, Id: randomUUID() }] } };
+    assert.equal((await call(rollback)).success, false);
+    state = await read();
+    assert.deepEqual(JSON.parse(state.character.boats_json), [boat], 'Inventory failure rolls back boat replacement and funds.');
+    assert.equal(Number(state.character.gold), 200);
+    assert.equal(Number(state.character.save_revision), 5);
 }
 
 test('D1 atomic character/quest save: retries, stale autosave, concurrent replay and full rollback', async () => {
@@ -91,6 +115,7 @@ test('D1 atomic character/quest save: retries, stale autosave, concurrent replay
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0001_init.sql'), 'utf8'));
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0003_quest_progress.sql'), 'utf8'));
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0004_character_save_transactions.sql'), 'utf8'));
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0006_boat_ownership.sql'), 'utf8'));
     const token = apiRequire('jsonwebtoken').sign({ sub: 9 }, secret, { expiresIn: '1h' });
     db.prepare('INSERT INTO accounts (id,username,email,password_hash,session_token,session_expires) VALUES (9,?,?,?,?,?)')
         .run('fixture', 'fixture@example.invalid', 'unused', token, Math.floor(Date.now() / 1000) + 3600);
@@ -135,7 +160,7 @@ test('D1 atomic character/quest save: retries, stale autosave, concurrent replay
             inventory: db.prepare('SELECT * FROM inventory WHERE character_id=100').all(),
             receipts: db.prepare('SELECT * FROM character_save_receipts').all(),
         }));
-        assert.equal(errors.length, 1, 'Only the intentional invalid-slot transaction reports a database error.');
+        assert.equal(errors.length, 2, 'Only intentional invalid-slot transactions report database errors.');
     } finally { db.close(); }
 });
 
@@ -155,6 +180,7 @@ test('MariaDB atomic character/quest save uses only temporary tables',
             }
             const [columns] = await db.execute("SHOW COLUMNS FROM characters LIKE 'save_revision'");
             if (!columns.length) await db.execute('ALTER TABLE characters ADD COLUMN save_revision BIGINT NOT NULL DEFAULT 0');
+            await db.query(fs.readFileSync(path.join(root, 'API', 'migrations', '0006_boat_ownership.sql'), 'utf8'));
             await db.execute('CREATE TEMPORARY TABLE character_save_receipts (character_id BIGINT NOT NULL, operation_id VARCHAR(36) NOT NULL, payload_hash CHAR(64) NOT NULL, expected_revision BIGINT NOT NULL, quest_id INT NOT NULL DEFAULT 0, PRIMARY KEY(character_id,operation_id))');
             await db.execute("INSERT INTO characters(id,account_id,slot_index,name,gold) VALUES (100,9,0,'Fixture',123)");
             await db.execute('INSERT INTO quest_progress(character_id,quest_id) VALUES(100,721),(100,722)');

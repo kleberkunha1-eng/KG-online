@@ -66,7 +66,7 @@ namespace TOP.Player
                 // Se o target morreu, para de atacar
                 EnemyStats enemyStats = _currentTarget.GetComponent<EnemyStats>();
                 var targetPlayer = _currentTarget.GetComponent<PlayerCombat>();
-                if (targetPlayer != null && !CanDuelAttack(targetPlayer))
+                if (targetPlayer != null && !CanPlayerAttack(targetPlayer))
                 {
                     StopAttack();
                     return;
@@ -138,8 +138,8 @@ namespace TOP.Player
             else
             {
                 var targetPlayer = _currentTarget.GetComponent<PlayerCombat>();
-                if (targetPlayer == null || !CanDuelAttack(targetPlayer)) { StopAttack(); return; }
-                ApplyDuelDamage(targetPlayer, damage);
+                if (targetPlayer == null || !CanPlayerAttack(targetPlayer)) { StopAttack(); return; }
+                ApplyPlayerDamage(targetPlayer, damage);
             }
 
             _stats?.ConsumeSp(5);
@@ -202,9 +202,9 @@ namespace TOP.Player
             if (targetNetId == 0) return;
             if (!NetworkServer.spawned.TryGetValue(targetNetId, out var identity)) return;
             var playerTarget = identity.GetComponent<PlayerCombat>();
-            if (playerTarget != null && !CanDuelAttack(playerTarget))
+            if (playerTarget != null && !CanPlayerAttack(playerTarget))
             {
-                _controller?.RpcShowMessage("O jogador precisa aceitar um duelo antes do ataque.", PlayerMessageType.Warning);
+                _controller?.RpcShowMessage("PK bloqueado neste mapa, area ou relacao. Fora da arena teampk, use um duelo aceito.", PlayerMessageType.Warning);
                 return;
             }
             if (playerTarget == null && identity.GetComponent<EnemyStats>() == null) return;

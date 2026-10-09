@@ -17,8 +17,8 @@ namespace TOP.Player
             if (!HasQuestTransaction) return false;
             var controller = GetComponent<PlayerController>();
             if (controller != null && connectionToClient != null)
-                controller.RpcShowMessage("Aguarde a confirmacao da entrega da missao para alterar o inventario.", PlayerMessageType.Warning);
-            else Debug.LogWarning("[PlayerInventory] Inventario reservado para entrega de missao.");
+                controller.RpcShowMessage("Aguarde a confirmacao da operacao atomica para alterar o inventario.", PlayerMessageType.Warning);
+            else Debug.LogWarning("[PlayerInventory] Inventario reservado para operacao atomica.");
             return true;
         }
 

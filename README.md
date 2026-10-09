@@ -95,9 +95,11 @@ estar vivos, no mesmo mapa, a ate 20 metros e fora de uma negociacao.
 Apenas o adversario consentido recebe ataques/skills individuais; ataques
 comuns continuam seguindo alcance e cooldown. O duelo termina com 1 HP
 (sem morte, itens ou recompensas), cancelamento, desconexao, troca de mapa
-ou afastamento. Ataques em area ainda atingem apenas monstros.
+ou afastamento. Skills individuais e em area revalidam a permissao de dano
+por alvo; um alvo com varios colliders recebe dano apenas uma vez por cast.
 Esta e uma adaptacao local do desafio individual do cliente original;
-arenas, PK livre e combate entre equipes ainda nao foram importados.
+o motor de combate da arena teampk foi adicionado conforme descrito abaixo,
+mas PK livre e a entrada/cenario/respawn original da arena ainda nao foram importados.
 
 Alteracoes no PlayerCombat incluem novos comandos/SyncVars Mirror: clientes
 e servidor precisam de builds da mesma revisao antes de jogar juntos.
@@ -126,7 +128,28 @@ Dialogos e lojas usam painel opaco com rolagem. Compras, vendas, receitas e cura
 revalidam no servidor o jogador que enviou o pedido, NPC aberto, mapa, distancia,
 vida e ausencia de duelo/trade.
 
-A GameScene preserva os NPCs existentes e suas posicoes. Foram importados os
+A GameScene usa os 55 modelos originais de NPC ja presentes no mapa, sem
+capsulas/esferas visuais substitutas. Os modelos, materiais, colliders e labels
+originais foram ligados aos componentes de servico existentes, preservando
+configuracoes, IDs de quests e NetworkIdentity.sceneId. O Jackpot Machine (154)
+fica inativo porque sua colocacao esta comentada no Garner original; seu objeto
+foi preservado, nao excluido.
+
+`TOP/World/Bind Services to Existing Original NPCs` valida correspondencia exata
+por ID/nome/modelo antes de salvar e cria backup em `Library/TOPAutosave/NpcBindings`.
+O resultado fica em `Tools/npc-visual-bindings-results.txt`. Os populadores
+preservam servicos configurados e nao recriam os modelos ja ligados.
+
+O cursor usa os frames originais `mouseon.ani` (mao aberta) e `attack.ani`
+(espada), extraidos por `Tools/import-original-cursors.ps1`. Hover sobre NPCs
+e objetos interativos usa a mao; monstros vivos, adversarios de duelo aceito
+e jogadores atacaveis em teampk usam a espada. Jogadores protegidos usam a mao
+para interacao social. Chao, o proprio personagem e monstros mortos usam o
+cursor normal. Janelas bloqueiam hover/ataques no mundo por tras delas.
+O cliente usa os campos sincronizados para classificar jogadores remotos,
+nao o estado de inicializacao exclusivo do servidor.
+
+Foram importados os
 estoques de Goldie (78 itens), Granny Nila (39) e Ditto (14), iguais nas duas
 referencias de servidor preservadas e presentes no catalogo do cliente.
 Goldie oferece tambem o acesso a forja existente. O cabeleireiro Cartel foi
@@ -151,16 +174,68 @@ entregar requer contato com o NPC correto (oferta expira em 60 segundos).
 preserva uma copia da cena em `Library/TOPAutosave/NpcServices` antes de salvar.
 Recusa fontes divergentes, IDs ausentes ou sobrescrita de configuracoes customizadas.
 O resultado fica em `Tools/npc-services-import-results.txt`; a auditoria real dos
-56 NPCs e gerada em `Tools/npc-catalog-audit.txt` pelo teste isolado.
+55 NPCs ativos e gerada em `Tools/npc-catalog-audit.txt` pelo teste isolado.
 
 Jimberry ainda nao recebeu estoque: as referencias divergem (67/69 itens).
-Banco, navios, teleportes sem destino, cura parcial e regras de quests completas
+Banco, navegacao de navios, teleportes sem destino, cura parcial e regras de quests completas
 nao foram inventados. As missoes originais incluem flags, multiplos objetivos e
 recompensas condicionais que o modelo simplificado atual ainda nao representa.
 O teste isolado acima cobre tambem NPCs, compras/vendas, receitas, cura e limites
 de acesso; usa personagens sinteticos sem gravacoes em contas/banco reais.
 Os 125 checks passaram. A fase social/NPC desliga os spawners e os inimigos do
 fixture; a fase NPC pausa a regeneracao para medir cura/cobranca sem interferencia.
+
+### Barcos e PK: implementacao local e limites
+
+Sinbad (87) oferece os barcos originais 1/2/3/6 do berth Garner 1, com selecao
+de casco, motor, proa, canhao e componente a partir de shipinfo/shipiteminfo.
+O Guppy padrao custa 9990 ouro. Nivel/classe, partes compativeis, nome ASCII
+de 2 a 16 caracteres, saldo e limite de tres barcos sao validados no servidor.
+A compra salva frota e ouro na mesma transacao revisionada: o resultado so
+fica visivel apos confirmacao; falhas definitivas nao cobram e respostas
+incertas exigem recarga autoritativa. A API precisa anunciar BoatOwnershipVersion 1;
+servidores/API antigos nao permitem construir nem podem confirmar silenciosamente
+um save de barco ignorado.
+
+As duas APIs receberam a migration aditiva `0006_boat_ownership.sql`.
+Ela nao foi aplicada em producao nesta etapa. Saves antigos sem Boats preservam
+a frota; uma lista vazia explicita remove a frota. Esta implementacao cobre
+construcao e propriedade persistida, nao lancamento/atracacao, navegacao,
+montagem visual do navio, combustivel, reparo, carga ou deed 3988.
+
+Garner continua sem PK livre. Combate letal so e permitido no mapa teampk,
+com protecao da mesma party e verificacao dos atributos originais de terreno
+(land 1, safe 2, bridge 8). Party, mapa, vida, trades e operacoes atomicas
+pendentes sao revalidados na aplicacao do dano. Teampk nao perde EXP/itens;
+a perda de SP respeita nivel <=10 e a isencao noturna do Death set direto
+no nivel >=75. Nao foram inventados recompensas de XP, crimes ou PkPoints.
+As restricoes nativas por tipo de mapa foram importadas, mas outros mapas
+letais ficam bloqueados ate portar suas penalidades completas.
+
+Ainda faltam cenario/entrada/map-copy/respawn de teampk, penalidades gerais
+de morte, protecoes consumiveis e excecoes de equipamentos fundidos.
+Os testes da arena usam jogadores sinteticos no terreno original importado;
+nao equivalem a uma arena acessivel por jogadores na build publicada.
+Mudancas de RPC/SyncVars exigem cliente e servidor da mesma revisao.
+Estas alteracoes permanecem locais/staging, sem substituir o servidor publicado.
+
+Validacao conjunta desta etapa: 242 checks Unity passaram, sem falhas, incluindo
+colliders/modelos dos 55 NPCs, Jackpot inativo apos o spawn Mirror, raycasts reais
+de NPC e adversario, texturas/cursor de monstro vivo/morto, duelo/party/teampk,
+lojas/receitas/cura/quests e compra naval com confirmacao/retry/rejeicao.
+As previas renderizadas de Goldie, Sinbad e Gina ficam em `Tools/npc-original-*.png`.
+Os sete testes Node/D1/MariaDB tambem passaram, usando bancos isolados/tabelas
+temporarias, sem alterar contas nem banco de producao.
+
+Cliente e Dedicated Server de staging foram gerados com zero erros em
+`Build/GameProjectKG.gameplay-client-20261009-143324` e
+`Build/GameProjectKG.gameplay-server-20261009-143324`. O servidor isolado na
+UDP 17894 passou duas sessoes KCP de 12 segundos (11 pongs em cada, sem
+desconexao ou spawn antes de Ready/autenticacao) e foi encerrado apos o teste.
+O servidor publicado PID 30220 permaneceu na UDP 7777. Isso verifica transporte,
+nao login real entre dois computadores. Resultados em
+`Tools/gameplay-staging-build-results.txt` e `Tools/gameplay-staging-runtime-results.txt`.
+Nao houve commit/push, publicacao itch/Cloudflare nem migration de producao.
 Esses ajustes existem somente no teste e nao alteram o combate do jogo.
 
 ### Persistencia das missoes nas APIs
@@ -310,10 +385,10 @@ publicadas, e a migracao de recibos nao foi aplicada ao D1 de producao.
 Na continuacao de desenvolvimento, o diario de coleta mostra a quantidade
 atual utilizavel/necessaria para cada material, inclusive objetivos com varios
 itens. A contagem usa a mesma regra da entrega: itens equipados, bloqueados,
-refinados ou com gemas nao sao contabilizados. Essa melhoria visual ainda
-nao faz parte da build publicada 2092791.
+refinados ou com gemas nao sao contabilizados. Essa melhoria visual foi
+publicada na build 2093377, substituindo a 2092791.
 
-### Objetivos mistos de quests (desenvolvimento)
+### Objetivos mistos de quests
 
 `QuestDef.AdditionalObjectives` adiciona objetivos independentes ao objetivo
 principal, ate 16 no total. Mortes, conversas e coletas podem ser combinadas;
@@ -331,8 +406,8 @@ adicionais por indice. As APIs validam indices 0-15, preservam o progresso
 monotonico e recusam atualizacoes de quests inexistentes/concluidas.
 Abandonar remove os contadores adicionais por FK em cascata, para um novo
 aceite iniciar zerado. O setup Node aplica a migracao ao iniciar; o D1 requer
-backup e migracao antes de publicar as novas Functions. Essa migracao NAO
-foi aplicada em producao nesta etapa.
+backup e migracao antes de publicar as novas Functions. Essa migracao foi
+aplicada em producao na publicacao autorizada abaixo.
 
 Refresh, fila de recuperacao HTTP e sincronizacao Mirror preservam cada
 contador independente. Entrega/abandono aguardam qualquer progresso em voo
@@ -344,7 +419,7 @@ O inventario sincronizado inclui o bloqueio do item para o cliente mostrar a
 mesma quantidade utilizavel que o servidor. O novo leitor preserva mensagens
 antigas de 8/9 campos, mas o novo payload de 10 campos exige cliente atualizado:
 publique cliente e servidor pareados, nao misture essa build com clientes
-antigos. As builds publicadas existentes continuam intactas.
+antigos. A build anterior foi preservada antes da publicacao pareada.
 
 Validacao: 193 checks Unity passaram (zero falhas), incluindo objetivos
 mistos, refresh HTTP, payload do cliente remoto, entrega atomica unica,
@@ -361,8 +436,21 @@ A build dedicada foi testada apenas em UDP 17894: duas sessoes KCP de
 Somente o processo de staging foi encerrado; o listener publicado em 7777
 permaneceu intacto. O probe de transporte nao testa login JWT ou saves
 de conta real. Resultados em `Tools/gameplay-staging-build-results.txt` e
-`Tools/gameplay-staging-runtime-results.txt`. Nada dessa revisao foi
-publicado ou enviado ao GitHub nesta etapa.
+`Tools/gameplay-staging-runtime-results.txt`.
+
+Publicacao autorizada em 09/10/2026: cliente itch Windows 2093377, versao
+`2026.10.09-quests-mixed-objectives`, com processamento concluido. API
+`7cfe232f.gamekg.pages.dev` e servidor dedicado foram atualizados juntos.
+A migracao 0005 foi aplicada apos backup SQL privado; a tabela adicional e
+as chaves estrangeiras foram verificadas sem violacoes. Todos os 264 arquivos
+do servidor ativado foram conferidos por hash contra staging.
+O listener UDP 7777 respondeu a duas sessoes pelo endpoint playit publico,
+11 pongs em 12 segundos cada, sem desconexao ou spawn sem autenticacao.
+Rotas de quests/personagem sem credenciais retornaram HTTP 401.
+Os jogadores precisam atualizar o cliente antes de reconectar.
+O codigo estava previamente commitado/sincronizado na revisao `15a0db596`;
+nenhum novo commit/push foi feito por esta publicacao. Relatorio em
+`Tools/gameplay-publication-results.txt`.
 
 ### Semantica nativa de XP e registros
 

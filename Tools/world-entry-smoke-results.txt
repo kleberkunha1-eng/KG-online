@@ -28,35 +28,47 @@ PASS Server tracks the connected synthetic client.
 PASS Ready during login produces zero world spawns.
 PASS Selected synthetic character is initialized but not sent before Ready.
 PASS World Ready associates the selected player with its connection.
-PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=8, loading=False.
+PASS World Ready delivers owner=True, spawns=74, observing=74, server spawned=74, send rate=60, ticks=8, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
-PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
-PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
-PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
 PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
-PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
-PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
-PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
+PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
 PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
 PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
-PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
-PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
-PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
-PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
-PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
-PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
-PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
 PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
+PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
+PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
+PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
 PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01335281
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01282543
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,01109463
+PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
+PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
+PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
+PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
+PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
+PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
+PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
+PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
+PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,02033657
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,001791418
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02489907
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
+PASS Original normal/unknown maps never allow PK.
+PASS Original type 2 protects guilds, not parties.
+PASS Original teampk type 3 protects parties, not guilds.
+PASS Original type 4 protects party and nonzero guild without treating unguilded players as allies.
+PASS Original side-based map type protects its own side.
+PASS Original safe, land and bridge masks match native CompCommand.h.
+PASS Original teampk stamina loss respects level 10 and direct Death set nighttime exemption at level 75.
+PASS Packed arena attributes use native row-major indexing and fail closed for malformed/boundary cells.
+PASS Original default Guppy costs exactly 9990 gold with native hull/engine/bow/cannon/component statistics.
+PASS Original Argent offerings and ship level thresholds are preserved.
+PASS Boat names enforce the native 2-16 byte limit and reject control/markup characters.
 PASS Second synthetic player connects over KCP.
-PASS Social fixture ready: hp=220/102, ready=True/True, distance=0,9999999.
+PASS Remote player has a live collider available to actual pointer raycasts.
+PASS Social fixture ready: hp=220/102, ready=True/True, distance=1.
 PASS Server validates fixture players as available for duel.
 PASS Player attack is rejected without an accepted duel.
 PASS Duel invitation arrives over real KCP; no attack permission before acceptance.
@@ -79,6 +91,9 @@ PASS Trade allows exactly 5 meters.
 PASS Trade rejects distances above 5 meters.
 PASS Out-of-range trade and duel requests are rejected.
 PASS Second duel starts cleanly after the previous one ended.
+PASS Accepted duel opponent has the sword cursor using the same permission as left-click targeting.
+PASS Real pointer raycast hits the live opponent body and selects the sword, not the disabled prefab collider.
+PASS Client-style synchronized player state selects attack cursor without server-only character initialization.
 PASS Trade cannot interrupt an active duel.
 PASS Single-target skill damages only the accepted duel opponent.
 PASS Offensive skill is rejected after duel permission expires.
@@ -87,8 +102,32 @@ PASS Map changes terminate both duel participants.
 PASS Invitation expiration is scheduled for 30 seconds (not an unlimited challenge).
 PASS Expired challenge cannot be accepted.
 PASS A fresh challenge works after an expired invitation.
+PASS Garner remains protected from lethal PK even after an accepted duel.
+PASS Server allows unrelated players in the original land-only teampk arena.
+PASS Allowed arena opponent uses the sword cursor, not the interaction hand.
+PASS Same-party protection is rechecked at damage application.
+PASS Protected party mate changes to the hand cursor for social interaction rather than an attack.
+PASS PK cannot cross map boundaries.
+PASS Unknown/boundary arena cells deny lethal PK.
+PASS Atomic boat purchase cannot overlap lethal PK.
+PASS Protected PK skill target cannot take damage or consume caster resources.
+PASS Single-target PK skill uses the shared original arena permission and charges its cost once.
+PASS Area PK skill damages an allowed player once despite multiple colliders.
+PASS Out-of-range and non-finite area casts are rejected before costs and player damage.
+PASS Lethal PK damage subtracts physical defense exactly once.
+PASS Arena death reaches zero HP once, blocks duplicate damage and terminates attack permission.
+PASS Original teampk death does not lose EXP/gold or invent red-name/crime points.
 PASS Disconnect removes the opponent and stops combat without stale duel permission.
-PASS World contains interactable original NPCs: 56
+PASS Original-disabled Jackpot stays inactive and unspawned after Mirror activates scene identities.
+PASS World contains interactable original NPCs: 55
+PASS All 55 active NPC services use existing original map models; no root capsule/sphere placeholder is rendered.
+PASS Original NPC model colliders resolve to one preserved service/network identity per catalog ID.
+PASS Hover over every existing original NPC collider classifies as an open-hand interaction.
+PASS Real world raycast hits the original Goldie model collider and selects the interaction hand.
+PASS Original open-hand and sword cursor textures are distinct, readable 32x32 assets.
+PASS Empty space and the local player's own collider reset to the normal cursor.
+PASS Live monster body collider uses the original sword cursor.
+PASS Replicated monster death immediately removes the attack cursor.
 PASS Saved GameScene has exactly 78/39/14 verified original shop items at Goldie/Nila/Ditto.
 PASS Saved GameScene routes Cartel to hair salon and ordinary NPCs to dialogue, not accidental salons.
 PASS Saved GameScene includes four verified Ditto recipes and Gina's original 200-gold recovery.
@@ -191,4 +230,14 @@ PASS No healing charge when all resources are already full.
 PASS Original novice waiver requires completed record 500 and permits healing at level 5 without gold.
 PASS Novice recovery waiver expires exactly at level 6.
 PASS A new ground movement command cancels the pending NPC approach.
+PASS Actual KCP interaction selects verified Sinbad NPC 87 in range before construction.
+PASS Old API without naval capability cannot charge gold or create a memory-only boat.
+PASS Actual KCP naval commands reject insufficient level/gold and invalid names before HTTP.
+PASS Boat purchase reserves inventory without exposing ship or charging gold before acknowledgement.
+PASS Concurrent gold spending is blocked during atomic boat purchase.
+PASS Duplicate KCP construction creates one durable Guppy and charges exactly 9990 gold once.
+PASS Naval ownership, original stats, gold and prior revision share one immutable character-save body.
+PASS Definitively rejected boat save leaves gold and ownership unchanged and releases reservation.
+PASS Transient naval save retries identical boat ID/body and confirms one charge, not duplicate ships.
+PASS Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.
 No account authentication or database writes were performed.

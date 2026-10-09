@@ -1,0 +1,348 @@
+ROOT EventSystem
+ROOT MainCamera
+ROOT DirectionalLight
+ROOT Ground
+ROOT SpawnPoints
+ROOT Canvas
+ROOT === MANAGERS ===
+ROOT KillPlane
+ROOT SpawnManager
+ROOT ConfiguredSpawner_0
+ROOT ConfiguredSpawner_1
+ROOT ConfiguredSpawner_2
+ROOT WorldMusic
+ROOT ArgentScenery
+ROOT EffectManager
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT GameSceneDevBootstrap
+ROOT Ground
+ROOT Ground
+ROOT GarnerNPCs
+ROOT GarnerSpawnZones
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT GarnerCities
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT GarnerObjects
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT Ground
+ROOT AscaronPopulation
+ROOT PkoUi
+ROOT MMO Fortress Gate and Wall
+ROOT MMO Fortress Gate and Wall (2)
+ROOT MMO Fortress Gate and Wall (3)
+ROOT MMO Fortress Gate and Wall (1)
+ROOT Garner_Argent
+NPC 2 | Argent Secretary - Salvier | (1.00, 0.60, 33.00)
+  EXACT NPC_1_Argent Secretary - Salvier | objects=1 | renderers=1
+  NEAR 0,420 | default | parent NPC_1_Argent Secretary - Salvier | mesh Assets/ImportedClient/Models/model/character/0087000000.obj
+  NEAR 2,343 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,452 | default | parent yyyy006 | mesh Assets/ImportedClient/Models/model/scene/yyyy006.obj
+NPC 3 | Blacksmith - Goldie | (-25.00, 0.60, 76.00)
+  EXACT NPC_2_Blacksmith - Goldie | objects=1 | renderers=1
+  NEAR 0,174 | default | parent NPC_2_Blacksmith - Goldie | mesh Assets/ImportedClient/Models/model/character/0092000000.obj
+  NEAR 2,530 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 2,844 | default | parent nml-bd012 | mesh Assets/ImportedClient/Models/model/scene/nml-bd012.obj
+NPC 4 | Castle Guard - Peter | (-26.00, 0.60, 15.00)
+  EXACT NPC_3_Castle Guard - Peter | objects=1 | renderers=1
+  NEAR 0,185 | default | parent NPC_3_Castle Guard - Peter | mesh Assets/ImportedClient/Models/model/character/0005000000.obj
+  NEAR 4,588 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 5,573 | default | parent nml-bd001 | mesh Assets/ImportedClient/Models/model/scene/nml-bd001.obj
+NPC 5 | Citizen - Margaret | (61.00, 0.60, 36.00)
+  EXACT NPC_4_Citizen - Margaret | objects=1 | renderers=1
+  NEAR 0,633 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 0,650 | default | parent NPC_4_Citizen - Margaret | mesh Assets/ImportedClient/Models/model/character/0125000000.obj
+  NEAR 1,700 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+NPC 6 | Granny Beldi | (59.00, 0.60, 13.00)
+  EXACT NPC_5_Granny Beldi | objects=1 | renderers=1
+  NEAR 0,331 | default | parent NPC_5_Granny Beldi | mesh Assets/ImportedClient/Models/model/character/0091000000.obj
+  NEAR 1,986 | default | parent nml-bd028 | mesh Assets/ImportedClient/Models/model/scene/nml-bd028.obj
+  NEAR 2,184 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+NPC 7 | Little Daniel | (-25.00, 0.60, 52.00)
+  EXACT NPC_6_Little Daniel | objects=1 | renderers=1
+  NEAR 0,200 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,539 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,718 | default | parent nml-bd028 | mesh Assets/ImportedClient/Models/model/scene/nml-bd028.obj
+NPC 8 | Trader - Chiroro | (113.00, 2.20, -39.00)
+  EXACT NPC_7_Trader - Chiroro | objects=1 | renderers=1
+  NEAR 0,840 | default | parent NPC_7_Trader - Chiroro | mesh Assets/ImportedClient/Models/model/character/0090000000.obj
+  NEAR 2,676 | default | parent nml-bd093 | mesh Assets/ImportedClient/Models/model/scene/nml-bd093.obj
+  NEAR 3,472 | default | parent nml-bd093 | mesh Assets/ImportedClient/Models/model/scene/nml-bd093.obj
+NPC 9 | Physican - Ditto | (32.00, 0.60, 12.00)
+  EXACT NPC_8_Physican - Ditto | objects=1 | renderers=1
+  NEAR 0,667 | default | parent NPC_8_Physican - Ditto | mesh Assets/ImportedClient/Models/model/character/0090000000.obj
+  NEAR 1,082 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,407 | default | parent by-bd032 | mesh Assets/ImportedClient/Models/model/scene/by-bd032.obj
+NPC 10 | Banker - Monica | (2.00, 0.60, 78.00)
+  EXACT NPC_9_Banker - Monica | objects=1 | renderers=1
+  NEAR 0,504 | default | parent NPC_9_Banker - Monica | mesh Assets/ImportedClient/Models/model/character/0089000000.obj
+  NEAR 1,005 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 1,737 | default | parent nml-bd029 | mesh Assets/ImportedClient/Models/model/scene/nml-bd029.obj
+NPC 12 | Forbei | (8.00, 0.60, 56.00)
+  EXACT NPC_11_Forbei | objects=1 | renderers=1
+  NEAR 0,751 | default | parent NPC_11_Forbei | mesh Assets/ImportedClient/Models/model/character/0209000000.obj
+  NEAR 2,220 | default | parent nml-bd002 | mesh Assets/ImportedClient/Models/model/scene/nml-bd002.obj
+  NEAR 2,309 | default | parent nml-bd002 | mesh Assets/ImportedClient/Models/model/scene/nml-bd002.obj
+NPC 13 | Sailer - Coddy | (1.00, 2.00, -129.00)
+  EXACT NPC_12_Sailer - Coddy | objects=1 | renderers=1
+  NEAR 0,361 | default | parent NPC_12_Sailer - Coddy | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,974 | default | parent nml-bd036 | mesh Assets/ImportedClient/Models/model/scene/nml-bd036.obj
+  NEAR 1,084 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+NPC 14 | General - William | (59.00, -3.00, -49.00)
+  EXACT NPC_13_General - William | objects=1 | renderers=1
+  NEAR 1,670 | default | parent NPC_13_General - William | mesh Assets/ImportedClient/Models/model/character/0155000000.obj
+  NEAR 2,315 | default | parent by-bd028 | mesh Assets/ImportedClient/Models/model/scene/by-bd028.obj
+  NEAR 3,037 | default | parent yyyy004 | mesh Assets/ImportedClient/Models/model/scene/yyyy004.obj
+NPC 15 | Nurse - Gina | (26.00, 0.60, 12.00)
+  EXACT NPC_14_Nurse - Gina | objects=1 | renderers=1
+  NEAR 0,906 | default | parent NPC_14_Nurse - Gina | mesh Assets/ImportedClient/Models/model/character/0126000000.obj
+  NEAR 1,417 | default | parent nml-bd013 | mesh Assets/ImportedClient/Models/model/scene/nml-bd013.obj
+  NEAR 1,421 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+NPC 16 | Shaitan Ambassador - Xiba | (38.00, 0.60, 76.00)
+  EXACT NPC_15_Shaitan Ambassador - Xiba | objects=1 | renderers=1
+  NEAR 0,100 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,412 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,535 | default | parent NPC_15_Shaitan Ambassador - Xiba | mesh Assets/ImportedClient/Models/model/character/0155000000.obj
+NPC 17 | Argent Chairman - Ronnie | (23.00, 0.60, 34.00)
+  EXACT NPC_16_Argent Chairman - Ronnie | objects=1 | renderers=1
+  NEAR 0,751 | default | parent NPC_16_Argent Chairman - Ronnie | mesh Assets/ImportedClient/Models/model/character/0153000000.obj
+  NEAR 2,441 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,642 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 18 | Oldman - Blurry | (54.00, 0.60, 82.00)
+  EXACT NPC_17_Oldman - Blurry | objects=1 | renderers=1
+  NEAR 0,039 | default | parent NPC_17_Oldman - Blurry | mesh Assets/ImportedClient/Models/model/character/0207000000.obj
+  NEAR 2,203 | default | parent nml-bd029 | mesh Assets/ImportedClient/Models/model/scene/nml-bd029.obj
+  NEAR 2,408 | default | parent nml-bd029 | mesh Assets/ImportedClient/Models/model/scene/nml-bd029.obj
+NPC 19 | Grocery - Jimberry | (14.00, 0.60, 53.00)
+  EXACT NPC_18_Grocery - Jimberry | objects=1 | renderers=1
+  NEAR 0,143 | default | parent NPC_18_Grocery - Jimberry | mesh Assets/ImportedClient/Models/model/character/0090000000.obj
+  NEAR 3,400 | default | parent nml-bd002 | mesh Assets/ImportedClient/Models/model/scene/nml-bd002.obj
+  NEAR 4,646 | default | parent nml-bd047 | mesh Assets/ImportedClient/Models/model/scene/nml-bd047.obj
+NPC 20 | Tailor - Granny Nila | (49.00, 0.60, 78.00)
+  EXACT NPC_19_Tailor - Granny Nila | objects=1 | renderers=1
+  NEAR 1,081 | default | parent NPC_19_Tailor - Granny Nila | mesh Assets/ImportedClient/Models/model/character/0091000000.obj
+  NEAR 1,304 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 1,476 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 21 | Assistant - Rouri | (22.00, 0.60, 30.00)
+  EXACT NPC_20_Assistant - Rouri | objects=1 | renderers=1
+  NEAR 1,063 | default | parent NPC_20_Assistant - Rouri | mesh Assets/ImportedClient/Models/model/character/0089000000.obj
+  NEAR 1,972 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,860 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 23 | Barmaid - Donna | (6.00, 2.00, -105.00)
+  EXACT NPC_22_Barmaid - Donna | objects=1 | renderers=1
+  NEAR 1,051 | default | parent NPC_22_Barmaid - Donna | mesh Assets/ImportedClient/Models/model/character/0011000000.obj
+  NEAR 2,008 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+  NEAR 2,123 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+NPC 24 | Tourist - Ja | (-3.00, 1.70, -46.00)
+  EXACT NPC_23_Tourist - Ja | objects=1 | renderers=1
+  NEAR 0,552 | default | parent by-bd014-1 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-1.obj
+  NEAR 0,791 | default | parent by-bd014-1 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-1.obj
+  NEAR 0,903 | default | parent NPC_23_Tourist - Ja | mesh Assets/ImportedClient/Models/model/character/0129000000.obj
+NPC 25 | Drunkyard - Anthony | (4.00, 2.00, -107.00)
+  EXACT NPC_24_Drunkyard - Anthony | objects=1 | renderers=1
+  NEAR 0,976 | default | parent NPC_24_Drunkyard - Anthony | mesh Assets/ImportedClient/Models/model/character/0010000000.obj
+  NEAR 1,127 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+  NEAR 1,400 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+NPC 53 | Arena Administrator | (-8.00, 2.00, -111.00)
+  EXACT NPC_52_Arena Administrator | objects=1 | renderers=1
+  NEAR 0,539 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,856 | default | parent NPC_52_Arena Administrator | mesh Assets/ImportedClient/Models/model/character/0011000000.obj
+  NEAR 0,943 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 70 | Sailor 3001 | (63.00, 1.70, -48.00)
+  EXACT NPC_69_Sailor 3001 | objects=1 | renderers=1
+  NEAR 0,052 | default | parent NPC_69_Sailor 3001 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,999 | default | parent NPC_70_Sailor 3002 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 1,000 | NPC_71_Sailor_3002 | parent NPCs | mesh Library/unity default resources
+NPC 71 | Sailor 3002 | (63.00, 1.70, -49.00)
+  EXACT NPC_70_Sailor 3002 | objects=1 | renderers=1
+  NEAR 0,052 | default | parent NPC_70_Sailor 3002 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,999 | Nameplate | parent NPC_76_Sailor_3007 | mesh 
+  NEAR 0,999 | default | parent NPC_71_Sailor 3003 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+NPC 72 | Sailor 3003 | (63.00, 1.70, -50.00)
+  EXACT NPC_71_Sailor 3003 | objects=1 | renderers=1
+  NEAR 0,052 | default | parent NPC_71_Sailor 3003 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,999 | default | parent NPC_72_Sailor 3004 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 1,000 | NPC_71_Sailor_3002 | parent NPCs | mesh Library/unity default resources
+NPC 73 | Sailor 3004 | (63.00, 1.70, -51.00)
+  EXACT NPC_72_Sailor 3004 | objects=1 | renderers=1
+  NEAR 0,052 | default | parent NPC_72_Sailor 3004 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,999 | Nameplate | parent NPC_78_Sailor_3009 | mesh 
+  NEAR 0,999 | default | parent NPC_73_Sailor 3005 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+NPC 74 | Sailor 3005 | (63.00, 1.70, -52.00)
+  EXACT NPC_73_Sailor 3005 | objects=1 | renderers=1
+  NEAR 0,052 | default | parent NPC_73_Sailor 3005 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,990 | default | parent yyyy005 | mesh Assets/ImportedClient/Models/model/scene/yyyy005.obj
+  NEAR 1,000 | NPC_73_Sailor_3004 | parent NPCs | mesh Library/unity default resources
+NPC 75 | Sailor 3006 | (64.00, 1.70, -48.00)
+  EXACT NPC_74_Sailor 3006 | objects=1 | renderers=1
+  NEAR 0,093 | default | parent NPC_74_Sailor 3006 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+  NEAR 0,948 | default | parent NPC_69_Sailor 3001 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,995 | default | parent NPC_75_Sailor 3007 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+NPC 76 | Sailor 3007 | (64.00, 1.70, -49.00)
+  EXACT NPC_75_Sailor 3007 | objects=1 | renderers=1
+  NEAR 0,093 | default | parent NPC_75_Sailor 3007 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+  NEAR 0,948 | default | parent NPC_70_Sailor 3002 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,995 | default | parent NPC_76_Sailor 3008 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+NPC 77 | Sailor 3008 | (64.00, 1.70, -50.00)
+  EXACT NPC_76_Sailor 3008 | objects=1 | renderers=1
+  NEAR 0,093 | default | parent NPC_76_Sailor 3008 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+  NEAR 0,948 | default | parent NPC_71_Sailor 3003 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,995 | default | parent NPC_77_Sailor 3009 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+NPC 78 | Sailor 3009 | (64.00, 1.70, -51.00)
+  EXACT NPC_77_Sailor 3009 | objects=1 | renderers=1
+  NEAR 0,093 | default | parent NPC_77_Sailor 3009 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+  NEAR 0,948 | default | parent NPC_72_Sailor 3004 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 0,995 | default | parent NPC_78_Sailor 3010 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+NPC 79 | Sailor 3010 | (64.00, 1.70, -52.00)
+  EXACT NPC_78_Sailor 3010 | objects=1 | renderers=1
+  NEAR 0,093 | default | parent NPC_78_Sailor 3010 | mesh Assets/ImportedClient/Models/model/character/0144000000.obj
+  NEAR 0,948 | default | parent NPC_73_Sailor 3005 | mesh Assets/ImportedClient/Models/model/character/0145000000.obj
+  NEAR 1,000 | Nameplate | parent NPC_74_Sailor_3005 | mesh 
+NPC 80 | 223 Squadron 1 | (51.00, -0.60, -40.00)
+  EXACT NPC_79_223 Squadron 1 | objects=1 | renderers=1
+  NEAR 0,934 | default | parent NPC_79_223 Squadron 1 | mesh Assets/ImportedClient/Models/model/character/0241000000.obj
+  NEAR 4,810 | default | parent yyyy006 | mesh Assets/ImportedClient/Models/model/scene/yyyy006.obj
+  NEAR 5,874 | default | parent by-bd028 | mesh Assets/ImportedClient/Models/model/scene/by-bd028.obj
+NPC 81 | 223 Squadron 2 | (51.00, -1.50, -51.00)
+  EXACT NPC_80_223 Squadron 2 | objects=1 | renderers=1
+  NEAR 1,004 | default | parent NPC_80_223 Squadron 2 | mesh Assets/ImportedClient/Models/model/character/0241000000.obj
+  NEAR 4,875 | default | parent yyyy006 | mesh Assets/ImportedClient/Models/model/scene/yyyy006.obj
+  NEAR 5,953 | default | parent by-bd028 | mesh Assets/ImportedClient/Models/model/scene/by-bd028.obj
+NPC 82 | 223 Squadron 3 | (-16.00, -2.00, -47.00)
+  EXACT NPC_81_223 Squadron 3 | objects=1 | renderers=1
+  NEAR 0,640 | default | parent NPC_81_223 Squadron 3 | mesh Assets/ImportedClient/Models/model/character/0241000000.obj
+  NEAR 5,184 | default | parent NPC_82_223 Squadron 4 | mesh Assets/ImportedClient/Models/model/character/0241000000.obj
+  NEAR 5,997 | Nameplate | parent NPC_83_223_Squadron_4 | mesh 
+NPC 83 | 223 Squadron 4 | (-22.00, -2.00, -47.00)
+  EXACT NPC_82_223 Squadron 4 | objects=1 | renderers=1
+  NEAR 0,923 | default | parent NPC_82_223 Squadron 4 | mesh Assets/ImportedClient/Models/model/character/0241000000.obj
+  NEAR 6,000 | NPC_82_223_Squadron_3 | parent NPCs | mesh Library/unity default resources
+  NEAR 6,001 | Nameplate | parent NPC_82_223_Squadron_3 | mesh 
+NPC 84 | The Coral | (24.00, -0.60, -50.00)
+  EXACT NPC_83_The Coral | objects=1 | renderers=1
+  NEAR 0,499 | default | parent NPC_83_The Coral | mesh Assets/ImportedClient/Models/model/character/0247000000.obj
+  NEAR 3,118 | default | parent by-bd014-5 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-5.obj
+  NEAR 4,012 | default | parent by-bd014-1 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-1.obj
+NPC 85 | The Whale | (24.00, -0.60, -55.00)
+  EXACT NPC_84_The Whale | objects=1 | renderers=1
+  NEAR 0,829 | default | parent NPC_84_The Whale | mesh Assets/ImportedClient/Models/model/character/0247000000.obj
+  NEAR 4,651 | default | parent NPC_83_The Coral | mesh Assets/ImportedClient/Models/model/character/0247000000.obj
+  NEAR 4,891 | default | parent by-bd014-5 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-5.obj
+NPC 86 | Maritime Assistant - Alena | (29.00, 2.00, -76.00)
+  EXACT NPC_85_Maritime Assistant - Alena | objects=1 | renderers=1
+  NEAR 0,775 | default | parent NPC_85_Maritime Assistant - Alena | mesh Assets/ImportedClient/Models/model/character/0185000000.obj
+  NEAR 2,220 | default | parent nml-bd001 | mesh Assets/ImportedClient/Models/model/scene/nml-bd001.obj
+  NEAR 2,474 | default | parent nml-bd001 | mesh Assets/ImportedClient/Models/model/scene/nml-bd001.obj
+NPC 87 | Builder - Sinbad | (37.00, 1.70, -19.00)
+  EXACT NPC_86_Builder - Sinbad | objects=1 | renderers=1
+  NEAR 0,694 | default | parent by-bd014-2 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-2.obj
+  NEAR 1,052 | default | parent NPC_86_Builder - Sinbad | mesh Assets/ImportedClient/Models/model/character/0010000000.obj
+  NEAR 3,048 | default | parent nml-bd003 | mesh Assets/ImportedClient/Models/model/scene/nml-bd003.obj
+NPC 88 | Harbor Operator - Shirley | (25.00, 1.70, -44.00)
+  EXACT NPC_87_Harbor Operator - Shirley | objects=1 | renderers=1
+  NEAR 0,684 | default | parent NPC_87_Harbor Operator - Shirley | mesh Assets/ImportedClient/Models/model/character/0253000000.obj
+  NEAR 1,605 | default | parent yyyy004 | mesh Assets/ImportedClient/Models/model/scene/yyyy004.obj
+  NEAR 2,322 | default | parent by-bd014-5 | mesh Assets/ImportedClient/Models/model/scene/by-bd014-5.obj
+NPC 117 | Pirate Informer - Gewas | (6.00, 2.00, -101.00)
+  EXACT NPC_116_Pirate Informer - Gewas | objects=1 | renderers=1
+  NEAR 0,839 | default | parent NPC_116_Pirate Informer - Gewas | mesh Assets/ImportedClient/Models/model/character/0242000000.obj
+  NEAR 2,931 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+  NEAR 3,168 | default | parent yyyy001 | mesh Assets/ImportedClient/Models/model/scene/yyyy001.obj
+NPC 118 | Navy Informer - Dalongdan | (-17.00, 1.70, -36.00)
+  EXACT NPC_117_Navy Informer - Dalongdan | objects=1 | renderers=1
+  NEAR 0,324 | default | parent NPC_117_Navy Informer - Dalongdan | mesh Assets/ImportedClient/Models/model/character/0085000000.obj
+  NEAR 1,726 | default | parent yyyy006 | mesh Assets/ImportedClient/Models/model/scene/yyyy006.obj
+  NEAR 2,844 | default | parent by-bd002 | mesh Assets/ImportedClient/Models/model/scene/by-bd002.obj
+NPC 119 | Navy Recruitment - Rachel | (-24.00, 0.60, 8.00)
+  EXACT NPC_118_Navy Recruitment - Rachel | objects=1 | renderers=1
+  NEAR 0,701 | default | parent NPC_118_Navy Recruitment - Rachel | mesh Assets/ImportedClient/Models/model/character/0255000000.obj
+  NEAR 1,780 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 2,119 | default | parent nml-bd012 | mesh Assets/ImportedClient/Models/model/scene/nml-bd012.obj
+NPC 123 | Island Teleporter - Silvius | (30.00, 2.00, -71.00)
+  EXACT NPC_122_Island Teleporter - Silvius | objects=1 | renderers=1
+  NEAR 0,935 | default | parent NPC_122_Island Teleporter - Silvius | mesh Assets/ImportedClient/Models/model/character/0011000000.obj
+  NEAR 3,183 | default | parent nml-bd001 | mesh Assets/ImportedClient/Models/model/scene/nml-bd001.obj
+  NEAR 4,230 | default | parent nml-bd001 | mesh Assets/ImportedClient/Models/model/scene/nml-bd001.obj
+NPC 127 | Coral Vendor - Lamon | (-25.00, 0.60, 61.00)
+  EXACT NPC_126_Coral Vendor - Lamon | objects=1 | renderers=1
+  NEAR 0,478 | default | parent NPC_126_Coral Vendor - Lamon | mesh Assets/ImportedClient/Models/model/character/0262000000.obj
+  NEAR 1,334 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 1,360 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 128 | Tailor - Bebe | (47.00, 0.60, 78.00)
+  EXACT NPC_127_Tailor - Bebe | objects=1 | renderers=1
+  NEAR 0,838 | default | parent NPC_127_Tailor - Bebe | mesh Assets/ImportedClient/Models/model/character/0127000000.obj
+  NEAR 0,990 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 1,746 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 133 | Hairstylist - Cartel | (-3.00, 3.00, -31.00)
+  EXACT NPC_132_Hairstylist - Cartel | objects=1 | renderers=1
+  NEAR 0,362 | default | parent NPC_132_Hairstylist - Cartel | mesh Assets/ImportedClient/Models/model/character/0096000000.obj
+  NEAR 1,671 | default | parent by-bd036 | mesh Assets/ImportedClient/Models/model/scene/by-bd036.obj
+  NEAR 2,082 | default | parent nml-bd048 | mesh Assets/ImportedClient/Models/model/scene/nml-bd048.obj
+NPC 139 | Redemption - Bingo | (13.00, 0.60, 67.00)
+  EXACT NPC_138_Redemption - Bingo | objects=1 | renderers=1
+  NEAR 0,440 | default | parent NPC_138_Redemption - Bingo | mesh Assets/ImportedClient/Models/model/character/0011000000.obj
+  NEAR 1,170 | default | parent yyyy002 | mesh Assets/ImportedClient/Models/model/scene/yyyy002.obj
+  NEAR 1,332 | default | parent by-bd036 | mesh Assets/ImportedClient/Models/model/scene/by-bd036.obj
+NPC 142 | Cleaner | (34.00, 0.60, 3.00)
+  EXACT NPC_141_Cleaner | objects=1 | renderers=1
+  NEAR 0,288 | default | parent NPC_141_Cleaner | mesh Assets/ImportedClient/Models/model/character/0684000000.obj
+  NEAR 1,942 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,201 | default | parent by-bd036 | mesh Assets/ImportedClient/Models/model/scene/by-bd036.obj
+NPC 143 | Event NPC - Pappa | (4.00, 0.60, 14.00)
+  EXACT NPC_142_Event NPC - Pappa | objects=1 | renderers=1
+  NEAR 0,721 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 0,775 | default | parent NPC_142_Event NPC - Pappa | mesh Assets/ImportedClient/Models/model/character/0223000000.obj
+  NEAR 1,500 | default | parent nml-bd012 | mesh Assets/ImportedClient/Models/model/scene/nml-bd012.obj
+NPC 144 | Mysterious Granny | (-60.00, 0.60, -10.00)
+  EXACT NPC_143_Mysterious Granny | objects=1 | renderers=1
+  NEAR 0,023 | default | parent NPC_143_Mysterious Granny | mesh Assets/ImportedClient/Models/model/character/0091000000.obj
+  NEAR 2,704 | default | parent nml-bd184 | mesh Assets/ImportedClient/Models/model/scene/nml-bd184.obj
+  NEAR 2,897 | default | parent nml-bd057 | mesh Assets/ImportedClient/Models/model/scene/nml-bd057.obj
+NPC 148 | Wood Processing Merchant | (43.00, 0.60, 65.00)
+  EXACT NPC_147_Wood Processing Merchant | objects=1 | renderers=1
+  NEAR 0,163 | default | parent NPC_147_Wood Processing Merchant | mesh Assets/ImportedClient/Models/model/character/0276000000.obj
+  NEAR 0,400 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 1,600 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+NPC 153 | Weird Hat Seller | (22.00, 0.60, 13.00)
+  EXACT NPC_152_Weird Hat Seller | objects=1 | renderers=1
+  NEAR 0,372 | default | parent NPC_152_Weird Hat Seller | mesh Assets/ImportedClient/Models/model/character/0261000000.obj
+  NEAR 1,315 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+  NEAR 1,432 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj
+NPC 154 | Jackpot Machine | (-8.00, 0.60, 77.00)
+  EXACT NPC_153_Jackpot Machine | objects=0 | renderers=0
+  NEAR 2,055 | default | parent nml-bd024 | mesh Assets/ImportedClient/Models/model/scene/nml-bd024.obj
+  NEAR 2,419 | default | parent nml-bd011 | mesh Assets/ImportedClient/Models/model/scene/nml-bd011.obj
+  NEAR 2,900 | default | parent nml-bd010 | mesh Assets/ImportedClient/Models/model/scene/nml-bd010.obj

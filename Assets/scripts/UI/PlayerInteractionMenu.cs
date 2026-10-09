@@ -1,7 +1,6 @@
 using Mirror;
 using TOP.Player;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace TOP.UI
 {
@@ -53,9 +52,7 @@ namespace TOP.UI
             if (Input.GetMouseButtonDown(1))
             {
                 RightClickPending = false;
-                if (Camera.main == null || TOP.Admin.AdminPanel.BlocksMouse
-                    || (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-                    || Pko.PkoUi.PointerOverWindow()) return;
+                if (Camera.main == null || GameplayCursor.PointerOverUi()) return;
                 pressedAt = Input.mousePosition;
                 if (Physics.Raycast(Camera.main.ScreenPointToRay(pressedAt), out var hit, 100,
                     Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
@@ -123,6 +120,13 @@ namespace TOP.UI
             }
             GUI.enabled = combat.DuelOpponentNetId != 0;
             if (GUILayout.Button("Encerrar duelo")) { combat.CmdCancelDuel(); target = null; }
+            GUI.enabled = target != null && local.GetComponent<PlayerController>().MapName == "teampk"
+                && GameplayCursor.CanAttackPlayer(local.GetComponent<PlayerController>(), target);
+            if (GUILayout.Button("Atacar na arena PK"))
+            {
+                local.GetComponent<PlayerController>().CmdAttackTarget(target.netIdentity, 0);
+                target = null;
+            }
             GUI.enabled = true;
             GUILayout.EndScrollView();
             GUI.DragWindow(new Rect(0, 0, 210, 22));

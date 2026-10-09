@@ -968,7 +968,8 @@ namespace TOP.Network
         async Task SavePlayerAsync(PlayerConnection playerConn)
         {
             if (playerConn?.PlayerController == null) return;
-            if (playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false)
+            if ((playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false)
+                || playerConn.PlayerController.BoatOperationPending)
             {
                 Debug.Log("[SavePlayer] Entrega atomica em andamento; nao salvar um snapshot anterior.");
                 return;
@@ -1000,7 +1001,8 @@ namespace TOP.Network
         async Task SaveAndDisconnectAsync(PlayerConnection playerConn)
         {
             if (playerConn?.PlayerController != null
-                && !(playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false))
+                && !(playerConn.PlayerController.GetComponent<PlayerQuests>()?.HasPendingCompletion ?? false)
+                && !playerConn.PlayerController.BoatOperationPending)
             {
                 CharacterData data = playerConn.PlayerController.GetCharacterData();
                 if (data != null)

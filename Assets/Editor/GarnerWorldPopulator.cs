@@ -70,6 +70,8 @@ namespace TOP.EditorTools
                 return null;
             }
             var root = GameObject.Find("GarnerNPCs") ?? new GameObject("GarnerNPCs");
+            var configuredNpcs = terrainObject.scene.GetRootGameObjects()
+                .SelectMany(sceneRoot => sceneRoot.GetComponentsInChildren<TOP.NPC.NPCInteractable>(true)).ToArray();
             foreach (var child in root.transform.Cast<Transform>().ToArray()) UnityEngine.Object.DestroyImmediate(child.gameObject);
             var latin = Encoding.GetEncoding(28591);
             var frameworks = new Dictionary<int, int>();
@@ -87,6 +89,9 @@ namespace TOP.EditorTools
                     if (line.StartsWith("//") || string.IsNullOrWhiteSpace(line)) continue;
                     var c = line.Split('\t');
                     if (c.Length < 8 || !int.TryParse(c[3], out int chrId) || !TryPoint(c[5], out float x, out float z)) continue;
+                    string originalName = "NPC_" + c[0] + "_" + c[1];
+                    if (configuredNpcs.Any(npc => npc.NpcName == c[1] && npc.transform.Find(originalName) != null))
+                    { placedNpc++; continue; }
                     var pos = ToWorld(x, z);
                     var terrain = FindTerrain(pos);
                     if (terrain == null) continue;
@@ -160,6 +165,5 @@ namespace TOP.EditorTools
         }
     }
 }
-
 
 

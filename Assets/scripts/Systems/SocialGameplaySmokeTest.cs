@@ -48,6 +48,44 @@ namespace TOP.Testing
 
         public static IEnumerator Run(GameObject first, KcpClient client, Action tick, Action<bool, string> check)
         {
+            check(!OriginalPvpRules.AreEnemies(1, 0, 0, 0, 0, 0, 0)
+                && !OriginalPvpRules.AreEnemies(0, 0, 0, 0, 0, 0, 0)
+                && !OriginalPvpRules.AreEnemies(99, 0, 0, 0, 0, 0, 0), "Original normal/unknown maps never allow PK.");
+            check(OriginalPvpRules.AreEnemies(2, 7, 7, 0, 0, 0, 0)
+                && !OriginalPvpRules.AreEnemies(2, 0, 0, 9, 9, 0, 0), "Original type 2 protects guilds, not parties.");
+            check(!OriginalPvpRules.AreEnemies(3, 7, 7, 0, 0, 0, 0)
+                && OriginalPvpRules.AreEnemies(3, 0, 0, 9, 9, 0, 0), "Original teampk type 3 protects parties, not guilds.");
+            check(!OriginalPvpRules.AreEnemies(4, 7, 7, 0, 0, 0, 0)
+                && !OriginalPvpRules.AreEnemies(4, 0, 0, 9, 9, 0, 0)
+                && OriginalPvpRules.AreEnemies(4, 0, 0, 0, 0, 0, 0), "Original type 4 protects party and nonzero guild without treating unguilded players as allies.");
+            check(!OriginalPvpRules.AreEnemies(5, 0, 0, 0, 0, 1, 1)
+                && OriginalPvpRules.AreEnemies(5, 0, 0, 0, 0, 1, 2), "Original side-based map type protects its own side.");
+            check(OriginalPvpRules.IsSafe(2) && !OriginalPvpRules.IsSafe(1)
+                && OriginalPvpRules.IsLand(1) && OriginalPvpRules.IsLand(8) && !OriginalPvpRules.IsLand(128),
+                "Original safe, land and bridge masks match native CompCommand.h.");
+            check(!OriginalPvpRules.ArenaLosesStamina(10, 12, Array.Empty<int>())
+                && OriginalPvpRules.ArenaLosesStamina(11, 12, Array.Empty<int>())
+                && !OriginalPvpRules.ArenaLosesStamina(75, 18, new[] { 2817, 2818, 2819 })
+                && OriginalPvpRules.ArenaLosesStamina(75, 17, new[] { 2817, 2818, 2819 })
+                && OriginalPvpRules.ArenaLosesStamina(74, 18, new[] { 2817, 2818, 2819 }),
+                "Original teampk stamina loss respects level 10 and direct Death set nighttime exemption at level 75.");
+            var attributes = Resources.Load<TextAsset>("PKO/teampk.atr").bytes;
+            check(OriginalPvpRules.TryReadAttributes(attributes, 20, 20, out ushort area) && area == 1
+                && !OriginalPvpRules.TryReadAttributes(attributes, 95, 20, out _)
+                && !OriginalPvpRules.TryReadAttributes(attributes, -1, 20, out _)
+                && !OriginalPvpRules.TryReadAttributes(new byte[8], 0, 0, out _),
+                "Packed arena attributes use native row-major indexing and fail closed for malformed/boundary cells.");
+            var quote = BoatCatalog.Quote(1, 15, 8, 53, 73);
+            check(quote.Price == 9990 && quote.Health == 2280 && quote.Fuel == 500 && quote.Defense == 46
+                && quote.Speed == 450 && quote.MinimumAttack == 167 && quote.MaximumAttack == 250 && quote.Capacity == 24,
+                "Original default Guppy costs exactly 9990 gold with native hull/engine/bow/cannon/component statistics.");
+            check(!BoatCatalog.CanBuild(1, 14, 0) && BoatCatalog.CanBuild(1, 15, 0)
+                && !BoatCatalog.CanBuild(3, 29, 0) && BoatCatalog.CanBuild(3, 30, 0)
+                && !BoatCatalog.IsArgentOffering(4) && BoatCatalog.IsArgentOffering(6),
+                "Original Argent offerings and ship level thresholds are preserved.");
+            check(!BoatCatalog.ValidName("a") && BoatCatalog.ValidName("ab") && BoatCatalog.ValidName(new string('a', 16))
+                && !BoatCatalog.ValidName(new string('a', 17)) && !BoatCatalog.ValidName("<boat>") && !BoatCatalog.ValidName("barco\n"),
+                "Boat names enforce the native 2-16 byte limit and reject control/markup characters.");
             var existing = new HashSet<int>(NetworkServer.connections.Keys);
             bool connected = false;
             string error = null;
@@ -106,6 +144,8 @@ namespace TOP.Testing
                 NetworkServer.AddPlayerForConnection(connection, other);
                 var a = first.GetComponent<PlayerCombat>();
                 var b = other.GetComponent<PlayerCombat>();
+                var targetCollider = other.GetComponentsInChildren<Collider>().FirstOrDefault(collider => collider.enabled && !collider.isTrigger);
+                check(targetCollider != null, "Remote player has a live collider available to actual pointer raycasts.");
                 var sa = first.GetComponent<PlayerStats>();
                 var sb = other.GetComponent<PlayerStats>();
                 var ia = first.GetComponent<PlayerInventory>();
@@ -255,6 +295,33 @@ namespace TOP.Testing
                 Send(second, b, "CmdRespondDuel", w => { w.Write(a.netId); w.WriteBool(true); });
                 yield return Pump(tick, second);
                 check(a.CanDuelAttack(b), "Second duel starts cleanly after the previous one ended.");
+                check(TOP.UI.GameplayCursor.CanAttackPlayer(a.GetComponent<PlayerController>(), b.GetComponent<PlayerController>())
+                    && TOP.UI.GameplayCursor.Classify(targetCollider, a.GetComponent<PlayerController>()) == TOP.UI.GameplayCursorKind.Sword,
+                    "Accepted duel opponent has the sword cursor using the same permission as left-click targeting.");
+                Physics.SyncTransforms();
+                check(targetCollider != null && Physics.Raycast(targetCollider.bounds.center
+                        + Vector3.up * (targetCollider.bounds.extents.y + 2), Vector3.down, out var playerHit, 10)
+                    && playerHit.collider.GetComponentInParent<PlayerController>() == b.GetComponent<PlayerController>()
+                    && TOP.UI.GameplayCursor.Classify(playerHit.collider, a.GetComponent<PlayerController>()) == TOP.UI.GameplayCursorKind.Sword,
+                    "Real pointer raycast hits the live opponent body and selects the sword, not the disabled prefab collider.");
+                var characterField = typeof(PlayerController).GetField("_characterData", BindingFlags.Instance | BindingFlags.NonPublic);
+                var localController = a.GetComponent<PlayerController>();
+                var remoteController = b.GetComponent<PlayerController>();
+                var localData = characterField.GetValue(localController);
+                var remoteData = characterField.GetValue(remoteController);
+                try
+                {
+                    characterField.SetValue(localController, null);
+                    characterField.SetValue(remoteController, null);
+                    check(!localController.IsInitialized && !remoteController.IsInitialized
+                        && TOP.UI.GameplayCursor.CanAttackPlayer(localController, remoteController),
+                        "Client-style synchronized player state selects attack cursor without server-only character initialization.");
+                }
+                finally
+                {
+                    characterField.SetValue(localController, localData);
+                    characterField.SetValue(remoteController, remoteData);
+                }
                 Send(client, ta, "CmdRequestTrade", w => w.WriteString("SocialTest"));
                 yield return Pump(tick, second);
                 check(!ta.InTrade && a.CanDuelAttack(b), "Trade cannot interrupt an active duel.");
@@ -312,6 +379,119 @@ namespace TOP.Testing
                 Send(second, b, "CmdRespondDuel", w => { w.Write(a.netId); w.WriteBool(true); });
                 yield return Pump(tick, second);
                 check(a.CanDuelAttack(b), "A fresh challenge works after an expired invitation.");
+                Send(client, a, "CmdCancelDuel", _ => { });
+                yield return Pump(tick, second);
+                var ca = a.GetComponent<PlayerController>();
+                var cb = b.GetComponent<PlayerController>();
+                Vector3 positionA = a.transform.position, positionB = b.transform.position;
+                int partyA = pa.PartyId, partyB = pb.PartyId;
+                int originalLevel = cb.Level;
+                int deaths = 0;
+                Action died = () => deaths++;
+                cb.OnDeath += died;
+                try
+                {
+                    check(!a.CanPkAttack(b), "Garner remains protected from lethal PK even after an accepted duel.");
+                    ca.MapName = cb.MapName = "teampk";
+                    cb.Level = 15;
+                    a.transform.position = new Vector3(20 - WorldBlockGrid.OriginX, positionA.y, WorldBlockGrid.OriginZ - 20);
+                    b.transform.position = a.transform.position + Vector3.right;
+                    pa.PartyId = pb.PartyId = 0;
+                    check(a.CanPkAttack(b), "Server allows unrelated players in the original land-only teampk arena.");
+                    check(TOP.UI.GameplayCursor.CanAttackPlayer(ca, cb)
+                        && TOP.UI.GameplayCursor.Classify(targetCollider, ca) == TOP.UI.GameplayCursorKind.Sword,
+                        "Allowed arena opponent uses the sword cursor, not the interaction hand.");
+                    pa.PartyId = pb.PartyId = 77;
+                    hp = sb.CurrentHp;
+                    a.ApplyPlayerDamage(b, 20);
+                    check(!a.CanPkAttack(b) && sb.CurrentHp == hp, "Same-party protection is rechecked at damage application.");
+                    check(!TOP.UI.GameplayCursor.CanAttackPlayer(ca, cb)
+                        && TOP.UI.GameplayCursor.Classify(targetCollider, ca) == TOP.UI.GameplayCursorKind.Hand,
+                        "Protected party mate changes to the hand cursor for social interaction rather than an attack.");
+                    pa.PartyId = pb.PartyId = 0;
+                    cb.MapName = "garner";
+                    check(!a.CanPkAttack(b), "PK cannot cross map boundaries.");
+                    cb.MapName = "teampk";
+                    b.transform.position = new Vector3(95 - WorldBlockGrid.OriginX, positionB.y, WorldBlockGrid.OriginZ - 20);
+                    check(!a.CanPkAttack(b), "Unknown/boundary arena cells deny lethal PK.");
+                    b.transform.position = a.transform.position + Vector3.right;
+                    ca.BoatOperationPending = true;
+                    check(!a.CanPkAttack(b), "Atomic boat purchase cannot overlap lethal PK.");
+                    ca.BoatOperationPending = false;
+                    var pkSkills = a.GetComponent<PlayerSkills>();
+                    var allSkills = typeof(PlayerSkills).GetField("_allSkills", BindingFlags.Instance | BindingFlags.NonPublic);
+                    var previousSkills = allSkills.GetValue(pkSkills);
+                    var pkSkill = ScriptableObject.CreateInstance<TOP.Core.SkillData>();
+                    var additionalCollider = b.gameObject.AddComponent<BoxCollider>();
+                    try
+                    {
+                        pkSkill.skillId = 999888;
+                        pkSkill.skillName = "Synthetic PK Skill";
+                        pkSkill.targetType = TOP.Core.SkillTargetType.SingleEnemy;
+                        pkSkill.range = 3;
+                        pkSkill.baseDamage = 12;
+                        pkSkill.damageMultiplier = pkSkill.damagePerLevel = pkSkill.elementMultiplier = 1;
+                        pkSkill.mpCost = pkSkill.spCost = 1;
+                        pkSkill.cooldown = 0;
+                        pkSkill.areaRadius = 2;
+                        pkSkill.maxTargets = 2;
+                        allSkills.SetValue(pkSkills, new[] { pkSkill });
+                        pkSkills.LearnSkill(pkSkill.skillId);
+                        sa.SetCurrentHpMpSp(sa.MaxHp, sa.MaxMp, sa.MaxSp);
+                        sb.SetCurrentHpMpSp(sb.MaxHp, sb.MaxMp, sb.MaxSp);
+                        pa.PartyId = pb.PartyId = 77;
+                        hp = sb.CurrentHp;
+                        int mana = sa.CurrentMp, stamina = sa.CurrentSp;
+                        pkSkills.UseSkill(pkSkill.skillId, b.transform.position, b.netId);
+                        check(sb.CurrentHp == hp && sa.CurrentMp == mana && sa.CurrentSp == stamina,
+                            "Protected PK skill target cannot take damage or consume caster resources.");
+                        pa.PartyId = pb.PartyId = 0;
+                        int skillDamage = Mathf.Max(1, 12 + sa.PhysicalAttack - sb.PhysicalDefense);
+                        pkSkills.UseSkill(pkSkill.skillId, b.transform.position, b.netId);
+                        check(sb.CurrentHp == hp - skillDamage && sa.CurrentMp == mana - 1,
+                            "Single-target PK skill uses the shared original arena permission and charges its cost once.");
+                        pkSkill.targetType = TOP.Core.SkillTargetType.AreaEnemy;
+                        Physics.SyncTransforms();
+                        hp = sb.CurrentHp;
+                        pkSkills.UseSkill(pkSkill.skillId, b.transform.position, b.netId);
+                        check(sb.CurrentHp == hp - skillDamage,
+                            "Area PK skill damages an allowed player once despite multiple colliders.");
+                        mana = sa.CurrentMp;
+                        hp = sb.CurrentHp;
+                        pkSkills.UseSkill(pkSkill.skillId, a.transform.position + Vector3.right * 10, b.netId);
+                        pkSkills.UseSkill(pkSkill.skillId, new Vector3(float.NaN, 0, 0), b.netId);
+                        check(sb.CurrentHp == hp && sa.CurrentMp == mana,
+                            "Out-of-range and non-finite area casts are rejected before costs and player damage.");
+                    }
+                    finally
+                    {
+                        allSkills.SetValue(pkSkills, previousSkills);
+                        UnityEngine.Object.Destroy(pkSkill);
+                        UnityEngine.Object.Destroy(additionalCollider);
+                    }
+                    ulong experience = cb.Exp, gold = cb.Gold;
+                    int points = ca.PkPoints;
+                    sb.SetCurrentHpMpSp(sb.MaxHp, sb.MaxMp, sb.MaxSp);
+                    a.ApplyPlayerDamage(b, 25);
+                    check(sb.CurrentHp == sb.MaxHp - Mathf.Max(1, 25 - sb.PhysicalDefense),
+                        "Lethal PK damage subtracts physical defense exactly once.");
+                    a.ApplyPlayerDamage(b, int.MaxValue / 2);
+                    a.ApplyPlayerDamage(b, int.MaxValue / 2);
+                    check(sb.IsDead && cb.CurrentHp == 0 && sb.CurrentSp == 0 && deaths == 1 && !a.CanPkAttack(b),
+                        "Arena death reaches zero HP once, blocks duplicate damage and terminates attack permission.");
+                    check(cb.Exp == experience && cb.Gold == gold && ca.PkPoints == points,
+                        "Original teampk death does not lose EXP/gold or invent red-name/crime points.");
+                }
+                finally
+                {
+                    cb.OnDeath -= died;
+                    ca.BoatOperationPending = false;
+                    ca.MapName = cb.MapName = "garner";
+                    cb.Level = originalLevel;
+                    pa.PartyId = partyA; pb.PartyId = partyB;
+                    a.transform.position = positionA; b.transform.position = positionB;
+                    sb.SetCurrentHpMpSp(sb.MaxHp, sb.MaxMp, sb.MaxSp);
+                }
                 second.Disconnect();
                 yield return Pump(tick, second);
                 check(a.DuelOpponentNetId == 0 && a.CurrentTargetNetId == 0,

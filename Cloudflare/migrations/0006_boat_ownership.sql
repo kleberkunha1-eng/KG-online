@@ -1,0 +1,1 @@
+ALTER TABLE characters ADD COLUMN boats_json TEXT NOT NULL DEFAULT '[]';

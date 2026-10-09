@@ -52,6 +52,138 @@ namespace TOP.EditorTools
 
         static bool InsideTile(double x, double y) => x >= TileMinX && x <= TileMaxX && y >= TileMinZ && y <= TileMaxZ;
 
+        static Mesh VisualMesh(Renderer renderer)
+        {
+            if (renderer is SkinnedMeshRenderer skinned) return skinned.sharedMesh;
+            var filter = renderer.GetComponent<MeshFilter>();
+            return filter != null ? filter.sharedMesh : null;
+        }
+
+        public static void AuditExistingNpcVisualsBatch()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("NPC audit requires edit mode.");
+            var scene = EditorSceneManager.OpenScene("Assets/Scenes/GameScene.unity");
+            var roots = scene.GetRootGameObjects();
+            var transforms = roots.SelectMany(root => root.GetComponentsInChildren<Transform>(true)).ToArray();
+            var renderers = roots.SelectMany(root => root.GetComponentsInChildren<Renderer>(true))
+                .Where(renderer => VisualMesh(renderer) != null).ToArray();
+            var lines = roots.Select(root => "ROOT " + root.name).ToList();
+            foreach (var npc in roots.SelectMany(root => root.GetComponentsInChildren<NPCInteractable>(true)))
+            {
+                lines.Add("NPC " + npc.NpcId + " | " + npc.NpcName + " | " + npc.transform.position);
+                string expected = "NPC_" + (int.Parse(npc.NpcId) - 1) + "_" + npc.NpcName;
+                var original = transforms.Where(transform => transform.name == expected).ToArray();
+                lines.Add("  EXACT " + expected + " | objects=" + original.Length + " | renderers="
+                    + (original.Length == 1 ? original[0].GetComponentsInChildren<Renderer>(true).Count(renderer => VisualMesh(renderer) != null) : 0));
+                var nearest = renderers.Where(renderer => !renderer.transform.IsChildOf(npc.transform))
+                    .Select(renderer => (renderer, distance: Vector2.Distance(new Vector2(renderer.bounds.center.x, renderer.bounds.center.z),
+                        new Vector2(npc.transform.position.x, npc.transform.position.z))))
+                    .OrderBy(entry => entry.distance).Take(3);
+                foreach (var entry in nearest)
+                {
+                    var mesh = VisualMesh(entry.renderer);
+                    lines.Add("  NEAR " + entry.distance.ToString("F3") + " | " + entry.renderer.name
+                        + " | parent " + entry.renderer.transform.parent?.name + " | mesh " + AssetDatabase.GetAssetPath(mesh));
+                }
+            }
+            File.WriteAllLines("Tools/npc-existing-visuals-audit.txt", lines);
+            Debug.Log("[NPC Audit] " + lines.Count + " records; scene not modified.");
+        }
+
+        [MenuItem("TOP/World/Bind Services to Existing Original NPCs")]
+        public static void BindExistingNpcVisualsBatch()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Stop Play before binding NPC visuals.");
+            var scene = EditorSceneManager.OpenScene("Assets/Scenes/GameScene.unity");
+            var transforms = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<Transform>(true)).ToArray();
+            var npcs = transforms.Select(transform => transform.GetComponent<NPCInteractable>()).Where(npc => npc != null).ToArray();
+            var records = File.ReadAllLines("Assets/ImportedClient/ServerData/garner/garnernpc.txt", System.Text.Encoding.GetEncoding(28591));
+            var active = records.Where(line => !line.StartsWith("//") && !string.IsNullOrWhiteSpace(line)).Select(line => line.Split('\t')).ToArray();
+            var bindings = new System.Collections.Generic.List<(NPCInteractable npc, Transform visual, string configuration, ulong sceneId)>();
+            var disabled = new System.Collections.Generic.List<NPCInteractable>();
+            foreach (var npc in npcs)
+            {
+                if (!int.TryParse(npc.NpcId, out int id)) throw new InvalidDataException("NPC ID is not an original catalog ID: " + npc.NpcId);
+                var rows = active.Where(row => row[1] == npc.NpcName && int.Parse(row[0]) + 1 == id).ToArray();
+                if (rows.Length == 0 && records.Any(line => line.StartsWith("//") && line.Split('\t').Length > 1
+                    && line.Split('\t')[1] == npc.NpcName))
+                { disabled.Add(npc); continue; }
+                if (rows.Length != 1) throw new InvalidDataException("Original placement missing or ambiguous: " + npc.NpcName);
+                string name = "NPC_" + rows[0][0] + "_" + rows[0][1];
+                var originals = transforms.Where(transform => transform.name == name).ToArray();
+                if (originals.Length != 1 || !originals[0].GetComponentsInChildren<Renderer>(true)
+                    .Any(renderer => VisualMesh(renderer) != null && AssetDatabase.GetAssetPath(VisualMesh(renderer))
+                        .StartsWith("Assets/ImportedClient/Models/model/character/", StringComparison.Ordinal)))
+                    throw new InvalidDataException("Existing original map model missing or ambiguous: " + name);
+                if (originals[0].GetComponent<NetworkIdentity>() != null)
+                    throw new InvalidDataException("Original model already has a separate network identity: " + name);
+                var filter = npc.GetComponent<MeshFilter>();
+                if (filter != null && filter.sharedMesh != null && filter.sharedMesh.name != "Capsule" && filter.sharedMesh.name != "Sphere")
+                    throw new InvalidDataException("Custom NPC mesh would be overwritten: " + npc.NpcName);
+                bindings.Add((npc, originals[0], EditorJsonUtility.ToJson(npc), npc.GetComponent<NetworkIdentity>().sceneId));
+            }
+            string backup = Path.Combine("Library", "TOPAutosave", "NpcBindings", DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + ".unity");
+            Directory.CreateDirectory(Path.GetDirectoryName(backup));
+            File.Copy(scene.path, backup, false);
+            var report = new System.Collections.Generic.List<string> { "Scene backup: " + backup };
+            foreach (var binding in bindings)
+            {
+                var npc = binding.npc;
+                if (!binding.visual.IsChildOf(npc.transform))
+                {
+                    npc.transform.localScale = Vector3.one;
+                    npc.transform.SetPositionAndRotation(binding.visual.position, binding.visual.rotation);
+                    binding.visual.SetParent(npc.transform, true);
+                }
+                var renderer = npc.GetComponent<MeshRenderer>();
+                var filter = npc.GetComponent<MeshFilter>();
+                if (renderer != null) UnityEngine.Object.DestroyImmediate(renderer);
+                if (filter != null) UnityEngine.Object.DestroyImmediate(filter);
+                var placeholderCollider = npc.GetComponent<CapsuleCollider>();
+                if (placeholderCollider != null) UnityEngine.Object.DestroyImmediate(placeholderCollider);
+                var nameplate = npc.transform.Find("Nameplate");
+                if (nameplate != null && nameplate.GetComponent<TextMeshPro>() != null) nameplate.gameObject.SetActive(false);
+                if (EditorJsonUtility.ToJson(npc) != binding.configuration || npc.GetComponent<NetworkIdentity>().sceneId != binding.sceneId)
+                    throw new InvalidDataException("NPC service configuration/network identity changed during binding: " + npc.NpcName);
+                report.Add("BOUND " + npc.NpcId + " | " + npc.NpcName + " | " + binding.visual.name
+                    + " | existing model/collider/materials retained; service and sceneId unchanged");
+                EditorUtility.SetDirty(npc.gameObject);
+            }
+            foreach (var npc in disabled)
+            {
+                var disabledRoot = npc.transform.parent.name == "OriginalDisabledNPCs"
+                    ? npc.transform.parent : npc.transform.parent.Find("OriginalDisabledNPCs");
+                if (disabledRoot == null)
+                {
+                    disabledRoot = new GameObject("OriginalDisabledNPCs").transform;
+                    disabledRoot.SetParent(npc.transform.parent, false);
+                }
+                // Mirror activates scene identities, but deliberately skips identities under inactive parents.
+                disabledRoot.gameObject.SetActive(false);
+                npc.transform.SetParent(disabledRoot, true);
+                npc.gameObject.SetActive(false);
+                report.Add("INACTIVE " + npc.NpcId + " | " + npc.NpcName + " | placement commented out in original Garner source; placeholder retained inactive, not deleted");
+            }
+            foreach (string cursor in new[] { "mouseon", "chat", "drag", "attack" })
+            {
+                var importer = AssetImporter.GetAtPath("Assets/Resources/PKOCursors/" + cursor + ".png") as TextureImporter;
+                if (importer == null) throw new InvalidDataException("Original cursor image missing: " + cursor);
+                importer.textureType = TextureImporterType.Cursor;
+                importer.isReadable = true;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.filterMode = FilterMode.Point;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            report.Add("Active original bindings: " + bindings.Count + "; inactive original-disabled NPCs: " + disabled.Count);
+            File.WriteAllLines("Tools/npc-visual-bindings-results.txt", report);
+            Debug.Log("[NPC Bindings] " + bindings.Count + " original map models bound; no replacement characters created.");
+        }
+
         [MenuItem("TOP/World/Populate Ascaron NPCs and Monsters")]
         public static void Populate()
         {
@@ -65,28 +197,30 @@ namespace TOP.EditorTools
             if (enemyPrefab == null) throw new Exception("Assets/Enemy/Prefabs/Enemy_Slime.prefab not found.");
 
             var existingRoot = GameObject.Find("AscaronPopulation");
-            if (existingRoot != null) UnityEngine.Object.DestroyImmediate(existingRoot);
-
-            var root = new GameObject("AscaronPopulation");
-            var npcRoot = new GameObject("NPCs"); npcRoot.transform.SetParent(root.transform, false);
-            var monsterRoot = new GameObject("Monsters"); monsterRoot.transform.SetParent(root.transform, false);
-
-            int npcLayer = LayerMask.NameToLayer("Enemy") >= 0 ? LayerMask.NameToLayer("Enemy") : 0;
+            var root = existingRoot != null ? existingRoot : new GameObject("AscaronPopulation");
+            var npcBranch = root.transform.Find("NPCs");
+            if (npcBranch == null) { npcBranch = new GameObject("NPCs").transform; npcBranch.SetParent(root.transform, false); }
+            var monsterBranch = root.transform.Find("Monsters");
+            if (monsterBranch == null) { monsterBranch = new GameObject("Monsters").transform; monsterBranch.SetParent(root.transform, false); }
+            var existingNpcs = npcBranch.GetComponentsInChildren<NPCInteractable>(true).Select(npc => npc.NpcId).ToHashSet();
 
             int npcCount = 0;
             foreach (var npc in PkoTables.Npcs.Where(n => n.Location == "Argent City" && InsideTile(n.X, n.Y)))
             {
+                if (existingNpcs.Contains(npc.Id.ToString())) { npcCount++; continue; }
                 var go = BuildNpc(npc, ToWorld(npc.X, npc.Y, terrain));
-                go.transform.SetParent(npcRoot.transform, true);
+                go.transform.SetParent(npcBranch, true);
                 npcCount++;
             }
 
             int monsterCount = 0;
             foreach (var mon in PkoTables.WorldMonsters.Where(m => m.Continent == "Ascaron" && InsideTile(m.X, m.Y)))
             {
+                string name = "Monster_" + mon.Id + "_" + Sanitize(mon.Name);
+                if (monsterBranch.Find(name) != null) { monsterCount++; continue; }
                 Vector3 pos = ToWorld(mon.X, mon.Y, terrain);
-                var go = (GameObject)PrefabUtility.InstantiatePrefab(enemyPrefab, monsterRoot.transform);
-                go.name = "Monster_" + mon.Id + "_" + Sanitize(mon.Name);
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(enemyPrefab, monsterBranch);
+                go.name = name;
                 go.transform.position = pos;
                 ConfigureMonster(go, mon);
                 monsterCount++;
@@ -99,7 +233,7 @@ namespace TOP.EditorTools
             File.WriteAllText("Tools/populate-ascaron-report.txt",
                 $"NPCs placed (Argent City): {npcCount}\nMonsters placed (Ascaron, inside imported tile): {monsterCount}\n" +
                 "Coordinates converted 1:1 from the original client tables (npclist.txt / monsterlist.txt) using the same origin as GarnerTerrainImporter.\n" +
-                "NPC visuals are placeholder capsules (no unique 3D model resolver yet for characterinfo IDs). Monsters reuse the Enemy_Slime visual, scaled/tinted per level, with real name/level/stats.\n");
+                "NPC services reuse original models already placed by GarnerWorldPopulator. Existing NPC configuration and monster instances are retained; no placeholder NPC geometry is generated.\n");
             Debug.Log($"[AscaronPopulationSetup] {npcCount} NPCs e {monsterCount} monstros adicionados em Argent City.");
         }
 
@@ -107,15 +241,16 @@ namespace TOP.EditorTools
 
         static GameObject BuildNpc(PkoNpc npc, Vector3 position)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            string originalName = "NPC_" + (npc.Id - 1) + "_" + npc.Name;
+            var original = GameObject.Find(originalName);
+            if (original == null || original.GetComponentsInChildren<Renderer>(true).All(renderer => VisualMesh(renderer) == null))
+                throw new InvalidDataException("Place the verified original map NPC before creating its services: " + originalName);
+            var go = new GameObject("NPC_" + npc.Id + "_" + Sanitize(npc.Name));
             go.name = "NPC_" + npc.Id + "_" + Sanitize(npc.Name);
-            go.transform.position = position;
-            go.transform.localScale = new Vector3(0.8f, 0.9f, 0.8f);
+            go.transform.SetPositionAndRotation(original.transform.position, original.transform.rotation);
+            original.transform.SetParent(go.transform, true);
 
             var npcType = InferType(npc.Name);
-            var renderer = go.GetComponent<Renderer>();
-            renderer.sharedMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit")) { color = ColorForType(npcType) };
-
             var identity = go.AddComponent<NetworkIdentity>();
             identity.serverOnly = false;
 
@@ -126,13 +261,6 @@ namespace TOP.EditorTools
             so.FindProperty("npcType").enumValueIndex = (int)npcType;
             so.FindProperty("interactionRange").floatValue = 3f;
             so.ApplyModifiedPropertiesWithoutUndo();
-
-            var label = new GameObject("Nameplate", typeof(TextMeshPro));
-            label.transform.SetParent(go.transform, false);
-            label.transform.localPosition = new Vector3(0, 1.4f, 0);
-            var tmp = label.GetComponent<TextMeshPro>();
-            tmp.text = npc.Name;
-            tmp.fontSize = 3; tmp.alignment = TextAlignmentOptions.Center; tmp.color = Color.yellow;
 
             return go;
         }

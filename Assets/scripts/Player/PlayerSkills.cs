@@ -109,15 +109,22 @@ namespace TOP.Player
             }
 
             if (_stats.CurrentSp < skillData.spCost) return;
+            if (skillData.targetType == SkillTargetType.AreaEnemy
+                && (!float.IsFinite(targetPosition.x) || !float.IsFinite(targetPosition.y) || !float.IsFinite(targetPosition.z)
+                    || Vector3.Distance(transform.position, targetPosition) > skillData.range))
+            {
+                GetComponent<PlayerController>()?.RpcShowMessage("Area da habilidade fora do alcance.", PlayerMessageType.Warning);
+                return;
+            }
             if (skillData.targetType == SkillTargetType.SingleEnemy)
             {
                 if (targetNetId == 0 || !NetworkServer.spawned.TryGetValue(targetNetId, out var enemyTarget)
                     || Vector3.Distance(transform.position, enemyTarget.transform.position) > skillData.range) return;
                 var enemy = enemyTarget.GetComponent<EnemyStats>();
                 var opponent = enemyTarget.GetComponent<PlayerCombat>();
-                if ((enemy == null || enemy.IsDead) && (opponent == null || !GetComponent<PlayerCombat>().CanDuelAttack(opponent)))
+                if ((enemy == null || enemy.IsDead) && (opponent == null || !GetComponent<PlayerCombat>().CanPlayerAttack(opponent)))
                 {
-                    GetComponent<PlayerController>()?.RpcShowMessage("Alvo invalido: ataques a jogadores exigem duelo.", PlayerMessageType.Warning);
+                    GetComponent<PlayerController>()?.RpcShowMessage("Alvo protegido: verifique mapa, area, party ou aceite um duelo.", PlayerMessageType.Warning);
                     return;
                 }
             }
@@ -182,7 +189,15 @@ namespace TOP.Player
 
                 case SkillTargetType.AreaEnemy:
                     var targets = new HashSet<uint>();
-                    foreach(var hit in Physics.OverlapSphere(targetPosition,data.areaRadius)) { var enemy=hit.GetComponentInParent<EnemyStats>(); if(enemy != null && !enemy.IsDead && targets.Add(enemy.netId)) ApplySkillEffect(data,enemy.netId); if(targets.Count >= data.maxTargets) break; }
+                    foreach (var hit in Physics.OverlapSphere(targetPosition, data.areaRadius))
+                    {
+                        var enemy = hit.GetComponentInParent<EnemyStats>();
+                        var player = hit.GetComponentInParent<PlayerCombat>();
+                        uint targetId = enemy != null && !enemy.IsDead ? enemy.netId
+                            : player != null && GetComponent<PlayerCombat>().CanPlayerAttack(player) ? player.netId : 0;
+                        if (targetId != 0 && targets.Add(targetId)) ApplySkillEffect(data, targetId);
+                        if (targets.Count >= data.maxTargets) break;
+                    }
                     break;
             }
 
@@ -213,8 +228,9 @@ namespace TOP.Player
             {
                 var combat = GetComponent<PlayerCombat>();
                 var opponent = targetObj.GetComponent<PlayerCombat>();
-                if (combat != null && opponent != null && Vector3.Distance(transform.position, targetObj.transform.position) <= data.range)
-                    combat.ApplyDuelDamage(opponent, damage);
+                float range = data.targetType == SkillTargetType.AreaEnemy ? data.range + data.areaRadius : data.range;
+                if (combat != null && opponent != null && Vector3.Distance(transform.position, targetObj.transform.position) <= range)
+                    combat.ApplyPlayerDamage(opponent, damage);
             }
         }
 

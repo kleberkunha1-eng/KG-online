@@ -18,6 +18,8 @@ namespace TOP.UI
         Vector2 scroll;
         string quantity = "1";
         bool selling;
+        int selectedBoat = 1, engineIndex, bowIndex, cannonIndex, componentIndex;
+        string boatName = "Meu barco";
         public static bool BlocksMouse => instance != null && instance.npc != null;
 
         public static void Open(NPCInteractable npc, string[] lines, int[] items, int[] offers, int[] turnIns)
@@ -65,6 +67,7 @@ namespace TOP.UI
             scroll = GUILayout.BeginScrollView(scroll);
             foreach (var line in lines) GUILayout.Label(line);
             if (lines.Length == 0) GUILayout.Label(npc.GetInteractionName());
+            if (npc.NpcId == "87" || npc.NpcId == "88") DrawBoats();
             if (offers.Length > 0 || turnIns.Length > 0)
             {
                 GUILayout.Label("Missoes");
@@ -74,6 +77,42 @@ namespace TOP.UI
                 foreach (int quest in turnIns)
                     if (QuestTable.All.TryGetValue(quest, out var def) && GUILayout.Button("Entregar: " + def.Name))
                         npc.CmdQuestAction(quest, true);
+            }
+
+            void DrawBoats()
+            {
+                var controller = NetworkClient.localPlayer.GetComponent<PlayerController>();
+                GUILayout.Label("Frota (" + controller.OwnedBoats.Count + "/3)");
+                foreach (var boat in controller.OwnedBoats)
+                    GUILayout.Label(boat.Name + " - " + (BoatCatalog.Definitions.TryGetValue(boat.TypeId, out var ship)
+                        ? ship.Name : "Tipo nao configurado " + boat.TypeId) + " - porto " + boat.BerthId
+                        + " - HP " + boat.Health + " - combustivel " + boat.Fuel);
+                GUILayout.Label("Navegacao, reparo e carga ainda nao habilitados nesta etapa.");
+                if (!controller.BoatOwnershipAvailable)
+                    GUILayout.Label("API naval ainda nao atualizada: construcao bloqueada para proteger seu ouro.");
+                if (npc.NpcId != "87") return;
+                foreach (int type in new[] { 1, 2, 3, 6 })
+                    if (GUILayout.Button(BoatCatalog.Definitions[type].Name + " (nivel " + BoatCatalog.Definitions[type].MinimumLevel + ")"))
+                    { selectedBoat = type; engineIndex = bowIndex = cannonIndex = componentIndex = 0; }
+                var definition = BoatCatalog.Definitions[selectedBoat];
+                GUILayout.Label("Construir: " + definition.Name);
+                boatName = GUILayout.TextField(boatName, 16);
+                engineIndex = GUILayout.SelectionGrid(engineIndex, Array.ConvertAll(definition.Engines, id => "Motor " + id), 2);
+                bowIndex = GUILayout.SelectionGrid(bowIndex, Array.ConvertAll(definition.Bows, id => "Proa " + id), 3);
+                cannonIndex = GUILayout.SelectionGrid(cannonIndex, Array.ConvertAll(definition.Cannons, id => "Canhao " + id), 3);
+                componentIndex = GUILayout.SelectionGrid(componentIndex, Array.ConvertAll(definition.Components, id => "Componente " + id), 2);
+                var quote = BoatCatalog.Quote(selectedBoat, definition.Engines[engineIndex], definition.Bows[bowIndex],
+                    definition.Cannons[cannonIndex], definition.Components[componentIndex]);
+                GUILayout.Label("Preco original: " + quote.Price + " ouro; HP " + quote.Health + "; combustivel " + quote.Fuel
+                    + "; carga " + quote.Capacity);
+                bool previous = GUI.enabled;
+                GUI.enabled = previous && controller.BoatOwnershipAvailable && !controller.BoatOperationPending && controller.OwnedBoats.Count < BoatCatalog.MaximumBoats
+                    && BoatCatalog.CanBuild(selectedBoat, controller.Level, controller.Job) && BoatCatalog.ValidName(boatName.Trim())
+                    && controller.Gold >= (ulong)quote.Price;
+                if (GUILayout.Button(controller.BoatOperationPending ? "Salvando construcao..." : "Construir e salvar"))
+                    controller.CmdBuildBoat(selectedBoat, boatName, definition.Engines[engineIndex], definition.Bows[bowIndex],
+                        definition.Cannons[cannonIndex], definition.Components[componentIndex]);
+                GUI.enabled = previous;
             }
             if (GUILayout.Button("Diario de missoes")) QuestLogUI.ToggleLocal();
             if (npc.NpcType == NPCType.Blacksmith && GUILayout.Button("Abrir forja")) npc.CmdOpenForge();
