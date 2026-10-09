@@ -409,8 +409,20 @@ namespace TOP.Testing
                     check(fixture.Requests == before && quests.HasActiveQuest(questId) && !inventory.HasQuestTransaction,
                         "Refined, socketed and locked materials cannot satisfy consumable quest requirements.");
                     check(!quests.CanTurnIn(questId), "Quest completion availability uses the same protected-material rules as delivery.");
+                    check(inventory.GetQuestMaterialCount(material.Id) == 0
+                        && TOP.UI.QuestLogUI.CollectionLabel(inventory, material.Id, "", 10).EndsWith(" 0/10"),
+                        "Protected materials do not produce false collection progress in the diary.");
+                    check(PlayerInventory.IsUsableQuestMaterial(false, false, 0, false)
+                        && !PlayerInventory.IsUsableQuestMaterial(true, false, 0, false)
+                        && !PlayerInventory.IsUsableQuestMaterial(false, true, 0, false)
+                        && !PlayerInventory.IsUsableQuestMaterial(false, false, 1, false)
+                        && !PlayerInventory.IsUsableQuestMaterial(false, false, 0, true),
+                        "Each equipment, lock, refinement and gem restriction independently excludes quest material.");
 
                     inventory.InitializeFromData(items);
+                    check(inventory.GetQuestMaterialCount(material.Id) == 13
+                        && TOP.UI.QuestLogUI.CollectionLabel(inventory, material.Id, "", 10).EndsWith(" 13/10"),
+                        "Collection diary displays usable quantities across slots without counting refined or locked material.");
                     fixture.Reply("{\"success\":true,\"revision\":2}");
                     before = fixture.Requests;
                     quests.ServerTurnInQuest(questId);

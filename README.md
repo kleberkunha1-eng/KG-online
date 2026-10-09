@@ -307,6 +307,14 @@ publicadas, e a migracao de recibos nao foi aplicada ao D1 de producao.
 
 ### Regras originais de XP e recuperacao de progresso
 
+Na continuacao de desenvolvimento, o diario de coleta mostra a quantidade
+atual utilizavel/necessaria para cada material, inclusive objetivos com varios
+itens. A contagem usa a mesma regra da entrega: itens equipados, bloqueados,
+refinados ou com gemas nao sao contabilizados. Essa melhoria visual ainda
+nao faz parte da build publicada 2092791. Validacao: 180 checks Unity passaram
+(zero falhas), incluindo contagem em varias pilhas, materiais protegidos e
+cada restricao independente; resultados em `Tools/social-gameplay-results.txt`.
+
 Foi lida a implementacao nativa `lua_AddExp` em
 `E:\PrivateTop\meu_servidor\sources\Server\GameServer\src\CharScript.cpp`.
 Os dois argumentos sao minimo inclusivo e maximo exclusivo: `AddExp(40,70)`

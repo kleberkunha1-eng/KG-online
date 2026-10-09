@@ -28,7 +28,7 @@ PASS Server tracks the connected synthetic client.
 PASS Ready during login produces zero world spawns.
 PASS Selected synthetic character is initialized but not sent before Ready.
 PASS World Ready associates the selected player with its connection.
-PASS World Ready delivers owner=True, spawns=75, observing=75, server spawned=75, send rate=60, ticks=9, loading=False.
+PASS World Ready delivers owner=True, spawns=78, observing=78, server spawned=78, send rate=60, ticks=6, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
 PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
@@ -49,9 +49,9 @@ PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,062240
 PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
 PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
 PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,003506124
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,002972066
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,01705033
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,01124996
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,007522047
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02517277
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
@@ -125,6 +125,9 @@ PASS Rejected collection completion releases inventory and preserves exact slots
 PASS Full inventory with no freed material slot rejects the reward before any API call or consumption.
 PASS Refined, socketed and locked materials cannot satisfy consumable quest requirements.
 PASS Quest completion availability uses the same protected-material rules as delivery.
+PASS Protected materials do not produce false collection progress in the diary.
+PASS Each equipment, lock, refinement and gem restriction independently excludes quest material.
+PASS Collection diary displays usable quantities across slots without counting refined or locked material.
 PASS Confirmed collection consumes exactly ten materials across slots and grants its exact ID reward once.
 PASS Collection advances the character revision and uses the same durable save endpoint as its rewards.
 PASS Collection commit preserves remaining item IDs, durability, gems, refinement and ownership locks.

@@ -68,6 +68,7 @@ namespace TOP.UI
 
         void Draw(int id)
         {
+            var inventory = local.GetComponent<PlayerInventory>();
             float contentHeight = 0;
             foreach (var (questId, _) in local.ActiveQuests)
                 if (QuestTable.All.TryGetValue(questId, out var definition)) contentHeight += RowHeight(definition);
@@ -81,7 +82,7 @@ namespace TOP.UI
                 {
                     QuestObjectiveType.TalkTo => progress >= 1 ? "Conversa realizada" : "Fale com o alvo indicado",
                     QuestObjectiveType.Kill => $"Derrotar: {progress}/{def.Objective.Required} ({def.Objective.Target})",
-                    QuestObjectiveType.Collect => $"Coletar: {ItemLabel(def.Objective.ItemId, def.Objective.Target)} x{def.Objective.Required}",
+                    QuestObjectiveType.Collect => CollectionLabel(inventory, def.Objective.ItemId, def.Objective.Target, def.Objective.Required),
                     _ => "",
                 };
                 float extra = RowHeight(def) - 96;
@@ -92,7 +93,8 @@ namespace TOP.UI
                     {
                         var required = def.Objective.CollectionItems[i];
                         GUI.Label(new Rect(0, y + 18 + i * 18, win.width - 50, 18),
-                            required == null ? "Material de missao invalido" : $"Coletar: {ItemLabel(required.ItemId, "")} x{required.Quantity}");
+                            required == null ? "Material de missao invalido"
+                                : CollectionLabel(inventory, required.ItemId, "", required.Quantity));
                     }
                 }
                 else GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
@@ -121,6 +123,13 @@ namespace TOP.UI
 
         static string ItemLabel(int itemId, string legacyName) => itemId > 0
             ? (PkoTables.Items.TryGetValue(itemId, out var item) ? item.Name : "#" + itemId) : legacyName;
+
+        internal static string CollectionLabel(PlayerInventory inventory, int itemId, string legacyName, int required)
+        {
+            int resolvedId = itemId > 0 ? itemId : PlayerQuests.ResolveItemIdByName(legacyName);
+            long available = inventory != null ? inventory.GetQuestMaterialCount(resolvedId) : 0;
+            return $"Coletar: {ItemLabel(resolvedId, legacyName)} {available}/{required}";
+        }
 
         void DrawOffer(int id)
         {

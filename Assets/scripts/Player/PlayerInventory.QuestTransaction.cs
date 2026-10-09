@@ -66,11 +66,23 @@ namespace TOP.Player
             return questTransaction;
         }
 
+        internal static bool IsUsableQuestMaterial(bool equipped, bool locked, int refineLevel, bool hasGems)
+            => !equipped && !locked && refineLevel == 0 && !hasGems;
+
+        public long GetQuestMaterialCount(int itemId)
+        {
+            long count = 0;
+            foreach (var slot in _slots)
+                if (slot != null && slot.ItemId == itemId && IsUsableQuestMaterial(slot.IsEquipped, slot.IsLocked,
+                    slot.RefineLevel, slot.Gems.Any(gem => gem >= 0))) count += slot.Quantity;
+            return count;
+        }
+
         internal static bool TryConsumeMaterials(List<InventoryItemData> items, int itemId, int amount)
         {
             if (amount <= 0) return false;
-            var eligible = items.Where(item => item.ItemId == itemId && !item.IsEquipped && !item.IsLocked
-                && item.RefineLevel == 0 && item.GemSlot1 == null && item.GemSlot2 == null && item.GemSlot3 == null).ToArray();
+            var eligible = items.Where(item => item.ItemId == itemId && IsUsableQuestMaterial(item.IsEquipped,
+                item.IsLocked, item.RefineLevel, item.GemSlot1 != null || item.GemSlot2 != null || item.GemSlot3 != null)).ToArray();
             if (eligible.Sum(item => (long)item.Quantity) < amount) return false;
             foreach (var item in eligible)
             {

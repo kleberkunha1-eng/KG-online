@@ -268,7 +268,7 @@ namespace TOP.Player
             }
         }
 
-        static int ResolveItemIdByName(string substring)
+        internal static int ResolveItemIdByName(string substring)
         {
             if (string.IsNullOrEmpty(substring)) return -1;
             foreach (var kv in PkoTables.Items)
