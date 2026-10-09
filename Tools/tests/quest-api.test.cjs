@@ -18,6 +18,7 @@ function database() {
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0001_init.sql'), 'utf8'));
     const migration = fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0003_quest_progress.sql'), 'utf8');
     db.exec(migration);
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0005_quest_objectives.sql'), 'utf8'));
     const token = jwt.sign({ sub: 9 }, secret, { expiresIn: '1h' });
     db.prepare('INSERT INTO accounts (id, username, email, password_hash, session_token, session_expires) VALUES (9, ?, ?, ?, ?, ?)')
         .run('fixture', 'fixture@example.invalid', 'unused', token, Math.floor(Date.now() / 1000) + 3600);
@@ -44,7 +45,9 @@ function database() {
         prepare(sql) { return { bind(...params) { return statement(sql, params); } }; },
         async execute(sql, params) {
             sql = sql.replaceAll('NOW()', 'unixepoch()').replace('INSERT IGNORE', 'INSERT OR IGNORE')
-                .replace('GREATEST(', 'MAX(');
+                .replaceAll('GREATEST(', 'MAX(')
+                .replace('ON DUPLICATE KEY UPDATE progress = MAX(quest_objective_progress.progress, VALUES(progress))',
+                    'ON CONFLICT(character_id, quest_id, objective_index) DO UPDATE SET progress = MAX(progress, excluded.progress)');
             if (/^\s*SELECT/i.test(sql)) return [db.prepare(sql).all(...params)];
             const result = await statement(sql, params).run();
             return [{ affectedRows: result.meta.changes }];
@@ -91,6 +94,25 @@ async function lifecycle(call, fixture) {
     assert.equal((await call('POST', 'abandon', { questId: 722 })).success, true);
     assert.equal((await call('POST', 'accept', { questId: 722 })).success, true);
     assert.deepEqual((await call('GET')).active, [{ questId: 722, progress: 0 }]);
+    for (const objectiveIndex of [-1, 16, 1.5, null, false, '1', {}, []])
+        assert.equal((await call('POST', 'progress', { questId: 722, progress: 1, objectiveIndex })).error, 'INVALID_OBJECTIVE');
+    assert.equal((await call('POST', 'progress', { questId: 999, progress: 2, objectiveIndex: 1 })).error, 'QUEST_NOT_ACTIVE');
+    assert.equal((await call('POST', 'progress', { questId: 721, progress: 2, objectiveIndex: 1 })).error, 'QUEST_NOT_ACTIVE');
+    for (const [objectiveIndex, progress] of [[0, 3], [1, 7], [2, 4], [1, 2], [15, 1], [15, 1]])
+        assert.equal((await call('POST', 'progress', { questId: 722, progress, objectiveIndex })).success, true);
+    assert.deepEqual((await call('GET')).active, [{ questId: 722, progress: 3, objectiveProgress: [
+        { objectiveIndex: 1, progress: 7 }, { objectiveIndex: 2, progress: 4 }, { objectiveIndex: 15, progress: 1 },
+    ] }]);
+    fixture.db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0005_quest_objectives.sql'), 'utf8'));
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS n FROM quest_objective_progress').get().n, 3);
+    assert.equal((await call('POST', 'complete', { questId: 722 })).success, true);
+    assert.equal((await call('POST', 'progress', { questId: 722, progress: 9, objectiveIndex: 1 })).error, 'QUEST_NOT_ACTIVE');
+    assert.equal((await call('POST', 'accept', { questId: 723 })).success, true);
+    assert.equal((await call('POST', 'progress', { questId: 723, progress: 5, objectiveIndex: 1 })).success, true);
+    assert.equal((await call('POST', 'abandon', { questId: 723 })).success, true);
+    assert.equal((await call('POST', 'accept', { questId: 723 })).success, true);
+    assert.deepEqual((await call('GET')).active, [{ questId: 723, progress: 0 }]);
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS n FROM quest_objective_progress WHERE quest_id=723').get().n, 0);
     assert.equal(fixture.db.prepare('SELECT gold FROM characters WHERE id = 100').get().gold, 123);
 }
 
@@ -146,6 +168,10 @@ test('MariaDB quest SQL uses temporary tables only and rejects repeated completi
         try {
             await db.execute('CREATE TEMPORARY TABLE characters (id BIGINT PRIMARY KEY, account_id BIGINT, is_deleted INT DEFAULT 0)');
             await db.execute('CREATE TEMPORARY TABLE quest_progress (id INT AUTO_INCREMENT PRIMARY KEY, character_id BIGINT, quest_id INT, progress INT DEFAULT 0, completed_at DATETIME NULL, UNIQUE KEY uniq_char_quest (character_id, quest_id))');
+            const objectiveSchema = fs.readFileSync(path.join(root, 'API', 'migrations', '0005_quest_objectives.sql'), 'utf8')
+                .replace('CREATE TABLE IF NOT EXISTS', 'CREATE TEMPORARY TABLE')
+                .replace(/,\s*FOREIGN KEY[\s\S]*?ON DELETE CASCADE/, '');
+            await db.query(objectiveSchema);
             await db.execute('INSERT INTO characters (id, account_id) VALUES (100, 9)');
             const routes = new Map();
             const app = { use() {}, get(route, handler) { routes.set('GET ' + route, handler); },
@@ -163,10 +189,15 @@ test('MariaDB quest SQL uses temporary tables only and rejects repeated completi
             for (const progress of [10, 3, 0, 10])
                 assert.equal((await call('POST', 'progress', { questId: 721, progress })).success, true);
             assert.deepEqual((await call('GET')).active, [{ questId: 721, progress: 10 }]);
+            for (const progress of [7, 2, 7])
+                assert.equal((await call('POST', 'progress', { questId: 721, objectiveIndex: 1, progress })).success, true);
+            assert.deepEqual((await call('GET')).active, [{ questId: 721, progress: 10,
+                objectiveProgress: [{ objectiveIndex: 1, progress: 7 }] }]);
             const completed = await Promise.all([call('POST', 'complete', { questId: 721 }),
                 call('POST', 'complete', { questId: 721 })]);
             assert.equal(completed.filter(result => result.success).length, 1);
             assert.equal((await call('POST', 'abandon', { questId: 721 })).error, 'QUEST_NOT_ACTIVE');
+            assert.equal((await call('POST', 'progress', { questId: 721, objectiveIndex: 1, progress: 50 })).error, 'QUEST_NOT_ACTIVE');
             assert.deepEqual((await call('GET')).completed, [721]);
         } finally { await db.end(); }
     });

@@ -408,9 +408,14 @@ game.get('/quests/:charId', async c => {
     if (!Number.isSafeInteger(charId) || charId <= 0) return c.json({ success: false, error: 'INVALID_CHARACTER' });
     if (!(await owned(c, charId, c.get('user').id))) return c.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
     const rows = await all(c, 'SELECT quest_id, progress, completed_at FROM quest_progress WHERE character_id = ?', charId);
+    const objectives = await all(c, 'SELECT quest_id, objective_index, progress FROM quest_objective_progress WHERE character_id = ? ORDER BY objective_index', charId);
     return c.json({
         success: true,
-        active: rows.filter(r => r.completed_at === null).map(r => ({ questId: r.quest_id, progress: r.progress })),
+        active: rows.filter(r => r.completed_at === null).map(r => {
+            const extra = objectives.filter(o => o.quest_id === r.quest_id)
+                .map(o => ({ objectiveIndex: o.objective_index, progress: o.progress }));
+            return { questId: r.quest_id, progress: r.progress, ...(extra.length ? { objectiveProgress: extra } : {}) };
+        }),
         completed: rows.filter(r => r.completed_at !== null).map(r => r.quest_id),
     });
 });
@@ -422,6 +427,9 @@ for (const action of ['accept', 'abandon', 'progress', 'complete']) {
         if (!(await owned(c, charId, c.get('user').id))) return c.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
         if (!questNumber(b.questId) || (action === 'progress' && !questNumber(b.progress, 0)))
             return c.json({ success: false, error: 'INVALID_QUEST' });
+        const index = b.objectiveIndex === undefined ? 0 : b.objectiveIndex;
+        if (action === 'progress' && (!questNumber(index, 0) || index > 15))
+            return c.json({ success: false, error: 'INVALID_OBJECTIVE' });
         let result;
         if (action === 'accept') {
             result = await run(c, 'INSERT INTO quest_progress (character_id, quest_id) VALUES (?, ?) ON CONFLICT(character_id, quest_id) DO NOTHING',
@@ -429,6 +437,12 @@ for (const action of ['accept', 'abandon', 'progress', 'complete']) {
         } else if (action === 'abandon') {
             result = await run(c, 'DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
                 charId, b.questId);
+        } else if (action === 'progress' && index > 0) {
+            result = await run(c, `INSERT INTO quest_objective_progress (character_id, quest_id, objective_index, progress)
+                SELECT character_id, quest_id, ?, ? FROM quest_progress
+                WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL
+                ON CONFLICT(character_id, quest_id, objective_index) DO UPDATE SET progress = MAX(progress, excluded.progress)`,
+                index, b.progress, charId, b.questId);
         } else if (action === 'progress') {
             result = await run(c, 'UPDATE quest_progress SET progress = MAX(progress, ?) WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
                 b.progress, charId, b.questId);

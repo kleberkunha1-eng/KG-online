@@ -423,6 +423,22 @@ namespace TOP.Testing
                     check(inventory.GetQuestMaterialCount(material.Id) == 13
                         && TOP.UI.QuestLogUI.CollectionLabel(inventory, material.Id, "", 10).EndsWith(" 13/10"),
                         "Collection diary displays usable quantities across slots without counting refined or locked material.");
+                    var clientInventoryObject = new GameObject("Isolated collection client");
+                    try
+                    {
+                        var clientInventory = clientInventoryObject.AddComponent<PlayerInventory>();
+                        string payload = (string)typeof(PlayerInventory).GetField("_inventoryData",
+                            BindingFlags.NonPublic | BindingFlags.Instance).GetValue(inventory);
+                        var deserialize = typeof(PlayerInventory).GetMethod("DeserializeInventory", BindingFlags.NonPublic | BindingFlags.Instance);
+                        deserialize.Invoke(clientInventory, new object[] { payload });
+                        check(clientInventory.GetSlot(3).IsLocked && clientInventory.GetQuestMaterialCount(material.Id) == 13,
+                            "Remote-client inventory retains locks and displays the same usable collection count as the server.");
+                        deserialize.Invoke(clientInventory, new object[] { "0:" + material.Id + ":3:0:0:-1:-1:-1;1:"
+                            + material.Id + ":4:0:0:-1:-1:-1:12" });
+                        check(clientInventory.GetQuestMaterialCount(material.Id) == 7 && clientInventory.GetSlot(1).Durability == 12,
+                            "Legacy eight/nine-field inventory messages remain readable after lock synchronization.");
+                    }
+                    finally { UnityEngine.Object.DestroyImmediate(clientInventoryObject); }
                     fixture.Reply("{\"success\":true,\"revision\":2}");
                     before = fixture.Requests;
                     quests.ServerTurnInQuest(questId);
@@ -561,6 +577,92 @@ namespace TOP.Testing
                         && inventory.GetItemCount(secondMaterial.Id) == 2 && inventory.GetItemCount(reward.Id) == 1
                         && inventory.GetInventoryData().Single(i => i.ItemId == secondMaterial.Id).UniqueItemId == "multi-secondary",
                         "Atomic delivery consumes each exact material quantity, preserves the remainder and grants gold/item rewards once.");
+
+                    var mixed = new QuestDef { Id = rivalQuestId, Name = "Synthetic mixed objectives", RewardGold = 3,
+                        Objective = new QuestObjective { Type = QuestObjectiveType.Kill, Target = "rat", Required = 2 },
+                        AdditionalObjectives = new[]
+                        {
+                            new QuestObjective { Type = QuestObjectiveType.Kill, Target = "wolf", Required = 3 },
+                            new QuestObjective { Type = QuestObjectiveType.Collect, ItemId = material.Id, Required = 4 },
+                            new QuestObjective { Type = QuestObjectiveType.TalkTo, Target = npc.NpcId }
+                        } };
+                    QuestTable.All[rivalQuestId] = mixed;
+                    receives.SetValue(npc, new[] { questId.ToString(), multiQuestId.ToString(), rivalQuestId.ToString() });
+                    check(mixed.HasValidObjectives && TOP.UI.QuestLogUI.RowHeight(mixed) == 150,
+                        "Mixed kill/kill/collection/talk definitions allocate every objective line in the diary.");
+                    check(!new QuestDef { Objective = mixed.Objective, AdditionalObjectives = new QuestObjective[16] }.HasValidObjectives
+                        && !new QuestDef { Objective = mixed.Objective, AdditionalObjectives = new QuestObjective[] { null } }.HasValidObjectives,
+                        "Null objectives and catalogs above the sixteen-objective persistence limit are rejected.");
+                    quests.ServerOfferQuest(rivalQuestId);
+                    fixture.Reply("{\"success\":true}");
+                    quests.ServerAcceptQuest(rivalQuestId);
+                    yield return Pump(tick);
+                    inventory.InitializeFromData(new List<InventoryItemData>
+                    { new InventoryItemData { SlotIndex = 0, ItemId = material.Id, Quantity = 4, UniqueItemId = "mixed-material" } });
+                    before = fixture.Requests;
+                    quests.ServerTurnInQuest(rivalQuestId);
+                    check(quests.HasActiveQuest(rivalQuestId) && !quests.CanTurnIn(rivalQuestId) && fixture.Requests == before,
+                        "Collection inventory alone cannot bypass unfinished kill and talk objectives.");
+                    // Reload independently persisted counters to exercise the real HTTP DTO before later events.
+                    fixture.Reply("{\"success\":true,\"active\":[{\"questId\":" + rivalQuestId
+                        + ",\"progress\":2,\"objectiveProgress\":[{\"objectiveIndex\":1,\"progress\":2}]}],\"completed\":[]}");
+                    typeof(PlayerQuests).GetMethod("RefreshQuestsInternal", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(quests, null);
+                    yield return Pump(tick);
+                    check(quests.GetObjectiveProgress(rivalQuestId, 0) == 2 && quests.GetObjectiveProgress(rivalQuestId, 1) == 2
+                        && quests.GetObjectiveProgress(rivalQuestId, 3) == 0 && !quests.CanTurnIn(rivalQuestId),
+                        "Refresh restores independent objective counters without treating missing talk progress as complete.");
+                    fixture.Reply("{\"success\":true}");
+                    fixture.Reply("{\"success\":true}");
+                    before = fixture.Requests;
+                    quests.ServerNotifyKill("wolf");
+                    quests.ServerNotifyTalk(npc.NpcId);
+                    quests.ServerTurnInQuest(rivalQuestId);
+                    yield return Pump(tick, 1.4f);
+                    bodies = fixture.Bodies.ToArray();
+                    var objectiveBodies = bodies.Skip(bodies.Length - 2).ToArray();
+                    check(fixture.Requests == before + 2 && objectiveBodies.Any(body => body.Contains("\"objectiveIndex\":1"))
+                        && objectiveBodies.Any(body => body.Contains("\"objectiveIndex\":3")) && !quests.HasUnsavedProgress
+                        && quests.GetObjectiveProgress(rivalQuestId, 0) == 2
+                        && quests.GetObjectiveProgress(rivalQuestId, 1) == 3 && quests.GetObjectiveProgress(rivalQuestId, 3) == 1,
+                        "Kill and talk write separate objective indices; pending progress prevents premature mixed delivery.");
+                    var clientQuestObject = new GameObject("Isolated mixed quest client");
+                    try
+                    {
+                        clientQuestObject.SetActive(false);
+                        clientQuestObject.AddComponent<Mirror.NetworkIdentity>();
+                        var clientQuests = clientQuestObject.AddComponent<PlayerQuests>();
+                        clientQuestObject.SetActive(true);
+                        clientQuests.ApplyQuestState(rivalQuestId + ":2,3,0,1|500");
+                        check(clientQuests.GetObjectiveProgress(rivalQuestId, 0) == 2
+                            && clientQuests.GetObjectiveProgress(rivalQuestId, 1) == 3
+                            && clientQuests.GetObjectiveProgress(rivalQuestId, 3) == 1 && clientQuests.CompletedQuests.Contains(500),
+                            "Remote quest state retains all objective counters and independent completion records.");
+                        clientQuests.ApplyQuestState(rivalQuestId + ":2|500");
+                        check(clientQuests.GetObjectiveProgress(rivalQuestId, 0) == 2
+                            && clientQuests.GetObjectiveProgress(rivalQuestId, 1) == 0,
+                            "Legacy single-counter quest state remains compatible with the mixed-objective client.");
+                    }
+                    finally { UnityEngine.Object.DestroyImmediate(clientQuestObject); }
+                    mixed.AdditionalObjectives[2] = new QuestObjective { Type = QuestObjectiveType.Collect, ItemId = material.Id, Required = 2 };
+                    check(!quests.CanTurnIn(rivalQuestId),
+                        "Repeated material IDs across distinct objectives require their combined quantity, not the same stack twice.");
+                    var remainingMaterials = new Dictionary<int, long>();
+                    TOP.UI.QuestLogUI.CollectionLabel(inventory, material.Id, "", 4, remainingMaterials);
+                    check(TOP.UI.QuestLogUI.CollectionLabel(inventory, material.Id, "", 2, remainingMaterials).EndsWith(" 0/2"),
+                        "Mixed quest diary allocates repeated material requirements without counting a single stack twice.");
+                    inventory.InitializeFromData(new List<InventoryItemData>
+                    { new InventoryItemData { SlotIndex = 0, ItemId = material.Id, Quantity = 7, UniqueItemId = "mixed-material" } });
+                    check(quests.CanTurnIn(rivalQuestId), "All independent kill and combined collection requirements must pass before delivery.");
+                    beforeGold = controller.Gold;
+                    fixture.Reply("{\"success\":true,\"revision\":4}");
+                    before = fixture.Requests;
+                    quests.ServerTurnInQuest(rivalQuestId);
+                    quests.ServerTurnInQuest(rivalQuestId);
+                    yield return Pump(tick);
+                    check(fixture.Requests == before + 1 && !quests.HasActiveQuest(rivalQuestId)
+                        && controller.Gold == beforeGold + 3 && inventory.GetQuestMaterialCount(material.Id) == 1
+                        && controller.GetCharacterData().SaveRevision == 4,
+                        "Mixed delivery atomically consumes summed materials and awards gold once after every objective is complete.");
                 }
                 finally
                 {

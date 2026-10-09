@@ -311,9 +311,60 @@ Na continuacao de desenvolvimento, o diario de coleta mostra a quantidade
 atual utilizavel/necessaria para cada material, inclusive objetivos com varios
 itens. A contagem usa a mesma regra da entrega: itens equipados, bloqueados,
 refinados ou com gemas nao sao contabilizados. Essa melhoria visual ainda
-nao faz parte da build publicada 2092791. Validacao: 180 checks Unity passaram
-(zero falhas), incluindo contagem em varias pilhas, materiais protegidos e
-cada restricao independente; resultados em `Tools/social-gameplay-results.txt`.
+nao faz parte da build publicada 2092791.
+
+### Objetivos mistos de quests (desenvolvimento)
+
+`QuestDef.AdditionalObjectives` adiciona objetivos independentes ao objetivo
+principal, ate 16 no total. Mortes, conversas e coletas podem ser combinadas;
+cada morte/conversa usa seu proprio contador, e a entrega exige todos os
+objetivos. Coletas consultam o inventario atual, nao um contador historico.
+Materiais repetidos entre objetivos sao somados antes da transacao atomica;
+o diario aloca as quantidades entre linhas sem contar a mesma pilha duas vezes.
+Objetivos nulos, tipos invalidos, quantidade base invalida ou mais de 16
+objetivos nao permitem oferta/aceite. Nenhum ID ou roteiro inferido
+ja persistido foi substituido por essa infraestrutura.
+
+A migracao aditiva `0005_quest_objectives.sql`, disponivel para D1 e MariaDB,
+mantem o contador legado em `quest_progress.progress` e armazena os objetivos
+adicionais por indice. As APIs validam indices 0-15, preservam o progresso
+monotonico e recusam atualizacoes de quests inexistentes/concluidas.
+Abandonar remove os contadores adicionais por FK em cascata, para um novo
+aceite iniciar zerado. O setup Node aplica a migracao ao iniciar; o D1 requer
+backup e migracao antes de publicar as novas Functions. Essa migracao NAO
+foi aplicada em producao nesta etapa.
+
+Refresh, fila de recuperacao HTTP e sincronizacao Mirror preservam cada
+contador independente. Entrega/abandono aguardam qualquer progresso em voo
+da mesma missao. A fila continua em memoria, sem journal duravel ou IDs de
+episodio; repetir quests e os flags/roteiros intermediarios completos do
+original ainda nao foram ativados.
+
+O inventario sincronizado inclui o bloqueio do item para o cliente mostrar a
+mesma quantidade utilizavel que o servidor. O novo leitor preserva mensagens
+antigas de 8/9 campos, mas o novo payload de 10 campos exige cliente atualizado:
+publique cliente e servidor pareados, nao misture essa build com clientes
+antigos. As builds publicadas existentes continuam intactas.
+
+Validacao: 193 checks Unity passaram (zero falhas), incluindo objetivos
+mistos, refresh HTTP, payload do cliente remoto, entrega atomica unica,
+materiais repetidos, bloqueios e compatibilidade de leitura dos formatos
+legados. Os sete testes de API passaram, incluindo SQLite/D1 isolado e
+upserts MariaDB reais em tabelas temporarias. Resultados em
+`Tools/social-gameplay-results.txt` e `Tools/quest-api-results.txt`.
+
+Builds pareadas de staging desta revisao:
+`Build/GameProjectKG.gameplay-client-20261009-114344` (972 MB, zero erros) e
+`Build/GameProjectKG.gameplay-server-20261009-114344` (zero erros).
+A build dedicada foi testada apenas em UDP 17894: duas sessoes KCP de
+12 segundos, 11 pongs cada, sem desconexao ou spawn sem autenticacao.
+Somente o processo de staging foi encerrado; o listener publicado em 7777
+permaneceu intacto. O probe de transporte nao testa login JWT ou saves
+de conta real. Resultados em `Tools/gameplay-staging-build-results.txt` e
+`Tools/gameplay-staging-runtime-results.txt`. Nada dessa revisao foi
+publicado ou enviado ao GitHub nesta etapa.
+
+### Semantica nativa de XP e registros
 
 Foi lida a implementacao nativa `lua_AddExp` em
 `E:\PrivateTop\meu_servidor\sources\Server\GameServer\src\CharScript.cpp`.

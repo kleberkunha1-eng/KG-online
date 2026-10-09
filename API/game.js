@@ -429,9 +429,14 @@ module.exports = function register(app, db) {
         if (!Number.isSafeInteger(charId) || charId <= 0) return res.json({ success: false, error: 'INVALID_CHARACTER' });
         if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
         const [rows] = await db.execute('SELECT quest_id, progress, completed_at FROM quest_progress WHERE character_id = ?', [charId]);
+        const [objectives] = await db.execute('SELECT quest_id, objective_index, progress FROM quest_objective_progress WHERE character_id = ? ORDER BY objective_index', [charId]);
         res.json({
             success: true,
-            active: rows.filter(r => !r.completed_at).map(r => ({ questId: r.quest_id, progress: r.progress })),
+            active: rows.filter(r => !r.completed_at).map(r => {
+                const extra = objectives.filter(o => o.quest_id === r.quest_id)
+                    .map(o => ({ objectiveIndex: o.objective_index, progress: o.progress }));
+                return { questId: r.quest_id, progress: r.progress, ...(extra.length ? { objectiveProgress: extra } : {}) };
+            }),
             completed: rows.filter(r => r.completed_at).map(r => r.quest_id),
         });
     }));
@@ -443,11 +448,25 @@ module.exports = function register(app, db) {
             if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
             if (!questNumber(b.questId) || (action === 'progress' && !questNumber(b.progress, 0)))
                 return res.json({ success: false, error: 'INVALID_QUEST' });
+            const index = b.objectiveIndex === undefined ? 0 : b.objectiveIndex;
+            if (action === 'progress' && (!questNumber(index, 0) || index > 15))
+                return res.json({ success: false, error: 'INVALID_OBJECTIVE' });
             let result;
             if (action === 'accept') {
                 [result] = await db.execute('INSERT IGNORE INTO quest_progress (character_id, quest_id, progress) VALUES (?, ?, 0)', [charId, b.questId]);
             } else if (action === 'abandon') {
                 [result] = await db.execute('DELETE FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, b.questId]);
+            } else if (action === 'progress' && index > 0) {
+                [result] = await db.execute(`INSERT INTO quest_objective_progress (character_id, quest_id, objective_index, progress)
+                    SELECT character_id, quest_id, ?, ? FROM quest_progress
+                    WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL
+                    ON DUPLICATE KEY UPDATE progress = GREATEST(quest_objective_progress.progress, VALUES(progress))`,
+                    [index, b.progress, charId, b.questId]);
+                // MySQL can report zero affected rows for an already-confirmed monotonic retry.
+                if (result.affectedRows === 0) {
+                    const [active] = await db.execute('SELECT quest_id FROM quest_progress WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [charId, b.questId]);
+                    if (active.length) return res.json({ success: true });
+                }
             } else if (action === 'progress') {
                 [result] = await db.execute('UPDATE quest_progress SET progress = GREATEST(progress, ?) WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL',
                     [b.progress, charId, b.questId]);

@@ -34,6 +34,24 @@ namespace TOP.Data
         public int[] ExcludedActiveQuests;
         public int[] ExcludedCompletedQuests;
         public QuestObjective Objective;
+        public QuestObjective[] AdditionalObjectives;
+        public int ObjectiveCount => 1 + (AdditionalObjectives?.Length ?? 0);
+        public QuestObjective GetObjective(int index) => index == 0 ? Objective : AdditionalObjectives[index - 1];
+        public bool HasValidObjectives
+        {
+            get
+            {
+                if (ObjectiveCount > 16) return false;
+                for (int i = 0; i < ObjectiveCount; i++)
+                {
+                    var objective = GetObjective(i);
+                    if (objective == null || !System.Enum.IsDefined(typeof(QuestObjectiveType), objective.Type)
+                        || objective.Required <= 0) return false;
+                    if (objective.Type != QuestObjectiveType.Collect && string.IsNullOrWhiteSpace(objective.Target)) return false;
+                }
+                return true;
+            }
+        }
         public int RewardExp;
         public int RewardExpMaximumExclusive; // Zero preserves fixed legacy XP rewards.
         public int RewardGold;

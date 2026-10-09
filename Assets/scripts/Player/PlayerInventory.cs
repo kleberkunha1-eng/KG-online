@@ -597,7 +597,7 @@ namespace TOP.Player
             {
                 if (_slots[i] != null)
                 {
-                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}:{_slots[i].Durability}");
+                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}:{_slots[i].Durability}:{(_slots[i].IsLocked ? 1 : 0)}");
                 }
             }
             _inventoryData = string.Join(";", list);
@@ -623,7 +623,7 @@ namespace TOP.Player
                 string[] fields = entry.Split(':');
                 // O campo de durabilidade (indice 8) foi adicionado depois; entradas antigas com 8 campos
                 // ainda sao aceitas e assumem durabilidade cheia (tratada como 0 => 100% na UI).
-                if ((fields.Length != 8 && fields.Length != 9) ||
+                if ((fields.Length < 8 || fields.Length > 10) ||
                     !int.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot) ||
                     !int.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int itemId) ||
                     !int.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int quantity) ||
@@ -638,7 +638,14 @@ namespace TOP.Player
                     continue;
                 }
                 int durability = 0;
-                if (fields.Length == 9) int.TryParse(fields[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out durability);
+                if (fields.Length >= 9) int.TryParse(fields[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out durability);
+                int locked = 0;
+                if (fields.Length == 10 && (!int.TryParse(fields[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out locked)
+                    || (locked != 0 && locked != 1)))
+                {
+                    Debug.LogWarning("[PlayerInventory] Estado de bloqueio invalido: " + entry);
+                    continue;
+                }
 
                 _slots[slot] = new InventoryItem
                 {
@@ -648,7 +655,8 @@ namespace TOP.Player
                     IsEquipped = equipped != 0,
                     RefineLevel = refine,
                     Gems = new[] { gem1, gem2, gem3 },
-                    Durability = durability
+                    Durability = durability,
+                    IsLocked = locked != 0
                 };
             }
         }

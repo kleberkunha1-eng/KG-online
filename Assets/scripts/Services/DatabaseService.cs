@@ -89,10 +89,11 @@ namespace TOP.Services
         [Serializable] class GuildTargetDto { public string targetName; }
         [Serializable] class GuildNoticeDto { public string notice; }
 
-        [Serializable] class QuestActiveDto { public int questId; public int progress; }
+        [Serializable] public class QuestObjectiveProgress { public int objectiveIndex; public int progress; }
+        [Serializable] class QuestActiveDto { public int questId; public int progress; public List<QuestObjectiveProgress> objectiveProgress; }
         [Serializable] class QuestListDto { public bool success; public string error; public List<QuestActiveDto> active = new List<QuestActiveDto>(); public List<int> completed = new List<int>(); }
         [Serializable] class QuestIdDto { public int questId; }
-        [Serializable] class QuestProgressDto { public int questId; public int progress; }
+        [Serializable] class QuestProgressDto { public int questId; public int progress; public int objectiveIndex; }
 
         // ---- HTTP ----
         // O token JWT e sempre o da conta/jogador especifico da requisicao - nunca um estado estatico global.
@@ -473,18 +474,25 @@ namespace TOP.Services
         }
 
         // ---- Quests ----
-        public async Task<(bool success, List<(int questId, int progress)> active, List<int> completed)> GetQuestsAsync(long charId, string token, CancellationToken ct = default)
+        public async Task<(bool success, List<(int questId, int progress, List<QuestObjectiveProgress> objectiveProgress)> active, List<int> completed)> GetQuestsAsync(long charId, string token, CancellationToken ct = default)
         {
             try
             {
                 var dto = JsonUtility.FromJson<QuestListDto>(await SendAsync("GET", "/quests/" + charId, null, token, ct));
-                var active = new List<(int, int)>();
+                var active = new List<(int, int, List<QuestObjectiveProgress>)>();
                 if (dto == null || !dto.success || dto.active == null || dto.completed == null)
                 {
                     Debug.LogWarning("[API] GetQuests: resposta invalida ou pedido recusado.");
                     return (false, null, null);
                 }
-                foreach (var a in dto.active) active.Add((a.questId, a.progress));
+                foreach (var a in dto.active)
+                {
+                    if (a == null || a.questId <= 0 || a.progress < 0 || (a.objectiveProgress != null
+                        && (a.objectiveProgress.Exists(o => o == null || o.objectiveIndex < 1 || o.objectiveIndex > 15 || o.progress < 0)
+                            || new HashSet<int>(a.objectiveProgress.ConvertAll(o => o.objectiveIndex)).Count != a.objectiveProgress.Count)))
+                        throw new InvalidOperationException("Invalid quest objective state.");
+                    active.Add((a.questId, a.progress, a.objectiveProgress));
+                }
                 return (true, active, dto.completed);
             }
             catch (Exception e) { Debug.LogError("[API] GetQuests: " + e.Message); return (false, null, null); }
@@ -510,11 +518,11 @@ namespace TOP.Services
             catch (Exception e) { Debug.LogError("[API] AbandonQuest: " + e.Message); return false; }
         }
 
-        public async Task<bool> SaveQuestProgressAsync(long charId, int questId, int progress, string token, CancellationToken ct = default)
+        public async Task<bool> SaveQuestProgressAsync(long charId, int questId, int progress, string token, CancellationToken ct = default, int objectiveIndex = 0)
         {
             try
             {
-                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/quests/" + charId + "/progress", JsonUtility.ToJson(new QuestProgressDto { questId = questId, progress = progress }), token, ct));
+                var r = JsonUtility.FromJson<Ok>(await SendAsync("POST", "/quests/" + charId + "/progress", JsonUtility.ToJson(new QuestProgressDto { questId = questId, progress = progress, objectiveIndex = objectiveIndex }), token, ct));
                 if (r != null && r.success) return true;
                 Debug.LogWarning("[API] Quest progress rejected: " + (r?.error ?? "INVALID_RESPONSE"));
                 return false;

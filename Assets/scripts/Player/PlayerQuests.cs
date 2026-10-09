@@ -17,7 +17,18 @@ namespace TOP.Player
     // falar com NPC) sao chamados pelo EnemyStats/NPCInteractable via metodos [Server] publicos.
     public class PlayerQuests : NetworkBehaviour
     {
-        class ActiveQuest { public int QuestId; public int Progress; }
+        class ActiveQuest
+        {
+            public int QuestId;
+            public int Progress;
+            public readonly Dictionary<int, int> Objectives = new Dictionary<int, int>();
+            public int GetProgress(int index) => index == 0 ? Progress : Objectives.TryGetValue(index, out int value) ? value : 0;
+            public void SetProgress(int index, int value)
+            {
+                if (index == 0) Progress = value;
+                else Objectives[index] = value;
+            }
+        }
 
         PlayerController _pc;
         PlayerInventory _inventory;
@@ -26,8 +37,8 @@ namespace TOP.Player
         readonly HashSet<int> _pendingAccepts = new HashSet<int>();
         readonly HashSet<int> _pendingAbandons = new HashSet<int>();
         readonly HashSet<int> _pendingTurnIns = new HashSet<int>();
-        readonly HashSet<int> _progressPending = new HashSet<int>();
-        readonly Dictionary<int, int> _dirtyProgress = new Dictionary<int, int>();
+        readonly HashSet<(int questId, int objectiveIndex)> _progressPending = new HashSet<(int, int)>();
+        readonly Dictionary<(int questId, int objectiveIndex), int> _dirtyProgress = new Dictionary<(int, int), int>();
 
         readonly List<ActiveQuest> _active = new List<ActiveQuest>();
         readonly HashSet<int> _completed = new HashSet<int>();
@@ -40,6 +51,15 @@ namespace TOP.Player
         public IReadOnlyCollection<int> CompletedQuests => _completed;
         public bool HasPendingCompletion => _pendingTurnIns.Count != 0;
         public bool HasUnsavedProgress => _dirtyProgress.Count != 0;
+        public int GetObjectiveProgress(int questId, int objectiveIndex)
+            => _active.FirstOrDefault(a => a.QuestId == questId)?.GetProgress(objectiveIndex) ?? 0;
+
+        bool HasPendingProgress(int questId) => _progressPending.Any(key => key.questId == questId);
+        void ClearDirtyProgress(int questId)
+        {
+            foreach (var key in _dirtyProgress.Keys.Where(key => key.questId == questId).ToArray())
+                _dirtyProgress.Remove(key);
+        }
 
         void Awake()
         {
@@ -69,8 +89,8 @@ namespace TOP.Player
             _refreshPending = true;
             try
             {
-                foreach (int questId in _dirtyProgress.Keys.ToArray())
-                    _ = PersistQuestProgressAsync(questId);
+                foreach (var key in _dirtyProgress.Keys.ToArray())
+                    _ = PersistQuestProgressAsync(key);
                 while (_progressPending.Count != 0)
                 {
                     await Task.Yield();
@@ -91,7 +111,14 @@ namespace TOP.Player
                 }
                 if (revision != _stateRevision) return;
                 _active.Clear();
-                foreach (var a in result.active) _active.Add(new ActiveQuest { QuestId = a.questId, Progress = a.progress });
+                foreach (var a in result.active)
+                {
+                    var entry = new ActiveQuest { QuestId = a.questId, Progress = a.progress };
+                    if (a.objectiveProgress != null)
+                        foreach (var objective in a.objectiveProgress)
+                            entry.SetProgress(objective.objectiveIndex, objective.progress);
+                    _active.Add(entry);
+                }
                 _completed.Clear();
                 foreach (var c in result.completed) _completed.Add(c);
                 PushState();
@@ -112,6 +139,12 @@ namespace TOP.Player
         public async void ServerAcceptQuest(int questId)
         {
             if (_pc == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
+            if (!def.HasValidObjectives)
+            {
+                Debug.LogError("[Quests] Objetivos invalidos no catalogo: " + questId);
+                _pc.RpcShowMessage("Configuracao da missao invalida.", PlayerMessageType.Warning);
+                return;
+            }
             if (_refreshPending || _pendingAccepts.Count != 0 || _pendingAbandons.Contains(questId)
                 || _pendingTurnIns.Count != 0)
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
@@ -147,7 +180,7 @@ namespace TOP.Player
         public async void ServerAbandonQuest(int questId)
         {
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
-                || _pendingTurnIns.Count != 0 || _progressPending.Contains(questId))
+                || _pendingTurnIns.Count != 0 || HasPendingProgress(questId))
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             if (!_active.Any(a => a.QuestId == questId)) return;
             _pendingAbandons.Add(questId);
@@ -159,7 +192,7 @@ namespace TOP.Player
                 if (!ok)
                 { _pc.RpcShowMessage("Nao foi possivel abandonar a missao. O progresso foi preservado.", PlayerMessageType.Warning); return; }
                 _active.RemoveAll(a => a.QuestId == questId);
-                _dirtyProgress.Remove(questId);
+                ClearDirtyProgress(questId);
                 PushState();
             }
             finally { _pendingAbandons.Remove(questId); }
@@ -177,7 +210,7 @@ namespace TOP.Player
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
-                || _pendingTurnIns.Count != 0 || _progressPending.Contains(questId))
+                || _pendingTurnIns.Count != 0 || HasPendingProgress(questId))
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
             _stateRevision++;
             if (!CanUseQuestNpc(questId, true))
@@ -233,7 +266,7 @@ namespace TOP.Player
                 inventoryTransaction?.Commit();
 
                 _active.Remove(entry);
-                _dirtyProgress.Remove(questId);
+                ClearDirtyProgress(questId);
                 _completed.Add(questId);
 
                 if (experienceReward > 0) _pc.AddExp((ulong)experienceReward);
@@ -250,22 +283,44 @@ namespace TOP.Player
         [Server]
         bool IsObjectiveComplete(QuestDef def, ActiveQuest entry, out IReadOnlyList<QuestCollectionItem> materials)
         {
-            materials = Array.Empty<QuestCollectionItem>();
-            switch (def.Objective.Type)
+            var collected = new List<QuestCollectionItem>();
+            materials = collected;
+            if (!def.HasValidObjectives) return false;
+            for (int i = 0; i < def.ObjectiveCount; i++)
             {
-                case QuestObjectiveType.TalkTo: return entry.Progress >= 1;
-                case QuestObjectiveType.Kill: return entry.Progress >= def.Objective.Required;
-                case QuestObjectiveType.Collect:
-                    materials = def.Objective.CollectionItems != null && def.Objective.CollectionItems.Length > 0
-                        ? def.Objective.CollectionItems
-                        : new[] { new QuestCollectionItem { ItemId = def.Objective.ItemId > 0
-                            ? def.Objective.ItemId : ResolveItemIdByName(def.Objective.Target), Quantity = def.Objective.Required } };
-                    if (_inventory == null || materials.Any(item => item == null || item.Quantity <= 0 || !PkoTables.Items.ContainsKey(item.ItemId))
-                        || materials.Select(item => item.ItemId).Distinct().Count() != materials.Count) return false;
-                    var available = _inventory.GetInventoryData();
-                    return materials.All(item => PlayerInventory.TryConsumeMaterials(available, item.ItemId, item.Quantity));
-                default: return false;
+                var objective = def.GetObjective(i);
+                switch (objective.Type)
+                {
+                    case QuestObjectiveType.TalkTo:
+                        if (entry.GetProgress(i) < 1) return false;
+                        break;
+                    case QuestObjectiveType.Kill:
+                        if (entry.GetProgress(i) < objective.Required) return false;
+                        break;
+                    case QuestObjectiveType.Collect:
+                        var items = objective.CollectionItems != null && objective.CollectionItems.Length > 0
+                            ? objective.CollectionItems
+                            : new[] { new QuestCollectionItem { ItemId = objective.ItemId > 0
+                                ? objective.ItemId : ResolveItemIdByName(objective.Target), Quantity = objective.Required } };
+                        if (items.Any(item => item == null || item.Quantity <= 0 || !PkoTables.Items.ContainsKey(item.ItemId))
+                            || items.Select(item => item.ItemId).Distinct().Count() != items.Length) return false;
+                        collected.AddRange(items);
+                        break;
+                    default: return false;
+                }
             }
+            if (collected.Count == 0) return true;
+            if (_inventory == null) return false;
+            var combined = new List<QuestCollectionItem>();
+            foreach (var group in collected.GroupBy(item => item.ItemId))
+            {
+                long quantity = group.Sum(item => (long)item.Quantity);
+                if (quantity > int.MaxValue) return false;
+                combined.Add(new QuestCollectionItem { ItemId = group.Key, Quantity = (int)quantity });
+            }
+            materials = combined;
+            var available = _inventory.GetInventoryData();
+            return combined.All(item => PlayerInventory.TryConsumeMaterials(available, item.ItemId, item.Quantity));
         }
 
         internal static int ResolveItemIdByName(string substring)
@@ -288,14 +343,20 @@ namespace TOP.Player
             bool changed = false;
             foreach (var a in _active)
             {
-                if (!QuestTable.All.TryGetValue(a.QuestId, out var def) || def.Objective.Type != QuestObjectiveType.Kill) continue;
-                if (!lower.Contains(def.Objective.Target.ToLowerInvariant())) continue;
-                if (a.Progress >= def.Objective.Required) continue;
-                a.Progress++;
-                _stateRevision++;
-                changed = true;
-                QueueQuestProgress(a);
-                if (a.Progress >= def.Objective.Required) _pc.RpcShowMessage("Objetivo concluido: " + def.Name, PlayerMessageType.QuestUpdate);
+                if (!QuestTable.All.TryGetValue(a.QuestId, out var def) || !def.HasValidObjectives
+                    || _pendingAbandons.Contains(a.QuestId) || _pendingTurnIns.Contains(a.QuestId)) continue;
+                for (int i = 0; i < def.ObjectiveCount; i++)
+                {
+                    var objective = def.GetObjective(i);
+                    if (objective.Type != QuestObjectiveType.Kill || !lower.Contains(objective.Target.ToLowerInvariant())
+                        || a.GetProgress(i) >= objective.Required) continue;
+                    int progress = a.GetProgress(i) + 1;
+                    a.SetProgress(i, progress);
+                    _stateRevision++;
+                    changed = true;
+                    QueueQuestProgress(a, i);
+                    if (progress >= objective.Required) _pc.RpcShowMessage("Objetivo concluido: " + def.Name, PlayerMessageType.QuestUpdate);
+                }
             }
             if (changed) PushState();
         }
@@ -307,49 +368,55 @@ namespace TOP.Player
             bool changed = false;
             foreach (var a in _active)
             {
-                if (!QuestTable.All.TryGetValue(a.QuestId, out var def) || def.Objective.Type != QuestObjectiveType.TalkTo) continue;
-                if (def.Objective.Target != npcId || a.Progress >= 1) continue;
-                a.Progress = 1;
-                _stateRevision++;
-                changed = true;
-                QueueQuestProgress(a);
+                if (!QuestTable.All.TryGetValue(a.QuestId, out var def) || !def.HasValidObjectives
+                    || _pendingAbandons.Contains(a.QuestId) || _pendingTurnIns.Contains(a.QuestId)) continue;
+                for (int i = 0; i < def.ObjectiveCount; i++)
+                {
+                    var objective = def.GetObjective(i);
+                    if (objective.Type != QuestObjectiveType.TalkTo || objective.Target != npcId || a.GetProgress(i) >= 1) continue;
+                    a.SetProgress(i, 1);
+                    _stateRevision++;
+                    changed = true;
+                    QueueQuestProgress(a, i);
+                }
             }
             if (changed) PushState();
         }
 
-        void QueueQuestProgress(ActiveQuest entry)
+        void QueueQuestProgress(ActiveQuest entry, int objectiveIndex)
         {
-            _dirtyProgress[entry.QuestId] = entry.Progress;
-            _ = PersistQuestProgressAsync(entry.QuestId);
+            var key = (entry.QuestId, objectiveIndex);
+            _dirtyProgress[key] = entry.GetProgress(objectiveIndex);
+            _ = PersistQuestProgressAsync(key);
         }
 
-        async Task PersistQuestProgressAsync(int questId)
+        async Task PersistQuestProgressAsync((int questId, int objectiveIndex) key)
         {
-            if (!_progressPending.Add(questId)) return;
+            if (!_progressPending.Add(key)) return;
             try
             {
                 long characterId = _pc.CharacterId;
                 string token = Token;
                 var database = DatabaseService.Instance;
                 if (database == null) throw new InvalidOperationException("Servico de progresso indisponivel.");
-                while (_dirtyProgress.TryGetValue(questId, out int progress))
+                while (_dirtyProgress.TryGetValue(key, out int progress))
                 {
                     bool confirmed = false;
                     for (int attempt = 0; attempt < 3; attempt++)
                     {
-                        if (await database.SaveQuestProgressAsync(characterId, questId, progress, token))
+                        if (await database.SaveQuestProgressAsync(characterId, key.questId, progress, token, objectiveIndex: key.objectiveIndex))
                         { confirmed = true; break; }
                         if (attempt < 2) await Task.Delay(200);
                     }
                     if (!confirmed)
                     {
-                        Debug.LogError("[Quests] Progresso nao confirmado apos tres tentativas: " + questId);
+                        Debug.LogError("[Quests] Progresso nao confirmado apos tres tentativas: " + key);
                         if (this != null && connectionToClient != null)
                             _pc.RpcShowMessage("Nao foi possivel salvar o progresso da missao. Ele foi mantido nesta sessao; tente atualizar novamente.", PlayerMessageType.Warning);
                         return;
                     }
-                    if (_dirtyProgress.TryGetValue(questId, out int latest) && latest <= progress)
-                        _dirtyProgress.Remove(questId);
+                    if (_dirtyProgress.TryGetValue(key, out int latest) && latest <= progress)
+                        _dirtyProgress.Remove(key);
                 }
             }
             catch (Exception e)
@@ -358,7 +425,7 @@ namespace TOP.Player
                 if (this != null && connectionToClient != null)
                     _pc.RpcShowMessage("Falha ao confirmar progresso da missao. Tente atualizar novamente.", PlayerMessageType.Warning);
             }
-            finally { _progressPending.Remove(questId); }
+            finally { _progressPending.Remove(key); }
         }
 
         // Quests disponiveis para oferta automatica por um NPC especifico (usado por NPCInteractable).
@@ -368,7 +435,7 @@ namespace TOP.Player
             var result = new List<int>();
             foreach (var id in npcQuestIds)
             {
-                if (!QuestTable.All.TryGetValue(id, out var def)) continue;
+                if (!QuestTable.All.TryGetValue(id, out var def) || !def.HasValidObjectives) continue;
                 if (_active.Any(a => a.QuestId == id) || _completed.Contains(id)) continue;
                 if (!def.CanAcceptAtLevel(_pc.Level)) continue;
                 if (!def.MeetsQuestConditions(HasActiveQuest, _completed.Contains)) continue;
@@ -420,6 +487,9 @@ namespace TOP.Player
             {
                 if (i > 0) sb.Append(';');
                 sb.Append(_active[i].QuestId).Append(':').Append(_active[i].Progress);
+                if (_active[i].Objectives.Count > 0)
+                    for (int index = 1; index <= _active[i].Objectives.Keys.Max(); index++)
+                        sb.Append(',').Append(_active[i].GetProgress(index));
             }
             sb.Append('|');
             sb.Append(string.Join(",", _completed));
@@ -451,7 +521,10 @@ namespace TOP.Player
                     {
                         var p = e.Split(':');
                         if (p.Length < 2) continue;
-                        _active.Add(new ActiveQuest { QuestId = int.Parse(p[0]), Progress = int.Parse(p[1]) });
+                        var progress = p[1].Split(',');
+                        var entry = new ActiveQuest { QuestId = int.Parse(p[0]), Progress = int.Parse(progress[0]) };
+                        for (int i = 1; i < progress.Length; i++) entry.SetProgress(i, int.Parse(progress[i]));
+                        _active.Add(entry);
                     }
                 if (!string.IsNullOrEmpty(completedPart))
                     foreach (var e in completedPart.Split(','))

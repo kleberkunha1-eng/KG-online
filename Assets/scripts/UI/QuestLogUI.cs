@@ -1,6 +1,7 @@
 using UnityEngine;
 using TOP.Player;
 using TOP.Data;
+using System.Collections.Generic;
 
 namespace TOP.UI
 {
@@ -78,26 +79,33 @@ namespace TOP.UI
             {
                 if (!QuestTable.All.TryGetValue(questId, out var def)) continue;
                 GUI.Label(new Rect(0, y, win.width - 50, 18), def.Name + " (#" + def.Id + ")");
-                string progressText = def.Objective.Type switch
-                {
-                    QuestObjectiveType.TalkTo => progress >= 1 ? "Conversa realizada" : "Fale com o alvo indicado",
-                    QuestObjectiveType.Kill => $"Derrotar: {progress}/{def.Objective.Required} ({def.Objective.Target})",
-                    QuestObjectiveType.Collect => CollectionLabel(inventory, def.Objective.ItemId, def.Objective.Target, def.Objective.Required),
-                    _ => "",
-                };
                 float extra = RowHeight(def) - 96;
-                if (def.Objective.Type == QuestObjectiveType.Collect && def.Objective.CollectionItems != null
-                    && def.Objective.CollectionItems.Length > 0)
+                int row = 0;
+                var remainingMaterials = new Dictionary<int, long>();
+                for (int index = 0; index < def.ObjectiveCount; index++)
                 {
-                    for (int i = 0; i < def.Objective.CollectionItems.Length; i++)
+                    var objective = def.GetObjective(index);
+                    int count = index == 0 ? progress : local.GetObjectiveProgress(questId, index);
+                    if (objective.Type == QuestObjectiveType.Collect && objective.CollectionItems != null
+                        && objective.CollectionItems.Length > 0)
                     {
-                        var required = def.Objective.CollectionItems[i];
-                        GUI.Label(new Rect(0, y + 18 + i * 18, win.width - 50, 18),
-                            required == null ? "Material de missao invalido"
-                                : CollectionLabel(inventory, required.ItemId, "", required.Quantity));
+                        foreach (var required in objective.CollectionItems)
+                            GUI.Label(new Rect(0, y + 18 + row++ * 18, win.width - 50, 18),
+                                required == null ? "Material de missao invalido"
+                                    : CollectionLabel(inventory, required.ItemId, "", required.Quantity, remainingMaterials));
+                    }
+                    else
+                    {
+                        string text = objective.Type switch
+                        {
+                            QuestObjectiveType.TalkTo => count >= 1 ? "Conversa realizada" : $"Fale com: {objective.Target}",
+                            QuestObjectiveType.Kill => $"Derrotar: {count}/{objective.Required} ({objective.Target})",
+                            QuestObjectiveType.Collect => CollectionLabel(inventory, objective.ItemId, objective.Target, objective.Required, remainingMaterials),
+                            _ => "Objetivo de missao invalido",
+                        };
+                        GUI.Label(new Rect(0, y + 18 + row++ * 18, win.width - 50, 18), text);
                     }
                 }
-                else GUI.Label(new Rect(0, y + 18, win.width - 50, 18), progressText);
                 GUI.Label(new Rect(0, y + 36 + extra, win.width - 50, 18), $"Recompensa: {ExperienceLabel(def)} exp, {def.RewardGold} ouro");
                 if (def.RewardItemQty > 0)
                     GUI.Label(new Rect(0, y + 54 + extra, win.width - 50, 18),
@@ -115,8 +123,16 @@ namespace TOP.UI
             GUI.DragWindow(new Rect(0, 0, win.width, 20));
         }
 
-        internal static float RowHeight(QuestDef definition) => 96 + (definition.Objective.Type == QuestObjectiveType.Collect
-            ? 18 * Mathf.Max(0, (definition.Objective.CollectionItems?.Length ?? 1) - 1) : 0);
+        internal static float RowHeight(QuestDef definition)
+        {
+            int rows = 0;
+            for (int i = 0; i < definition.ObjectiveCount; i++)
+            {
+                var objective = definition.GetObjective(i);
+                rows += objective.Type == QuestObjectiveType.Collect ? Mathf.Max(1, objective.CollectionItems?.Length ?? 0) : 1;
+            }
+            return 96 + 18 * Mathf.Max(0, rows - 1);
+        }
 
         internal static string ExperienceLabel(QuestDef definition) => definition.RewardExpMaximumExclusive > definition.RewardExp
             ? $"{definition.RewardExp}-{definition.MaximumExperienceReward}" : definition.RewardExp.ToString();
@@ -124,10 +140,13 @@ namespace TOP.UI
         static string ItemLabel(int itemId, string legacyName) => itemId > 0
             ? (PkoTables.Items.TryGetValue(itemId, out var item) ? item.Name : "#" + itemId) : legacyName;
 
-        internal static string CollectionLabel(PlayerInventory inventory, int itemId, string legacyName, int required)
+        internal static string CollectionLabel(PlayerInventory inventory, int itemId, string legacyName, int required,
+            Dictionary<int, long> remainingMaterials = null)
         {
             int resolvedId = itemId > 0 ? itemId : PlayerQuests.ResolveItemIdByName(legacyName);
-            long available = inventory != null ? inventory.GetQuestMaterialCount(resolvedId) : 0;
+            long available = remainingMaterials != null && remainingMaterials.TryGetValue(resolvedId, out long remaining)
+                ? remaining : inventory != null ? inventory.GetQuestMaterialCount(resolvedId) : 0;
+            if (remainingMaterials != null) remainingMaterials[resolvedId] = System.Math.Max(0, available - required);
             return $"Coletar: {ItemLabel(resolvedId, legacyName)} {available}/{required}";
         }
 
