@@ -21,7 +21,11 @@ public static class SocialComponentInstaller
         next = EditorApplication.timeSinceStartup + 2;
         if (!File.Exists(Request)) return;
         File.Delete(Request);
+        Install();
+    }
 
+    public static void Install()
+    {
         string path = "Assets/Prefabs/Player.prefab";
         var contents = PrefabUtility.LoadPrefabContents(path);
         var sb = new StringBuilder();
@@ -33,6 +37,7 @@ public static class SocialComponentInstaller
             AddIfMissing<PlayerTrade>(contents, sb);
             AddIfMissing<PlayerQuests>(contents, sb);
             AddIfMissing<PlayerForge>(contents, sb);
+            AddIfMissing<PlayerLifeServices>(contents, sb);
             PrefabUtility.SaveAsPrefabAsset(contents, path);
         }
         finally

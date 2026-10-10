@@ -32,6 +32,7 @@ public class EnemyStats : NetworkBehaviour, ICharacterStats
 
     [Header("Config")]
     [SerializeField] private string _enemyName = "Enemy";
+    [SerializeField] private int _originalMonsterId;
     [SerializeField] private int _experienceReward = 10;
     [SerializeField] private int _goldReward = 5;
     [SerializeField] private float _respawnTime = 10f;
@@ -305,7 +306,9 @@ public class EnemyStats : NetworkBehaviour, ICharacterStats
                 if (showDebugLogs)
                     Debug.Log("[EnemyStats] Recompensa: " + _experienceReward + " XP, " + _goldReward + " Gold para " + killer.name);
             }
-            killer.GetComponent<TOP.Player.PlayerQuests>()?.ServerNotifyKill(_enemyName);
+            var quests = killer.GetComponent<TOP.Player.PlayerQuests>();
+            if (quests != null) quests.ServerNotifyKill(_enemyName, _originalMonsterId > 0 ? _originalMonsterId
+                : TOP.Data.OriginalQuestCatalog.MonsterId(_enemyName, _level));
         }
 
         // Desativa IA e colisão imediatamente (servidor)

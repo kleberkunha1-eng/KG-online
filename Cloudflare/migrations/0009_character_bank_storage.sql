@@ -1,0 +1,1 @@
+ALTER TABLE characters ADD COLUMN bank_json TEXT NOT NULL DEFAULT '[]';

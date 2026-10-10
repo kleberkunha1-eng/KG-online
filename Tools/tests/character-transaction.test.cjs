@@ -16,7 +16,7 @@ async function lifecycle(call, read) {
     const snapshot = {
         OperationId: randomUUID(), QuestId: 721,
         Character: { SaveRevision: 0, Level: 5, Exp: 70, Gold: 200, CurrentHp: 100, MaxHp: 100 },
-        Inventory: [{ UniqueItemId: 'bbbc31e7-cd67-4f74-bad1-c9986f64f28a', SlotIndex: 0, ItemId: 1847, Quantity: 1, Durability: 17, Gem1: -1, Gem2: -1, Gem3: -1 }],
+        Inventory: [{ UniqueItemId: 'bbbc31e7-cd67-4f74-bad1-c9986f64f28a', SlotIndex: 0, ItemId: 1847, Quantity: 1, Durability: 17, FusionItemId: 2817, MedalHonor: -299, MedalWins: 12, MedalEntries: 15, MedalKills: 10, MedalDeaths: 10, Gem1: -1, Gem2: -1, Gem3: -1 }],
         Skills: [],
     };
     assert.equal((await call({ ...snapshot, OperationId: 'bad' })).error, 'INVALID_TRANSACTION');
@@ -32,6 +32,9 @@ async function lifecycle(call, read) {
             assert.equal((await call({ ...snapshot, Character: { ...snapshot.Character, [field]: value } })).error,
                 'INVALID_CHARACTER_VALUES');
     assert.equal((await call(snapshot, 101)).error, 'NOT_FOUND');
+    for (const field of ['MedalHonor', 'MedalWins', 'MedalEntries', 'MedalKills', 'MedalDeaths'])
+        for (const value of [null, '10', 1.5, 2147483648, -2147483649])
+            assert.equal((await call({ ...snapshot, Inventory: [{ ...snapshot.Inventory[0], [field]: value }] })).error, 'INVALID');
     const simultaneous = await Promise.all([call(snapshot), call(snapshot)]);
     assert.ok(simultaneous.every(r => r.success && r.revision === 1));
     let state = await read();
@@ -41,6 +44,10 @@ async function lifecycle(call, read) {
     assert.equal(state.inventory.length, 1);
     assert.equal(state.inventory[0].unique_item_id, snapshot.Inventory[0].UniqueItemId);
     assert.equal(state.inventory[0].durability, 17);
+    assert.equal(state.inventory[0].fusion_item_id, 2817);
+    assert.equal(state.inventory[0].medal_honor, -299);
+    assert.equal(state.inventory[0].medal_wins, 12);
+    assert.equal(state.inventory[0].medal_entries, 15);
     assert.equal(state.receipts.length, 1);
     assert.equal((await call(snapshot)).success, true);
     assert.equal((await call({ ...snapshot, Character: { ...snapshot.Character, Gold: 999 } })).error, 'OPERATION_MISMATCH');
@@ -84,14 +91,22 @@ async function lifecycle(call, read) {
     assert.equal(Number(reloaded.Character.Gold), 1000);
     assert.equal(reloaded.Inventory.length, 1);
     assert.equal(reloaded.Inventory[0].UniqueItemId, snapshot.Inventory[0].UniqueItemId);
+    assert.equal(reloaded.Inventory[0].FusionItemId, 2817);
+    assert.equal(reloaded.Inventory[0].MedalHonor, -299);
+    assert.equal(reloaded.Inventory[0].MedalWins, 12);
+    assert.equal(reloaded.Inventory[0].MedalEntries, 15);
     assert.deepEqual(reloaded.Character.Boats, []);
     assert.equal(reloaded.Character.BoatServicesVersion, 1);
-    const boat = { Id: randomUUID(), Name: 'Guppy Test', TypeId: 1, BerthId: 1, Level: 1,
-        HullId: 43, EngineId: 15, BowId: 8, CannonId: 53, ComponentId: 73, Health: 2280, Fuel: 200 };
+    const boat = { Id: randomUUID(), Name: 'Guppy Test', TypeId: 1, BerthId: 0, Level: 1,
+        HullId: 43, EngineId: 15, BowId: 8, CannonId: 53, ComponentId: 73, Health: 2280, Fuel: 200,
+        Cargo: [{ ItemId: 4547, Quantity: 2 }] };
     const purchase = { ...save, OperationId: randomUUID(),
         Character: { ...save.Character, SaveRevision: 3, Gold: 100, Boats: [boat] } };
     for (const Boats of [[{ ...boat, Name: 'x' }], [{ ...boat, Health: -1 }], [{ ...boat, Id: 'not-an-id' }],
-        [{ ...boat, IsSunk: 'false' }], [{ ...boat, Level: 101 }],
+        [{ ...boat, IsSunk: 'false' }], [{ ...boat, Level: 101 }], [{ ...boat, BerthId: -1 }],
+        [{ ...boat, Cargo: [{ ItemId: 9999, Quantity: 1 }] }],
+        [{ ...boat, Cargo: [{ ItemId: 4547, Quantity: 1.5 }] }],
+        [{ ...boat, Cargo: [{ ItemId: 4547, Quantity: 1 }, { ItemId: 4547, Quantity: 1 }] }],
         [boat, boat], Array.from({ length: 4 }, () => ({ ...boat, Id: randomUUID() }))])
         assert.equal((await call({ ...purchase, Character: { ...purchase.Character, Boats } })).error, 'INVALID_BOATS');
     assert.equal((await call(purchase)).revision, 4);
@@ -126,7 +141,64 @@ async function lifecycle(call, read) {
     assert.equal((await call(serviced)).revision, 8);
     const restored = await call(null, 100, 'GET');
     assert.deepEqual(restored.Character.Boats, serviced.Character.Boats);
-    assert.equal(Number(restored.Character.Gold), 0);
+    assert.equal(Number(restored.Character.Gold), 0);    const bankItem = { UniqueItemId: randomUUID(), SlotIndex: 0, ItemId: 1779, Quantity: 7, Durability: 100,
+        IsEquipped: false, IsLocked: false, OwnerCharacterId: -1, RefineLevel: 0, Gem1: -1, Gem2: -1, Gem3: -1 };
+    const bankSave = { OperationId: randomUUID(), QuestId: 0, Character: { ...serviced.Character,
+        SaveRevision: 8, BankStorageVersion: 1, BankItems: [bankItem] },
+        Inventory: snapshot.Inventory, Skills: [], BankItems: [bankItem] };
+    for (const BankItems of [
+        [{ ...bankItem, SlotIndex: 32 }], [{ ...bankItem, Quantity: 0 }],
+        [{ ...bankItem, IsEquipped: true }], [{ ...bankItem, IsLocked: true }],
+        [bankItem, { ...bankItem, SlotIndex: 1 }],
+        [{ ...bankItem, UniqueItemId: snapshot.Inventory[0].UniqueItemId }],
+    ]) assert.equal((await call({ ...bankSave, BankItems })).error, 'INVALID_BANK');
+    for (const BankStorageVersion of [null, 2, '1'])
+        assert.equal((await call({ ...bankSave, Character: { ...bankSave.Character, BankStorageVersion } })).error, 'INVALID_BANK');
+    assert.equal((await call(bankSave)).revision, 9);
+    let bankState = await read();
+    assert.deepEqual(JSON.parse(bankState.character.bank_json), [bankItem]);
+    const bankReload = await call(null, 100, 'GET');
+    assert.equal(bankReload.Character.BankStorageVersion, 1);
+    assert.deepEqual(bankReload.BankItems, [bankItem]);
+    const legacyBankSave = { OperationId: randomUUID(), QuestId: 0,
+        Character: { SaveRevision: 9, Level: 5, Exp: 70, Gold: 17 }, Inventory: snapshot.Inventory, Skills: [] };
+    assert.equal((await call(legacyBankSave)).revision, 10);
+    bankState = await read();
+    assert.deepEqual(JSON.parse(bankState.character.bank_json), [bankItem], 'Old servers omitting the bank capability preserve bank contents.');
+    assert.deepEqual((await call(null, 100, 'GET')).BankItems, [bankItem]);
+    const originalState = { Version: 1, Records: [1, 701], Missions: [{ Id: 702, DefinitionId: 704, Flags: [1, 10], Triggers: [] }] };
+    const originalSave = { ...legacyBankSave, OperationId: randomUUID(), Character: { ...legacyBankSave.Character,
+        SaveRevision: 10, Job: 1, QuestStateVersion: 1, OriginalQuests: originalState } };
+    for (const invalid of [null, {}, { ...originalState, Version: 2 }, { ...originalState, Records: [1,1] },
+        { ...originalState, Records: [-1] }, { ...originalState, Missions: [originalState.Missions[0], originalState.Missions[0]] },
+        { ...originalState, Missions: [{ ...originalState.Missions[0], Flags: [1024] }] },
+        { ...originalState, Missions: [{ ...originalState.Missions[0], Triggers: ['123'] }] }])
+        assert.equal((await call({ ...originalSave, Character: { ...originalSave.Character, OriginalQuests: invalid } })).error, 'INVALID_QUEST_STATE');
+    for (const QuestStateVersion of [null, 2, '1'])
+        assert.equal((await call({ ...originalSave, Character: { ...originalSave.Character, QuestStateVersion } })).error, 'INVALID_QUEST_STATE');
+    for (const Job of [-1, 19, '1', null])
+        assert.equal((await call({ ...originalSave, Character: { ...originalSave.Character, Job } })).error, 'INVALID_QUEST_STATE');
+    const replies = await Promise.all([call(originalSave), call(originalSave)]);
+    assert.ok(replies.every(r => r.success && r.revision === 11 && r.questStateVersion === 1));
+    let originalReload = await call(null, 100, 'GET');
+    assert.equal(originalReload.Character.QuestStateVersion, 1);
+    assert.equal(originalReload.Character.Job, 1);
+    assert.deepEqual(originalReload.Character.OriginalQuests, originalState);
+    assert.deepEqual(JSON.parse((await read()).character.quest_state_json), originalState);
+    const legacyOriginalSave = { ...legacyBankSave, OperationId: randomUUID(), Character: { ...legacyBankSave.Character, SaveRevision: 11 } };
+    assert.equal((await call(legacyOriginalSave)).revision, 12);
+    originalReload = await call(null, 100, 'GET');
+    assert.deepEqual(originalReload.Character.OriginalQuests, originalState, 'Older clients cannot erase native flags or records by omitting the capability.');
+    assert.equal(originalReload.Character.Job, 1, 'Legacy saves preserve the class chosen by an original quest.');
+    const nextEpisode = { ...originalSave, OperationId: randomUUID(), Character: { ...originalSave.Character, SaveRevision: 12, Job: 9,
+        OriginalQuests: { Version: 1, Records: [1,701,702], Missions: [] }, Gold: 2000 }, Inventory: [] };
+    assert.equal((await call(nextEpisode)).revision, 13);
+    assert.equal((await call(originalSave)).revision, 11);
+    originalReload = await call(null, 100, 'GET');
+    assert.equal(originalReload.Character.Job, 9);
+    assert.equal(originalReload.Character.Gold, 2000);
+    assert.deepEqual(originalReload.Character.OriginalQuests, nextEpisode.Character.OriginalQuests);
+    assert.equal(originalReload.Inventory.length, 0);
 }
 
 test('D1 atomic character/quest save: retries, stale autosave, concurrent replay and full rollback', async () => {
@@ -135,6 +207,10 @@ test('D1 atomic character/quest save: retries, stale autosave, concurrent replay
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0003_quest_progress.sql'), 'utf8'));
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0004_character_save_transactions.sql'), 'utf8'));
     db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0006_boat_ownership.sql'), 'utf8'));
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0007_inventory_fusion_item_id.sql'), 'utf8'));
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0008_arena_medal_attributes.sql'), 'utf8'));
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0009_character_bank_storage.sql'), 'utf8'));
+    db.exec(fs.readFileSync(path.join(root, 'Cloudflare', 'migrations', '0010_original_quest_state.sql'), 'utf8'));
     const token = apiRequire('jsonwebtoken').sign({ sub: 9 }, secret, { expiresIn: '1h' });
     db.prepare('INSERT INTO accounts (id,username,email,password_hash,session_token,session_expires) VALUES (9,?,?,?,?,?)')
         .run('fixture', 'fixture@example.invalid', 'unused', token, Math.floor(Date.now() / 1000) + 3600);
@@ -200,6 +276,10 @@ test('MariaDB atomic character/quest save uses only temporary tables',
             const [columns] = await db.execute("SHOW COLUMNS FROM characters LIKE 'save_revision'");
             if (!columns.length) await db.execute('ALTER TABLE characters ADD COLUMN save_revision BIGINT NOT NULL DEFAULT 0');
             await db.query(fs.readFileSync(path.join(root, 'API', 'migrations', '0006_boat_ownership.sql'), 'utf8'));
+            await db.query(fs.readFileSync(path.join(root, 'API', 'migrations', '0009_character_bank_storage.sql'), 'utf8'));
+            await db.query(fs.readFileSync(path.join(root, 'API', 'migrations', '0010_original_quest_state.sql'), 'utf8'));
+            await db.query(fs.readFileSync(path.join(root, 'API', 'migrations', '0007_inventory_fusion_item_id.sql'), 'utf8'));
+            for (const statement of fs.readFileSync(path.join(root, 'API', 'migrations', '0008_arena_medal_attributes.sql'), 'utf8').split(';').filter(s => s.trim())) await db.query(statement);
             await db.execute('CREATE TEMPORARY TABLE character_save_receipts (character_id BIGINT NOT NULL, operation_id VARCHAR(36) NOT NULL, payload_hash CHAR(64) NOT NULL, expected_revision BIGINT NOT NULL, quest_id INT NOT NULL DEFAULT 0, PRIMARY KEY(character_id,operation_id))');
             await db.execute("INSERT INTO characters(id,account_id,slot_index,name,gold) VALUES (100,9,0,'Fixture',123)");
             await db.execute('INSERT INTO quest_progress(character_id,quest_id) VALUES(100,721),(100,722)');

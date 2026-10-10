@@ -81,6 +81,17 @@ namespace TOP.Player
         public void UseSkill(int skillId, Vector3 targetPosition, uint targetNetId = 0)
         {
             if (_stats == null || _stats.IsDead) return;
+            var inventory = GetComponent<PlayerInventory>();
+            if (inventory != null && inventory.HasQuestTransaction) return;
+            var life = GetComponent<PlayerLifeServices>();
+            if (life != null && life.StallActive) return;
+            var arenaCaster = GetComponent<PlayerController>();
+            if (arenaCaster != null && arenaCaster.ArenaInstanceId > 0 && arenaCaster.ArenaResult != 0) return;
+            if (targetNetId != 0 && NetworkServer.spawned.TryGetValue(targetNetId, out var arenaIdentity))
+            {
+                var arenaTarget = arenaIdentity.GetComponent<PlayerController>();
+                if (arenaTarget != null && arenaCaster != null && arenaTarget.ArenaInstanceId != arenaCaster.ArenaInstanceId) return;
+            }
             if (!_skillLevels.ContainsKey(skillId)) 
             {
                 Debug.LogWarning($"[PlayerSkills] Skill {skillId} não aprendida!");
@@ -94,6 +105,8 @@ namespace TOP.Player
                 return;
             }
 
+            if (skillData.skillType == SkillType.Passive) return;
+
             // Verifica cooldown
             if (_skillCooldowns.ContainsKey(skillId) && _skillCooldowns[skillId] > 0)
             {
@@ -101,14 +114,17 @@ namespace TOP.Player
                 return;
             }
 
+            int originalSpCost = TOP.Data.OriginalSkillParameters.Cost(skillId, GetSkillLevel(skillId), skillData.spCost);
+            float originalCooldown = TOP.Data.OriginalSkillParameters.Cooldown(skillId, GetSkillLevel(skillId), skillData.cooldown);
+
             // Verifica custo
-            if (_stats.CurrentMp < skillData.mpCost || _stats.CurrentSp < skillData.spCost)
+            if (_stats.CurrentMp < skillData.mpCost || _stats.CurrentSp < originalSpCost)
             {
                 Debug.Log($"[PlayerSkills] MP insuficiente: {_stats.CurrentMp}/{skillData.mpCost}");
                 return;
             }
 
-            if (_stats.CurrentSp < skillData.spCost) return;
+            if (_stats.CurrentSp < originalSpCost) return;
             if (skillData.targetType == SkillTargetType.AreaEnemy
                 && (!float.IsFinite(targetPosition.x) || !float.IsFinite(targetPosition.y) || !float.IsFinite(targetPosition.z)
                     || Vector3.Distance(transform.position, targetPosition) > skillData.range))
@@ -116,13 +132,15 @@ namespace TOP.Player
                 GetComponent<PlayerController>()?.RpcShowMessage("Area da habilidade fora do alcance.", PlayerMessageType.Warning);
                 return;
             }
-            if (skillData.targetType == SkillTargetType.SingleEnemy)
+            if (skillData.targetType == SkillTargetType.SingleEnemy || skillData.targetType == SkillTargetType.SingleAlly)
             {
                 if (targetNetId == 0 || !NetworkServer.spawned.TryGetValue(targetNetId, out var enemyTarget)
                     || Vector3.Distance(transform.position, enemyTarget.transform.position) > skillData.range) return;
                 var enemy = enemyTarget.GetComponent<EnemyStats>();
                 var opponent = enemyTarget.GetComponent<PlayerCombat>();
-                if ((enemy == null || enemy.IsDead) && (opponent == null || !GetComponent<PlayerCombat>().CanPlayerAttack(opponent)))
+                var friendly = enemyTarget.GetComponent<PlayerStats>();
+                bool allowed = skillData.targetType == SkillTargetType.SingleAlly ? friendly != null && !friendly.IsDead : (enemy != null && !enemy.IsDead) || (opponent != null && GetComponent<PlayerCombat>().CanPlayerAttack(opponent));
+                if (!allowed)
                 {
                     GetComponent<PlayerController>()?.RpcShowMessage("Alvo protegido: verifique mapa, area, party ou aceite um duelo.", PlayerMessageType.Warning);
                     return;
@@ -131,10 +149,10 @@ namespace TOP.Player
 
             // Consome recursos
             _stats.ConsumeMp(skillData.mpCost);
-            _stats.ConsumeSp(skillData.spCost);
+            _stats.ConsumeSp(originalSpCost);
 
             // Aplica cooldown
-            _skillCooldowns[skillId] = skillData.cooldown;
+            _skillCooldowns[skillId] = originalCooldown;
 
             // Executa skill
             OnSkillCastStarted?.Invoke(skillData, skillData.castTime);
@@ -182,19 +200,22 @@ namespace TOP.Player
                     ApplySkillEffect(data, netId);
                     break;
 
+                case SkillTargetType.SingleAlly:
                 case SkillTargetType.SingleEnemy:
                     if (targetNetId != 0)
                         ApplySkillEffect(data, targetNetId);
                     break;
 
+                case SkillTargetType.Cone:
                 case SkillTargetType.AreaEnemy:
                     var targets = new HashSet<uint>();
-                    foreach (var hit in Physics.OverlapSphere(targetPosition, data.areaRadius))
+                    foreach (var hit in Physics.OverlapSphere(data.targetType == SkillTargetType.Cone ? transform.position : targetPosition, data.targetType == SkillTargetType.Cone ? data.range : data.areaRadius))
                     {
                         var enemy = hit.GetComponentInParent<EnemyStats>();
                         var player = hit.GetComponentInParent<PlayerCombat>();
                         uint targetId = enemy != null && !enemy.IsDead ? enemy.netId
                             : player != null && GetComponent<PlayerCombat>().CanPlayerAttack(player) ? player.netId : 0;
+                        if (data.targetType == SkillTargetType.Cone && Vector3.Angle(transform.forward, hit.transform.position - transform.position) > data.coneAngle * 0.5f) continue;
                         if (targetId != 0 && targets.Add(targetId)) ApplySkillEffect(data, targetId);
                         if (targets.Count >= data.maxTargets) break;
                     }
@@ -218,6 +239,14 @@ namespace TOP.Player
             PlayerStats targetStats = targetObj.GetComponent<PlayerStats>();
             if (targetStats == null) { var enemy = targetObj.GetComponent<EnemyStats>(); if(enemy != null && !enemy.IsDead) enemy.TakeDamage(CalculateSkillDamage(data),netId,DamageType.Physical); return; }
 
+            if (TOP.Data.PkoTables.Skills.TryGetValue(data.skillId, out var original) && TOP.Data.PkoTables.TryTargetFormula(original.DamageFormula, out string stat, out int perLevel) && perLevel > 0)
+            {
+                var targetController = targetObj.GetComponent<PlayerController>(); var casterController = GetComponent<PlayerController>();
+                if (targetController == null || casterController == null || targetController.MapName != casterController.MapName || targetStats.IsDead || Vector3.Distance(transform.position, targetObj.transform.position) > data.range) return;
+                int amount = perLevel * GetSkillLevel(data.skillId);
+                if (stat == "hp") targetStats.Heal(amount); else if (stat == "sp") targetStats.RestoreSp(amount);
+                return;
+            }
             int damage = CalculateSkillDamage(data);
 
             if (data.healAmount > 0)
@@ -238,6 +267,7 @@ namespace TOP.Player
         int CalculateSkillDamage(SkillData data)
         {
             int level = _skillLevels.ContainsKey(data.skillId) ? _skillLevels[data.skillId] : 1;
+            if (TOP.Data.PkoTables.Skills.TryGetValue(data.skillId, out var original) && TOP.Data.PkoTables.TryTargetFormula(original.DamageFormula, out string stat, out int perLevel) && stat == "hp" && perLevel < 0) return Math.Max(1, -perLevel * level);
             float levelMultiplier = Mathf.Pow(data.damagePerLevel, level - 1);
 
             int finalDamage = Mathf.RoundToInt(data.baseDamage * data.damageMultiplier * levelMultiplier * data.elementMultiplier);
@@ -287,17 +317,41 @@ namespace TOP.Player
 
         public IReadOnlyDictionary<int, int> SkillLevels => _skillLevels;
 
+        public static int ClassMaximum(TOP.Data.PkoSkill skill, int job)
+        {
+            int parent = job == 8 || job == 9 || job == 10 ? 1 : job == 11 || job == 12 ? 2 : job == 13 || job == 14 ? 5 : job == 16 ? 4 : job;
+            int max = skill.ClassMaxLevel.TryGetValue(-1, out var global) ? global : 0;
+            foreach (var entry in skill.ClassMaxLevel)
+                if (entry.Key == job || entry.Key == parent || (job == 9 && entry.Key == 10) || (job == 10 && entry.Key == 9) || (job == 11 && entry.Key == 12) || (job == 12 && entry.Key == 11)) max = Math.Max(max, entry.Value);
+            return max;
+        }
+        public List<TOP.Data.CharacterSkillData> GetPersistedSkills() => _skillLevels.Select(kv => new TOP.Data.CharacterSkillData { SkillId = kv.Key, Level = (byte)kv.Value }).ToList();
+        [Server]
+        public void LoadPersistedSkills(List<TOP.Data.CharacterSkillData> skills)
+        {
+            _skillLevels.Clear();
+            foreach (var skill in skills ?? new List<TOP.Data.CharacterSkillData>()) _skillLevels[skill.SkillId] = skill.Level;
+            SerializeSkills();
+        }
         [Command]
-        public void CmdLearnSkill(int skillId)
+        public async void CmdLearnSkill(int skillId)
         {
             var pc = GetComponent<PlayerController>();
-            if (pc == null || !TOP.Data.PkoTables.Skills.TryGetValue(skillId, out var s)) return;
-            int cur = GetSkillLevel(skillId);
-            int max = 1; foreach (var v in s.ClassMaxLevel.Values) max = Mathf.Max(max, v);
-            int cost = Mathf.Max(1, s.Points);
-            if (cur >= max || pc.Level < s.LearnLevel || pc.SkillPoints < cost) return;
-            pc.SkillPoints -= cost;
-            LearnSkill(skillId, cur + 1);
+            if (pc == null || !TOP.Data.PkoTables.Skills.TryGetValue(skillId, out var skill) || skill.IsLife) return;
+            if (skillId != 241 && !skill.ClassMaxLevel.Keys.Any(job => job > 0 && job <= 18)) return;
+            await PlayerDurableAction.Run(pc, data =>
+            {
+                int current = GetSkillLevel(skillId), maximum = ClassMaximum(skill, data.Job), cost = Math.Max(1, skill.Points);
+                if (current >= maximum || data.Level < skill.LearnLevel || data.SkillPoints < cost) throw new InvalidOperationException("Classe, nivel ou pontos insuficientes para aprender esta habilidade.");
+                foreach (var entry in (skill.Prerequisites ?? "").Split(';'))
+                {
+                    var fields = entry.Split(',');
+                    if (fields.Length == 2 && int.TryParse(fields[0], out int required) && required > 0 && int.TryParse(fields[1], out int level) && GetSkillLevel(required) < level) throw new InvalidOperationException("Habilidade prerequisito insuficiente.");
+                }
+                data.SkillPoints -= cost;
+                var learned = data.Skills.Find(i => i.SkillId == skillId);
+                if (learned == null) data.Skills.Add(new TOP.Data.CharacterSkillData { SkillId = skillId, Level = (byte)(current + 1) }); else learned.Level = (byte)(current + 1);
+            }, data => LoadPersistedSkills(data.Skills));
         }
     }
 }

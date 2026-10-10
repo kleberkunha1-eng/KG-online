@@ -75,7 +75,13 @@ namespace TOP.UI
 
         void DrawCreateForm()
         {
-            GUI.Label(new Rect(10, 30, win.width - 20, 40), "Voce nao pertence a nenhuma guilda.\nFundar custa 100.000 de ouro.");
+            if (!string.IsNullOrEmpty(local.InvitationFrom))
+            {
+                GUI.Label(new Rect(10, 145, win.width - 20, 24), "Convite: " + local.InvitationFrom);
+                if (GUI.Button(new Rect(10, 174, 100, 24), "Aceitar")) local.CmdGuildAnswerInvite(true);
+                if (GUI.Button(new Rect(120, 174, 100, 24), "Recusar")) local.CmdGuildAnswerInvite(false);
+            }
+            GUI.Label(new Rect(10, 30, win.width - 20, 40), "Voce nao pertence a nenhuma guilda.\nFale com Mas: 100.000 ouro + Stone of Oath.");
             createNameBuffer = GUI.TextField(new Rect(10, 75, win.width - 20, 24), createNameBuffer);
             if (GUI.Button(new Rect(10, 105, win.width - 20, 26), "Fundar guilda") && !string.IsNullOrWhiteSpace(createNameBuffer))
             {
@@ -101,9 +107,10 @@ namespace TOP.UI
             float y = 0;
             foreach (var m in g.Members)
             {
-                GUI.Label(new Rect(0, y, win.width - 90, 20), $"{m.Name} - {m.Rank}");
+                GUI.Label(new Rect(0, y, win.width - 170, 20), $"{m.Name} - {m.Rank}");
                 if (g.IsLeaderOrOfficer && m.CharacterId != g.LeaderCharacterId && GUI.Button(new Rect(win.width - 85, y - 1, 60, 20), "Kick"))
                     local.CmdGuildKick(m.Name);
+                if (g.MyRank == "Lider" && m.CharacterId != g.LeaderCharacterId && GUI.Button(new Rect(win.width - 165, y - 1, 75, 20), m.Rank == "Oficial" ? "Membro" : "Oficial")) local.CmdGuildSetRank(m.Name, m.Rank != "Oficial");
                 y += 22;
             }
             GUI.EndScrollView();

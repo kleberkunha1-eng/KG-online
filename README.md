@@ -97,15 +97,14 @@ comuns continuam seguindo alcance e cooldown. O duelo termina com 1 HP
 (sem morte, itens ou recompensas), cancelamento, desconexao, troca de mapa
 ou afastamento. Skills individuais e em area revalidam a permissao de dano
 por alvo; um alvo com varios colliders recebe dano apenas uma vez por cast.
-Esta e uma adaptacao local do desafio individual do cliente original;
-o motor de combate da arena teampk foi adicionado conforme descrito abaixo,
-mas PK livre e a entrada/cenario/respawn original da arena ainda nao foram importados.
+Esta é uma adaptação local do desafio individual do cliente original. O combate PK aberto e as regras nativas por mapa estão implementados conforme documentado no fim deste README; entrada, instâncias e cenário original da arena teampk ainda não foram importados.
 
 Alteracoes no PlayerCombat incluem novos comandos/SyncVars Mirror: clientes
 e servidor precisam de builds da mesma revisao antes de jogar juntos.
 Nao conecte o Editor modificado ao servidor antigo para testar estes comandos.
-O catalogo QuestTable atual ainda usa objetivos/recompensas inferidos;
-nao equivale a importar todas as missoes originais ou ativar todos os NPCs.
+QuestTable preserva os IDs inferidos antigos e acrescenta o catalogo Lua nativo
+em um namespace separado. A importacao parcial, flags, registros e cadeias
+estao documentados em "Catalogo Lua nativo, flags e episodios" abaixo.
 
 Validacao isolada (Editor fechado; nenhuma conta/banco real e usado):
 
@@ -199,9 +198,10 @@ um save de barco ignorado.
 
 As duas APIs receberam a migration aditiva `0006_boat_ownership.sql`.
 Ela nao foi aplicada em producao nesta etapa. Saves antigos sem Boats preservam
-a frota; uma lista vazia explicita remove a frota. Esta implementacao cobre
-construcao, propriedade persistida e manutencao no porto, nao lancamento/atracacao,
-navegacao, montagem visual do navio, consumo de combustivel, carga ou deed 3988.
+a frota; uma lista vazia explicita remove a frota. A construcao e manutencao
+existentes agora incluem lancamento/atracacao, navegacao server-authoritative e
+combustivel/HP persistidos pelo mesmo caminho revisionado. O deed 3988 ainda nao
+esta implementado.
 
 Shirley (88) recebeu reparo, abastecimento e resgate de barcos no berth Argent 1.
 Os comandos exigem a interacao autoritativa com seu modelo original, personagem
@@ -221,62 +221,48 @@ rejeicao definitiva nao cobra, e respostas incertas obrigam reload autoritativo.
 Snapshots da frota copiam cada registro mutavel para nao alterar o barco vivo
 antes da confirmacao. As APIs anunciam/confirmam `BoatServicesVersion = 1`;
 manutencao fica bloqueada em APIs antigas, mesmo se suportarem construcao.
-O campo `IsSunk` usa o JSON naval existente, sem outra migration.
+O campo `IsSunk` usa o JSON naval existente, sem outra migration. Shirley (88)
+lanca o barco proprio e nao afundado no berth 1 para o spawn original de sea
+(2260,2829), direcao 177; o ancoradouro verificado em Garner (2231,2827) permite
+atracar e retorna o personagem a terra. O estado `BerthId=0` identifica barco no
+mar e e restaurado ao reconectar. Movimento usa velocidade de `shipiteminfo`,
+so aceita destinos fora do NavMesh terrestre e fora das celulas bloqueadas da
+grade original; o servidor replica o transform e as alteracoes de frota aos demais.
+A cada 5 s, BSREC reduz SP/fuel; com fuel em zero, o HP perde 2,5% do maximo.
+Ao afundar, HP chega a zero, `IsSunk` e salvo e o personagem retorna ao ultimo
+berth de Argent para resgate. Os saves de lancamento, atracacao, fuel e afundamento
+usam a transacao de personagem/versao ja existente, sem nova migration.
 
-Validacao da manutencao: 256 checks Unity e sete testes API passaram. Os
-comandos reais por KCP cobrem acesso a Shirley, capability ausente, navio de
-outro dono, acao invalida, fundos insuficientes, duplicatas, snapshot isolado,
-confirmacao atrasada, rejeicao/retry, gratuidade <=10 e resgate sem HP gratis.
-Cliente e Dedicated Server pareados foram gerados com zero erros em
-`Build/GameProjectKG.gameplay-client-20261009-151159` e
-`Build/GameProjectKG.gameplay-server-20261009-151159`. O servidor isolado
-UDP17894 passou duas sessoes de 12 segundos, com 11 pongs cada e sem
-desconexao/spawn prematuro. Somente staging foi encerrado; o servidor publicado
-PID30220 UDP7777 ficou intacto. Nenhuma migration/publicacao/commit foi feita.
+### Carga naval e frete
 
-A arena original exige mais que o terreno teampk: `entry.lua` exige exatamente
-uma Medal of Valor (3849), limites de honra armazenados nos atributos do item,
-desafios individuais ou entre parties e copias isoladas (20 copias em ctrl.lua).
-As equipes usam Party PVP 1/2; a copia fecha 11 segundos apos o resultado e
-retorna os participantes ao Argent Bar. Os atributos originais de honra/fusao
-dos itens ainda nao existem na persistencia Unity; entrada e outros mapas
-letais permanecem bloqueados ate preservar esses dados e regras.
+Os agentes originais Huradar/Moken/Soraris (NPCDefine 119/121/140) usam as linhas
+de cliente 120/122/141 para mostrar a janela de carga junto ao dialogo NPC. O comando KCP exige interacao atual, alcance/mapa,
+personagem vivo, barco proprio nao afundado, capacidade livre e ausencia de trade,
+duelo, save concorrente ou operacao de inventario pendente. Dez unidades de madeira
+4543 geram uma pilha 4547; os minerios 4544/4545/4546 usam o mesmo PackBag de 10 para
+4548/4549/4550. Cada pilha ocupa uma unidade da capacidade original `shipinfo` do barco.
 
-Garner continua sem PK livre. Combate letal so e permitido no mapa teampk,
-com protecao da mesma party e verificacao dos atributos originais de terreno
-(land 1, safe 2, bridge 8). Party, mapa, vida, trades e operacoes atomicas
-pendentes sao revalidados na aplicacao do dano. Teampk nao perde EXP/itens;
-a perda de SP respeita nivel <=10 e a isencao noturna do Death set direto
-no nivel >=75. Nao foram inventados recompensas de XP, crimes ou PkPoints.
-As restricoes nativas por tipo de mapa foram importadas, mas outros mapas
-letais ficam bloqueados ate portar suas penalidades completas.
+A carga e o inventario consumido sao escritos juntos na lista naval `boats_json` existente.
+A entrega remove a pilha e credita seu valor `iteminfo` (4547/4548: 200, 4549: 300,
+4550: 600 ouro por unidade) apenas depois da confirmacao revisionada da API. As APIs
+MariaDB e Cloudflare validam os manifests iguais; nao foi necessaria migration nova.
+Falha definitiva nao consome recursos nem paga recompensa; resultado incerto exige
+recarga autoritativa. `BerthId=0` continua permitido para barcos no mar.
 
-Ainda faltam cenario/entrada/map-copy/respawn de teampk, penalidades gerais
-de morte, protecoes consumiveis e excecoes de equipamentos fundidos.
-Os testes da arena usam jogadores sinteticos no terreno original importado;
-nao equivalem a uma arena acessivel por jogadores na build publicada.
-Mudancas de RPC/SyncVars exigem cliente e servidor da mesma revisao.
-Estas alteracoes permanecem locais/staging, sem substituir o servidor publicado.
-
-Validacao conjunta desta etapa: 242 checks Unity passaram, sem falhas, incluindo
-colliders/modelos dos 55 NPCs, Jackpot inativo apos o spawn Mirror, raycasts reais
-de NPC e adversario, texturas/cursor de monstro vivo/morto, duelo/party/teampk,
-lojas/receitas/cura/quests e compra naval com confirmacao/retry/rejeicao.
-As previas renderizadas de Goldie, Sinbad e Gina ficam em `Tools/npc-original-*.png`.
-Os sete testes Node/D1/MariaDB tambem passaram, usando bancos isolados/tabelas
-temporarias, sem alterar contas nem banco de producao.
-
-Cliente e Dedicated Server de staging foram gerados com zero erros em
-`Build/GameProjectKG.gameplay-client-20261009-143324` e
-`Build/GameProjectKG.gameplay-server-20261009-143324`. O servidor isolado na
-UDP 17894 passou duas sessoes KCP de 12 segundos (11 pongs em cada, sem
-desconexao ou spawn antes de Ready/autenticacao) e foi encerrado apos o teste.
-O servidor publicado PID 30220 permaneceu na UDP 7777. Isso verifica transporte,
-nao login real entre dois computadores. Resultados em
-`Tools/gameplay-staging-build-results.txt` e `Tools/gameplay-staging-runtime-results.txt`.
-Nao houve commit/push, publicacao itch/Cloudflare nem migration de producao.
-Esses ajustes existem somente no teste e nao alteram o combate do jogo.
-
+A populacao de Argent conserva os modelos originais e nao cria geometria substituta.
+Na tabela cliente deste checkout, as linhas 120/122/141 aparecem como Freight - Huradar
+(Abandon Mine Haven), Freight - Moken (Rockery Haven) e Freight - Soraris (Belmont
+Plains); nenhum desses mapas/objetos esta na cena Garner carregada. O roteamento de frete
+usa a diferenca de um ID entre NPCDefine e npclist; a entrega nesses portos fica indisponivel
+ate a troca de mapas e os modelos originais dessas areas serem importados.
+O arquivo `E:\NEW SV\File 2.rar` presente no ambiente nao pode ser listado pelo 7-Zip,
+entao os dialogs/recompensas Lua/C++ especificos desses NPCs nao puderam ser lidos
+para comparar ofertas diferentes. O pagamento implementado usa os precos originais
+de `iteminfo` das pilhas, sem inventar multiplicadores por porto.
+Validação anterior de barco/carga: 270 checks Unity e sete testes de API passaram;
+o cliente/servidor de staging `20261009-180756` compilou sem erros e o teste KCP
+isolado UDP17894 completou duas sessoes, 11 pongs cada. O servidor publicado
+PID30220/UDP7777 ficou ativo.
 ### Persistencia das missoes nas APIs
 
 A API Cloudflare agora tem as mesmas cinco rotas de progresso da API MariaDB:
@@ -379,8 +365,13 @@ conteudo, autosave antigo e recarregamento do personagem. Com
 sem alterar personagens reais. O fixture Unity testa HTTP real com resposta
 perdida, repeticao do mesmo corpo e confirmacao unica da revisao.
 Esses testes nao equivalem a um teste de crash do processo dedicado em producao.
-Ainda faltam roteiros originais, objetivos mistos e flags; correio, banco e outros
+Ainda faltam roteiros originais, objetivos mistos e flags; correio e outros
 sistemas economicos nao foram convertidos para esta transacao neste passo.
+O banco pessoal usa
+32 espacos originais, sem armazenar ouro nem cobrar taxa; depositos/retiradas de itens,
+incluindo stacks e atributos, sao validados pelo servidor e persistidos na mesma transacao.
+As APIs MariaDB e D1 preservam o banco quando servidores antigos omitem a capacidade;
+aplique as migracoes `0009_character_bank_storage.sql` antes de habilita-lo.
 Ouro/XP fora do limite inteiro exato de JSON/JavaScript (9007199254740991)
 sao recusados explicitamente, em vez de arredondados silenciosamente.
 
@@ -490,6 +481,94 @@ Os jogadores precisam atualizar o cliente antes de reconectar.
 O codigo estava previamente commitado/sincronizado na revisao `15a0db596`;
 nenhum novo commit/push foi feito por esta publicacao. Relatorio em
 `Tools/gameplay-publication-results.txt`.
+
+### Catalogo Lua nativo, flags e episodios
+
+`Tools/Import-OriginalQuests.cjs` le as definicoes declarativas sem executar
+Lua. Por padrao extrai somente scripts/tabelas de missoes do arquivo original
+`E:\NEW SV\File 2.rar` para o cache local ignorado
+`Tools/OriginalQuestSource`. Tambem aceita um diretorio MisScript como argumento.
+O catalogo reproduzivel fica em `Assets/Resources/OriginalQuests.json`;
+`Tools/original-quest-coverage.json` lista IDs, fontes, hashes e o motivo de
+cada exclusao. No Editor, **Tools > PKO > Import Original Lua Quests**
+regera o catalogo com Node.js e reimporta o JSON. Em batch, use
+`-batchmode -executeMethod OriginalQuestImporter.RunBatch` (sem `-quit`).
+O importer tambem pode ser reexecutado com Node, sem abrir o Editor.
+Nao depende de Lua/arquivos externos no servidor compilado.
+O runtime carrega esse JSON via `Resources.Load`; o batch social verifica o
+recurso empacotado, o registro de todas as definicoes e condicoes desconhecidas
+que devem falhar fechadas, alem das cadeias, triggers e recompensas.
+
+Cobertura desta revisao: **962/1508 definicoes**, incluindo **952 exatas do
+NEW SV** e **10 definicoes de mudanca de classe da referencia original**.
+No arquivo NEW SV essas dez exigem itens customizados 15072/15073 ausentes
+nas tabelas de itens fornecidas. Em vez de inventar itens/recompensas, foram
+importadas as definicoes completas da referencia
+`E:\ToP Server,client,Db,tools\ToP Server,client,Db,tools\GameServer`;
+as substituicoes e os hashes dessa fonte sao explicitados em
+`Reconciliations`. A diferenca de recompensas em relacao ao NEW SV nao e
+silenciosa. **546 definicoes permanecem desativadas**: scripts sem binding
+original de NPC, geradores aleatorios, funcoes especiais como
+`AddExpAndType`, creditos/honra/guilda/navegacao/eventos, controles Lua
+dinamicos, itens ausentes e triggers nao resolvidos. O relatorio enumera todas,
+com motivos sobrepostos quando necessario; nenhuma condicao desconhecida e
+tratada como verdadeira.
+
+**137 definicoes** tem pelo menos um dos 55 NPCs ativos atuais; as outras
+825 importadas nao recebem um NPC substituto inventado. Bindings usam o nome
+exato do NPC e somente chamadas `AddNpcMission` nao comentadas. Senna e
+varios NPCs de ilhas nao existem no mundo atual: partes de suas cadeias podem
+ficar inacessiveis. O teste de Senna usa um NPC sintetico isolado, sem adicionar
+um NPC persistente a cena. Peter/William executam etapas reais da promocao de
+Swordsman (12 Piglets, carta, coleta de 3 itens e certificado); os NPCs e os
+monstros ausentes continuam sendo uma limitacao de cobertura do mundo.
+O resultado por NPC fica em `Tools/original-quest-world-coverage.txt`.
+
+Os IDs de exibicao originais usam offset **1000000**; por exemplo, a definicao
+702 torna-se 1000702, mas sua missao/registro nativo continua 701. Assim, as
+quests inferidas e seus saves anteriores nao sao sobrescritos. Registros
+`HasRecord/SetRecord/ClearRecord` sao independentes dos flags por missao;
+`ClearMission` remove flags/triggers, mas preserva registros. Condicoes
+conjuntas de nivel (comparadores exatos), classe, raca, itens, dinheiro,
+missoes anteriores, registros e flags sao revalidadas pelo servidor. Episodios
+`COMPLETE_SHOW` podem consumir uma carta/setar um flag em outro NPC sem
+encerrar a missao-pai. Contadores de mortes/coletas usam os IDs numericos e as
+faixas de flags originais, com clamp no total. A identidade dos monstros usa
+nome exato mais nivel nativo; variantes ainda ambiguas exigem o ID explicito
+no EnemyStats, em vez de contar todas por substring. Coletas verificam tambem a
+posse atual quando o Lua exige `HasItem`. Repeticoes seguem os proprios
+`NoMission/NoRecord/ClearRecord`, sem aplicar o bloqueio legado de IDs
+concluidos. XP conserva minimo inclusivo/maximo exclusivo; ouro, multiplos
+itens e classe sao aplicados conforme as acoes, com os resguardos existentes
+para itens equipados/bloqueados/refinados. Nao foram inventados modifiers
+globais de XP, timers, eventos ou teletransportes.
+
+Aceite, episodios, abandono, flags/registros, itens e recompensas usam o
+mesmo save atomico de personagem com receipt e SaveRevision; a fila de
+progresso coalesce os flags e aguarda confirmacao antes de uma transicao.
+Callbacks repetidos reutilizam o mesmo OperationId/payload. O estado e
+sincronizado apenas ao dono por Mirror; comandos de cliente nao podem setar
+flags/registros ou completar uma etapa remotamente. Como na fila legada,
+um evento perdido antes de qualquer confirmacao HTTP nao e um journal duravel.
+
+A migracao aditiva **0010_original_quest_state.sql**, em **API/migrations** e
+**Cloudflare/migrations**, adiciona somente `characters.quest_state_json`.
+O setup MariaDB aplica a migracao; D1 precisa de backup e aplicacao explicita
+antes de uma publicacao futura. `QuestStateVersion=1` no load/save e
+`questStateVersion=1` na confirmacao impedem recompensas somente em memoria
+contra uma API antiga. Saves sem a capability preservam flags/registros e a
+classe. As duas APIs mantem o mesmo contrato; nenhuma migracao/producao foi
+aplicada ou publicada nesta tarefa.
+
+Validacao: **359 PASS/0 FAIL** no batch social Unity (baseline 321, mais 38
+checks nativos), incluindo KCP real, cartas multi-NPC, pre-requisitos, flags,
+registros, coleta/mortes, retries/rollback, serializacao remota e mudanca de
+classe com multiplas recompensas. **10/10 testes Node** passaram com
+`TOP_TEST_MARIADB=1`, SQLite/D1 isolado e tabelas MariaDB temporarias.
+Resultados em `Tools/social-gameplay-results.txt` e
+`Tools/original-quests-node-results.txt`. Builds/transportes de staging
+sao validados abaixo; nenhuma conta real foi utilizada, e nao houve
+commit/push, publicacao, encerramento do servidor publico/tunel/cliente itch.
 
 ### Semantica nativa de XP e registros
 
@@ -868,3 +947,211 @@ Ferramenta interna da equipe (não aparece para o jogador). Registra travadas, r
 581 assets candidatos sem dependência das cenas/Resources, além de exemplos e cópias antigas, foram arquivados fora do projeto em `C:\Users\klebe\Tales of Pirates Unity Backups\20261003`. Sete dependências necessárias dos monstros foram restauradas durante a validação. Também foram removidas 12 dependências de pacotes sem uso identificado (lista em `Tools/removed-unused-packages.txt`). Os relatórios em `Tools` registram a seleção; o cliente original foi preservado.
 
 A conversão de modelos usa `Tools/ConvertClientModel.cs` e estruturas do projeto [WeaponOwl/PKO-file-viewer](https://github.com/WeaponOwl/PKO-file-viewer). Fontes de referência do formato de mapa estão em `Tools/OriginalFormat`; o manifesto dos arquivos originais importados está em `Tools/import-manifest.json`.
+
+### PK aberto e penalidades originais de morte (validação 2026-10-09)
+
+Garner permanece seguro para PK letal. O servidor consulta os mapas PK originais
+(`abandonedcity`/2/3, `darkswamp`, `DreamIsland`, `garner2`, `heilong`, `hell`/2/3/4/5,
+`PKmap`, `prisonisland`, `puzzleworld`/2 e `teampk`) e seus atributos de terreno:
+as duas posições precisam estar em terra/ponte (1/8), nunca em área segura (2).
+Regras por tipo nativo protegem party no tipo 3, party e guild no tipo 4, guild no
+tipo 2 e lado no tipo 5; associação desconhecida bloqueia o ataque onde exigida.
+`garner`/cidades sem flag, mapas desconhecidos, células sem dados e mar não permitem
+PK. Nas fontes verificadas, o nível não limita o ataque aberto. Cursor, menu,
+clique/skill e servidor usam a mesma autorização; jogadores mortos, party/aliados,
+trade e transações atômicas continuam protegidos. Duelo segue consentido e não letal.
+
+`Dead_Punish` PvE foi portado para o servidor: nível <=10 e mapas `leiting2`,
+`binglang2`, `shalan2`, `guildwar` e `guildwar2` não perdem nada; `garner2`
+perde apenas SP; em `secretgarden`/`teampk`, personagens acima do nível 10 perdem
+SP mas não EXP/durabilidade. Nos demais mapas, acima do nível 10, EXP perdida é
+`min(floor(EXP_ate_proximo_nivel * 0.02), EXP_atual)`; SP vai a zero. Os itens
+3846/3047/5609 (na ordem original) consomem uma unidade e evitam EXP/durabilidade,
+mas não SP. Acima do nível 20, cada equipamento reparável equipado recebe 5% de
+desgaste, limitado ao piso 49; slots e tipos seguem `Dead_Punish_ItemURE`. À noite
+(18:00-06:00), set Pirate nível 70+ ou Death nível 75+ remove toda a penalidade.
+
+Morte por jogador sempre zera SP. Nos mapas que chamam `MGPK_Dead_Punish_Exp`
+(`puzzleworld`/2, `abandonedcity`/2/3, `darkswamp`, `hell`/2/3/4/5 e `heilong`),
+a perda de EXP é `min(floor(nivel^2 * 20), floor(EXP_proximo_nivel * 0.02),
+EXP_atual)`; no nível 80+ o valor é dividido por 50. O item 3846 consome uma
+unidade e protege EXP/equipamento; sem ele, equipamentos reparáveis perdem 5% de
+durabilidade, sem limite mínimo de nível. `teampk`, `PKmap`, `DreamIsland` e
+`prisonisland` não sofrem EXP/desgaste PvP genérico (teampk ainda zera SP).
+A entrada/cópia/arena original não foi portada: medalhas 3849, limites e
+recompensas de honra permanecem pendentes porque seus atributos não são
+persistidos. Não foram inventados pontos de honra nem regras de nível.
+
+Não foi encontrado sistema geral de queda de itens no `Dead_Punish` original nem
+existe ground-loot no projeto; nenhum drop foi inventado. `GetExp_PKP` não concede
+recompensa de XP e não foram encontrados red-name/crime points; `PkPoints` não é
+alterado por matar jogadores. A migration aditiva `0007_inventory_fusion_item_id.sql`
+em `API/migrations` e `Cloudflare/migrations`, com ambas as APIs sincronizadas,
+persiste IDs fundidos usados nas isenções noturnas. A migration não foi aplicada
+em produção nem publicada; testes usaram bancos isolados/tabelas temporárias.
+
+A morte salva snapshot de EXP, SP, inventário e durabilidade pelo endpoint
+revisionado existente. Validação final: `TOPWorldEntrySmokeRunner.RunSocialBatch`
+passou 280/280 checks (baseline anterior 270, mais 10 checks PK/death);
+`TOP_TEST_MARIADB=1 node --test Tools\tests\*.test.cjs` passou 7/7, sem skips.
+`GameBuild.BuildGameplayStagingBatch` gerou cliente/servidor sem erros em
+`Build/GameProjectKG.gameplay-client-20261009-185741` e
+`Build/GameProjectKG.gameplay-server-20261009-185741`. O staging UDP17894 passou
+duas sessões KCP/Mirror de 12 s, 11 pongs cada, sem spawn prematuro/desconexão.
+`Tools/multiplayer-validation-results.txt` foi restaurado byte a byte e apenas o
+processo staging foi encerrado; PID30220/UDP7777 permaneceu ativo. Nenhum
+commit/push/publicação foi feito. A validação de transporte não cobre JWT,
+contas reais nem persistência remota. Se uma transação atômica já estiver ativa,
+o autosave de morte é adiado para o ciclo seguinte.
+### Arena teampk integrada (2026-10-09)
+
+The original Arena Administrator (client NPC 53, server record 52, r_talk87,
+Argent City 2210,2893) offers Medal of Valor creation and solo/party registration.
+Creation requires level **>25**, 50000 gold, no existing item 3849, and a free
+inventory slot. Original grade 97 initializes STR/STA/CON/AGI/DEX to **10**:
+honor, wins, entries, kills, and deaths. The medal cannot be sold, dropped or
+destroyed. Admission requires exactly one unequipped unit with honor in the
+inclusive range **-300..30000**; existing medal holders have no additional
+admission level requirement.
+
+Registration consents to matching against another registration of the same
+mode. Queues expire after 120 seconds; party leaders register at most 5 nearby,
+living members without pending duel/trade/transaction activity. Queue matching
+adapts the native challenge screens to the current UI; the old native challenge
+list is not reproduced. The server has exactly **20 isolated copies**, with
+synchronized instance ID, side and result. Mirror interest management filters
+observers by instance ID, and combat/skills revalidate it. Room terrains are
+128m apart outside Garner, preventing collisions/AoE between copies. PKOArena
+uses the original 96x96 teampk.map and four original floor textures, retaining
+native heights and movement blocks. Texture overlay masks and decorative
+scenery have not yet been reconstructed.
+
+Party PVP 1/2 uses native spawns **(44,21)/(44,66)**. Entry increments CON.
+Kills increment attacker AGI/victim DEX and apply original honor changes:
+attacker-minus-victim level difference strictly between -5 and 10 gives +1/-1;
+>=10 gives 0; <-5 gives +2/-2; exactly -5 gives 0, preserving the Lua gap.
+Eliminating one side resolves the match using the original base-2 honor formula,
+initial participant counts and floored average levels, Lua floor for negative
+divisions, and multiplier caps of 3. Wins increment STA. Admission bounds do
+not truncate ongoing kill/result rewards: medals can leave outside those bounds.
+
+The arena closes **11 seconds after the result** and returns all participants
+alive to **Argent Bar (2207,2887)**. Generic 5-second respawns cannot revive arena
+casualties. Inventory mutations, party changes, duels and trades are guarded
+inside instances. Active-arena saves persist the return position in Garner,
+not temporary instance coordinates. Honor/counters use the existing revisioned
+save path; API/game.js and Cloudflare/functions/api/[[path]].js have the same
+contract. Additive **0008_arena_medal_attributes.sql** exists in both backends;
+it has not been applied to production or published. Database tests use isolated
+databases/temporary tables. No git commit, push or publishing was performed.
+
+Final-source RunSocialBatch: **303 PASS / 0 FAIL** (280 existing checks plus
+23 arena checks), including real KCP NPC commands, medal creation/admission,
+honor bounds, two live copies, observer/combat isolation, traversable native
+spawns, terrain recreation after destruction, solo/party results, honor beyond
+admission bounds, pending respawn cancellation and return after 11 seconds.
+TOP_TEST_MARIADB=1 node --test Tools\tests\*.test.cjs: **7 PASS / 0 FAIL /
+0 skipped**, including medal attribute round-trips and invalid-value rejection
+in both backends.
+
+Final staging build (no promotion): client
+`Build/GameProjectKG.gameplay-client-20261009-202947` and dedicated server
+`Build/GameProjectKG.gameplay-server-20261009-202947` both **Succeeded, 0 errors**.
+UDP17894 staging transport passed two 12-second KCP/Mirror sessions: **11 pongs
+each, 0 premature world spawns, no disconnects**. The original
+`Tools/multiplayer-validation-results.txt` was restored byte-for-byte (SHA256
+`FD0B155CB993F7B4D416CCE8FE9A629742B15DFA0FAC469D66D9F1ECEAA9AFC8`);
+the arena-specific result is retained in `Tools/arena-multiplayer-validation-results.txt`.
+Only task staging PID29456 was stopped. Public PID30220/UDP7777 stayed active;
+no commit, push, production migration or publication was performed. Transport
+validation does not authenticate real accounts/JWT or test remote persistence.
+
+### Original guild / Goldie / fairy / stalls / skill core (local, not published)
+
+- Guild creation now requires interacting with **Mas**, **100,000 gold** and
+  **Stone of Oath (1780)**. Membership creation, stone consumption and payment
+  share the character save receipt transaction. Invites require online consent
+  (30 seconds); leave/kick/rank controls, name display and guild-only chat
+  (`/g`) use the existing guild UI. Offline invitations/custom ranks/guild banks
+  are not implemented. The formerly separate creation/debit endpoint is disabled.
+- Goldie's forge now reserves inventory and confirms the entire item/material/gold
+  snapshot before applying it. Existing forgeitem rates/failure levels remain.
+  **Fusion** consumes Scroll 453 and, for refined/socketed gear, Catalyst 454,
+  at equipment level x 1,000 gold; compatible full-durability apparel retains
+  equipment stats through FusionItemId. **Gem combining** costs 5,000 gold,
+  consumes equal gems and a type-47 scroll, and uses forge.lua's type-49/50 rates.
+  Bonus fruits, per-GemVar maximum levels, socket insertion/upgrading and
+  strengthening remain gaps; combining is conservatively capped at level 9.
+- Fairy equip reuses the original type-59 Pet slot. Persistent item-keyed growth,
+  stamina (raw original units, initial 5,000), five attributes, normal/great fruits and ration IDs follow
+  functions.lua/variable.lua: 60-second growth ticks (slower after level 27),
+  50 stamina spent, +1 growth, 6,480 growth cap, original success probability,
+  normal level cap 42. The F9 Fairy/Barracas window feeds the equipped fairy.
+  Marriage/possession, auto-feed, coins and fairy skill books are not implemented;
+  depleted stamina disables added fairy attributes. Improved fruits are blocked.
+- Original source has **GM/Item Mall mail** (CharTrade.cpp MailInfo), not the
+  invented player attachment service. Player sending/legacy claiming are disabled
+  in Unity and both backends; no unsafe attachment/gold claiming remains enabled.
+  Original GM/Item Mall delivery is a remaining integration, not player mail.
+- Player stalls require learned **Set Stall (241)**, living on land outside
+  duel/arena. F9 sets item quantities/unit prices, shows nearby shops and buys;
+  offers persist and inventory/movement/casting are reserved while open.
+  Purchases lock both character save gates, then atomically update both inventories,
+  both gold balances, offers and revisions with an idempotent purchase receipt.
+  Seller must be online; offline shops, currency alternatives, original per-tier
+  slot limits and fairy-attribute trading remain unsupported (fairy sales blocked).
+- All skillinfo rows already imported generically; learning now checks original
+  class maxima (including promoted/all-class rules), prerequisites, levels and
+  points, persists transactionally and reloads learned skills. Damage/heal/SP
+  arithmetic from target parameters, cooldowns, cone/friendly targeting are
+  executable. Full Lua skilleff buffs/debuffs/passives/summons and weapon-specific
+  discharge restrictions are **not** fully ported; generic availability is not a
+  claim of complete original combat parity.
+
+Migration **0011_gameplay_social_state.sql** exists additively in both migration
+folders. GameplayStateVersion=1 is persisted with existing save revisions and
+requires gameplayStateVersion=1 acknowledgement; older endpoints fail closed.
+No production migrations, commit/push or publication are part of this change.
+
+Gameplay operations additionally preflight authenticated `/game/capabilities`,
+which verifies migration columns/tables before any item/gold mutation. An old
+backend or missing 0011 schema is rejected before submitting a character save;
+post-save acknowledgements remain mandatory.
+
+`Tools/ImportOriginalSkillParameters.cjs` derives numeric per-level SP/cooldown
+parameters from original `skilleffect.lua` and `skillinfo.txt` without executing
+Lua gameplay. Coverage: **411 skill rows**, **130 class-specific rows**, **194
+skilleff rows**, all **19 nonzero target arithmetic formulas**; **394 SP-cost**
+and **388 cooldown** rows have safely imported numeric parameters. Unsupported
+conditional Lua parameter functions retain the legacy fallback and remain a
+combat-parity gap. Illusion Slash now costs 20 SP/5 seconds; Sacred Ray cooldown
+varies by learned level rather than parsing its expression as a fixed integer.
+
+Fusion accepts full unfused apparel templates with raw client durability 25,000
+(display 500), while retaining support for the original server runtime 23,000
+unfused marker; fused apparels cannot be reused as fresh left-side templates.
+
+Player skill-point learning excludes unrestricted monster/native-internal rows
+(`class=-1`) except the original universal Set Stall (241); importing a row does
+not authorize a player to purchase NPC/monster abilities.
+
+Canonical creation-NPC coverage limitation: Mas is native NPC 254, Icicle Royal
+(1346,451) in Deep Blue, not Argent/Ascaron. The current populated Ascaron scene
+does not contain that NPC. Creation remains deliberately proximity-gated to Mas
+instead of relocating him or enabling arbitrary remote creation; deploying the
+original Deep Blue/Icicle NPC scene is required for normal in-world creation.
+Existing guilds can still use invite/leave/kick/rank/chat anywhere.
+
+Guild names are rendered above spawned characters from the server-synchronized
+PlayerGuild name, alongside the existing nearby-stall world labels.
+
+
+Final validation of this source state: social batch **383 PASS / 0 FAIL**;
+all Node tests with TOP_TEST_MARIADB=1 **15 PASS / 0 FAIL / 0 skipped**;
+fresh staging client and dedicated server **2 successful builds / 0 errors**
+(GameProjectKG.gameplay-client/server-20261010-002408); localhost UDP 17894
+**2/2 sustained 12-second KCP probes**, 11 pongs each and zero premature world
+spawns. These probes do not cover authenticated account/database end-to-end play.
+The original multiplayer report was restored byte-for-byte; only staging PID
+32704 was stopped. No commit, push, publication or production migration was run.
+

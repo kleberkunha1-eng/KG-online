@@ -45,17 +45,30 @@ namespace TOP.UI
                 || local.netId == 0 || target.netId == 0
                 || local.CurrentHp <= 0 || target.CurrentHp <= 0 || local.MapName != target.MapName
                 || local.BoatOperationPending || target.BoatOperationPending
-                || (local.GetComponent<PlayerTrade>()?.InTrade ?? false) || (target.GetComponent<PlayerTrade>()?.InTrade ?? false))
+                || (local.GetComponent<PlayerTrade>() != null && local.GetComponent<PlayerTrade>().InTrade)
+                || (target.GetComponent<PlayerTrade>() != null && target.GetComponent<PlayerTrade>().InTrade))
                 return false;
             var combat = local.GetComponent<PlayerCombat>();
             var other = target.GetComponent<PlayerCombat>();
             if (combat != null && other != null && combat.DuelOpponentNetId == target.netId
                 && other.DuelOpponentNetId == local.netId && Vector3.Distance(local.transform.position, target.transform.position) <= 20)
                 return true;
-            return OriginalPvpRules.CanFightInArena(local.MapName, local.transform.position, local.GetComponent<PlayerParty>()?.PartyId ?? 0,
-                target.MapName, target.transform.position, target.GetComponent<PlayerParty>()?.PartyId ?? 0);
+            if (local.ArenaInstanceId != target.ArenaInstanceId) return false;
+            if (local.ArenaInstanceId > 0 && !TOP.Systems.ArenaCoordinator.Opponents(local, target)) return false;
+            Vector3 sourcePosition = local.ArenaInstanceId > 0 ? TOP.Systems.ArenaWorld.AttributePosition(local.ArenaInstanceId, local.transform.position) : local.transform.position;
+            Vector3 targetPosition = target.ArenaInstanceId > 0 ? TOP.Systems.ArenaWorld.AttributePosition(target.ArenaInstanceId, target.transform.position) : target.transform.position;
+            PlayerParty sourceParty = local.GetComponent<PlayerParty>();
+            PlayerParty targetParty = target.GetComponent<PlayerParty>();
+            PlayerGuild sourceGuild = local.GetComponent<PlayerGuild>();
+            PlayerGuild targetGuild = target.GetComponent<PlayerGuild>();
+            bool sourceGuildKnown = !OriginalPvpRules.RequiresGuildData(local.MapName) || (sourceGuild != null && sourceGuild.GuildDataReady);
+            bool targetGuildKnown = !OriginalPvpRules.RequiresGuildData(target.MapName) || (targetGuild != null && targetGuild.GuildDataReady);
+            return OriginalPvpRules.CanFightInMap(local.MapName, sourcePosition,
+                sourceParty != null ? sourceParty.PartyId : 0, sourceGuild != null ? sourceGuild.GuildId : 0,
+                sourceGuildKnown, 0, target.MapName, targetPosition,
+                targetParty != null ? targetParty.PartyId : 0, targetGuild != null ? targetGuild.GuildId : 0,
+                targetGuildKnown, 0);
         }
-
         public static GameplayCursorKind Classify(Collider collider, PlayerController local)
         {
             if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy

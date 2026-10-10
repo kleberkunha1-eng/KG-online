@@ -75,7 +75,7 @@ namespace TOP.NPC
             if (npcType != NPCType.Hairdresser && (npcType != NPCType.Blacksmith || ShopItemIds().Length > 0)
                 && npcType != NPCType.Teleporter)
                 TargetOpenDialogue(player.connectionToClient, dialogueLines ?? Array.Empty<string>(), ShopItemIds(),
-                    QuestIds(availableQuests), QuestIds(completesQuests));
+                    AllNpcQuestIds(false), AllNpcQuestIds(true));
         }
 
         [ClientRpc]

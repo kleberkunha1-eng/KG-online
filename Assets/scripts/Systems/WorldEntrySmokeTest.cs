@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using kcp2k;
 using Mirror;
@@ -40,6 +41,76 @@ namespace TOP.Testing
             new GameObject("WorldEntrySmokeTest").AddComponent<WorldEntrySmokeTest>();
         }
 
+        void CheckBankStorageRules()
+        {
+            var pile = TOP.Data.PkoTables.Items.Values.First(item => item.Stack >= 4);
+            var source = new TOP.Data.InventoryItemData
+            {
+                UniqueItemId = Guid.NewGuid().ToString(), SlotIndex = 0, ItemId = pile.Id, Quantity = 10,
+                Durability = 73, RefineLevel = 0, GemSlot1 = null, GemSlot2 = null, GemSlot3 = null
+            };
+            var data = new TOP.Data.CharacterData { Id = 7001,
+                Inventory = new List<TOP.Data.InventoryItemData> { source },
+                BankItems = new List<TOP.Data.InventoryItemData>() };
+            var probe = new GameObject("Bank storage rule fixture");
+            try
+            {
+                var inventory = probe.AddComponent<TOP.Player.PlayerInventory>();
+                bool deposited = TOP.NPC.NPCInteractable.Deposit(data, inventory, 0, 4, out _);
+                Check(deposited && data.Inventory[0].Quantity == 6 && data.BankItems.Count == 1
+                    && data.BankItems[0].Quantity == 4 && data.BankItems[0].Durability == 73
+                    && data.BankItems[0].UniqueItemId != source.UniqueItemId,
+                    "Bank deposits split item stacks while preserving item attributes.");
+                bool withdrew = TOP.NPC.NPCInteractable.Withdraw(data, data.BankItems[0].SlotIndex, 2, out _);
+                Check(withdrew && data.Inventory.Sum(item => item.Quantity) == 8
+                    && data.BankItems.Count == 1 && data.BankItems[0].Quantity == 2,
+                    "Bank withdrawals partially restore stacks and merge compatible inventory items.");
+                Check(TOP.NPC.NPCInteractable.OriginalBankSlotCount == 32,
+                    "Original personal bank has 32 slots on one page.");
+                data.Inventory.Add(new TOP.Data.InventoryItemData { SlotIndex = 1, ItemId = 2520, Quantity = 1 });
+                Check(!TOP.NPC.NPCInteractable.Deposit(data, inventory, 1, 1, out _),
+                    "Original banker item blacklist is enforced server-side.");
+                data.Inventory[1].ItemId = pile.Id;
+                data.Inventory[1].OwnerCharacterId = data.Id + 1;
+                Check(!TOP.NPC.NPCInteractable.Deposit(data, inventory, 1, 1, out _),
+                    "Character-bound bank items cannot be moved to another character.");
+                data.Inventory[1].OwnerCharacterId = data.Id;
+                data.Inventory[1].IsEquipped = true;
+                Check(!TOP.NPC.NPCInteractable.Deposit(data, inventory, 1, 1, out _),
+                    "Equipped items cannot be deposited.");
+                data.Inventory[1].IsEquipped = false;
+                data.Inventory[1].IsLocked = true;
+                Check(!TOP.NPC.NPCInteractable.Deposit(data, inventory, 1, 1, out _),
+                    "Locked items cannot be deposited.");
+
+                var fullBank = new TOP.Data.CharacterData { Id = 7002,
+                    Inventory = new List<TOP.Data.InventoryItemData>
+                    {
+                        new TOP.Data.InventoryItemData { UniqueItemId = Guid.NewGuid().ToString(), SlotIndex = 0, ItemId = pile.Id, Quantity = 1 }
+                    },
+                    BankItems = Enumerable.Range(0, 32).Select(slot => new TOP.Data.InventoryItemData
+                    {
+                        UniqueItemId = Guid.NewGuid().ToString(), SlotIndex = (ushort)slot, ItemId = 40000 + slot, Quantity = 1
+                    }).ToList() };
+                Check(!TOP.NPC.NPCInteractable.Deposit(fullBank, inventory, 0, 1, out _)
+                    && fullBank.Inventory[0].Quantity == 1 && fullBank.BankItems.Count == 32,
+                    "A full bank rejects deposits without consuming inventory items.");
+
+                var fullInventory = new TOP.Data.CharacterData { Id = 7003,
+                    Inventory = Enumerable.Range(0, 40).Select(slot => new TOP.Data.InventoryItemData
+                    {
+                        UniqueItemId = Guid.NewGuid().ToString(), SlotIndex = (ushort)slot, ItemId = pile.Id + 1000 + slot, Quantity = 1
+                    }).ToList(),
+                    BankItems = new List<TOP.Data.InventoryItemData>
+                    {
+                        new TOP.Data.InventoryItemData { UniqueItemId = Guid.NewGuid().ToString(), SlotIndex = 0, ItemId = pile.Id, Quantity = 1 }
+                    } };
+                Check(!TOP.NPC.NPCInteractable.Withdraw(fullInventory, 0, 1, out _)
+                    && fullInventory.Inventory.Count == 40 && fullInventory.BankItems[0].Quantity == 1,
+                    "A full inventory rejects withdrawals without removing bank items.");
+            }
+            finally { Destroy(probe); }
+        }
         void Check(bool ok, string message)
         {
             checks.Add((ok ? "PASS " : "FAIL ") + message);
@@ -263,6 +334,7 @@ namespace TOP.Testing
             }
             finally { Destroy(replica); }
             Check(worldEntryErrors == 0, "No missing-scene spawns or invalid NavMesh agent creation occurred.");
+            CheckBankStorageRules();
             if (SessionState.GetBool("TOP.SocialSmoke", false))
             {
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "--boat-only") < 0)
@@ -271,6 +343,7 @@ namespace TOP.Testing
                     yield return NPCGameplaySmokeTest.Run(player, client, Tick, Check);
                 }
                 yield return QuestPersistenceSmokeTest.RunBoatConstruction(player, client, Tick, Check);
+                yield return OriginalQuestSmokeTest.Run(player, client, Tick, Check);
             }
             if (SessionState.GetBool("TOP.AdminGenerationSmoke", false))
             {
@@ -308,6 +381,7 @@ namespace TOP.Testing
                     {
                         var rpc = reader.Read<RpcMessage>();
                         NPCGameplaySmokeTest.Receive(rpc);
+                        OriginalQuestSmokeTest.Receive(rpc);
                         if (rpc.functionHash == AdminGenerationSmokeTest.FunctionHash("RpcShowMessage"))
                             using (var payload = NetworkReaderPool.Get(rpc.payload))
                                 Debug.Log("[SocialFixture] " + payload.ReadString());
@@ -427,6 +501,7 @@ namespace TOP.Testing
             Application.logMessageReceived -= ObserveLog;
             checks.Add("No account authentication or database writes were performed.");
             File.WriteAllLines("Tools/world-entry-smoke-results.txt", checks);
+            CheckBankStorageRules();
             if (SessionState.GetBool("TOP.SocialSmoke", false))
                 File.WriteAllLines("Tools/social-gameplay-results.txt", checks);
             if (SessionState.GetBool("TOP.EnvironmentSmoke", false))

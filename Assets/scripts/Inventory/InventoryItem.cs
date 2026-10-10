@@ -11,6 +11,8 @@ namespace TOP.Inventory
         public int Quantity;
         public ushort SlotIndex;
         public int Durability;
+        public int FusionItemId;
+        public int MedalHonor, MedalWins, MedalEntries, MedalKills, MedalDeaths;
         public int RefineLevel;
         public bool IsEquipped;
         public long DatabaseId;

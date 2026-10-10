@@ -1,9 +1,10 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Mirror;
 using TOP.Data;
 using TOP.Core;
 using TOP.Inventory;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TOP.Player
 {
@@ -54,6 +55,9 @@ namespace TOP.Player
 
         [Header("Sistema")]
         [SyncVar] public string MapName = "garner";
+        [SyncVar] public int ArenaInstanceId;
+        [SyncVar] public int ArenaSide;
+        [SyncVar] public int ArenaResult;
         [SyncVar] public int PkPoints;
         [SyncVar] public int Reputation;
 
@@ -61,6 +65,7 @@ namespace TOP.Player
         private PlayerInventory _playerInventory;
         private PlayerEquipment _playerEquipment;
         private PlayerStats _playerStats;
+        private bool _deathHandled;
 
         public bool IsInitialized => _characterData != null;
 
@@ -84,6 +89,7 @@ namespace TOP.Player
                 return;
             }
 
+            PlayerQuests.InitializeOriginalState(data);
             _characterData = data;
 
             CharacterId = data.Id;
@@ -118,15 +124,25 @@ namespace TOP.Player
             MapName = data.MapName;
             PkPoints = data.PkPoints;
             SynchronizeBoats(data.Boats);
+            ActiveBoatId = ownedBoats.FirstOrDefault(boat => boat.BerthId == 0 && !boat.IsSunk)?.Id ?? string.Empty;
+            nextBoatFuelTick = Time.time + 5f;
             BoatOwnershipAvailable = data.BoatOwnershipVersion == 1;
             BoatServicesAvailable = data.BoatServicesVersion == 1;
+            BankStorageAvailable = data.BankStorageVersion == 1;
             Reputation = data.Reputation;
+
+            PlayerGuild guild = GetComponent<PlayerGuild>();
+            if (guild != null && connectionToClient != null && TOP.Network.TOPNetworkManager.Instance != null)
+                guild.RefreshGuildInternal();
 
             if (_playerInventory != null)
                 _playerInventory.InitializeFromData(data.Inventory);
 
             if (_playerStats != null)
                 _playerStats.InitializeFromData(data);
+
+            var skills = GetComponent<PlayerSkills>();
+            if (skills != null) skills.LoadPersistedSkills(data.Skills);
 
             if (_playerEquipment != null)
                 _playerEquipment.LoadEquippedFromInventory(data.Inventory);
@@ -159,6 +175,7 @@ namespace TOP.Player
             _characterData.BaseCon = BaseCon;
             _characterData.BaseSpr = BaseSpr;
             _characterData.BaseSta = BaseSta;
+            _characterData.Job = Job;
             _characterData.Level = Level;
             _characterData.Exp = Exp;
             _characterData.Gold = Gold;
@@ -173,12 +190,19 @@ namespace TOP.Player
             _characterData.PosY = transform.position.y;
             _characterData.PosZ = transform.position.z;
             _characterData.RotationY = transform.rotation.eulerAngles.y;
+            if (ArenaInstanceId > 0)
+            {
+                _characterData.MapName = "garner";
+                _characterData.SetPosition(TOP.Data.OriginalArenaRules.ArgentBar);
+            }
 
             if (_playerInventory != null)
                 _characterData.Inventory = _playerInventory.GetInventoryData();
 
             if (_playerStats != null)
                 _characterData.Skills = _playerStats.GetSkillsData();
+            var playerSkills = GetComponent<PlayerSkills>();
+            if (playerSkills != null) _characterData.Skills = playerSkills.GetPersistedSkills();
 
             return _characterData;
         }
@@ -269,6 +293,9 @@ namespace TOP.Player
         [Server]
         public bool SpendGold(ulong amount)
         {
+            var quests = GetComponent<PlayerQuests>();
+            if (quests != null && quests.HasPendingCompletion)
+            { RpcShowMessage("Aguarde a confirmacao da missao para gastar ouro.", PlayerMessageType.Warning); return false; }
             if (BoatOperationPending)
             { RpcShowMessage("Aguarde a confirmacao da construcao naval para gastar ouro.", PlayerMessageType.Warning); return false; }
             if (Gold < amount) return false;
@@ -311,21 +338,36 @@ namespace TOP.Player
         // MORTE E RESPAWN
         // =================================================================================
         [Server]
-        public void Die()
+        public void Die(bool killedByPlayer = false)
         {
+            if (_deathHandled) return;
+            _deathHandled = true;
             if (CurrentHp > 0) CurrentHp = 0;
 
-            RpcShowMessage($"{CharacterName} morreu!", PlayerMessageType.Death);
-
-            var respawn = GetComponent<PlayerRespawn>();
-            if (respawn != null)
+            CharacterData data = GetCharacterData();
+            if (data != null) data.MapName = MapName;
+            OriginalDeathPenaltyResult penalty = OriginalDeathPenalty.Apply(data, killedByPlayer, System.DateTime.Now.Hour);
+            if (data != null)
             {
-                respawn.ScheduleRespawn();
+                Exp = data.Exp;
+                if (_playerInventory != null) _playerInventory.InitializeFromData(data.Inventory);
+                if (_playerEquipment != null && _playerInventory != null) _playerEquipment.LoadEquippedFromInventory(data.Inventory);
+                if (_playerStats != null) _playerStats.SetCurrentHpMpSp(CurrentHp, CurrentMp, data.CurrentSp);
+                else CurrentSp = data.CurrentSp;
             }
 
-            GetComponent<PlayerAnimation>()?.RpcDeath();
-            OnDeath?.Invoke();
+            if (penalty.ConsumedProtectionItem != 0) RpcShowMessage("Protecao consumida; EXP e durabilidade preservados.", PlayerMessageType.Info);
+            else if (penalty.ExperienceLost > 0 || penalty.EquipmentWorn > 0) RpcShowMessage("Penalidade de morte original: EXP -" + penalty.ExperienceLost + ", equipamento desgastado: " + penalty.EquipmentWorn + ".", PlayerMessageType.Warning);
+            else if (penalty.LostStamina) RpcShowMessage("Penalidade de morte original: SP reduzido a zero.", PlayerMessageType.Warning);
 
+            RpcShowMessage($"{CharacterName} morreu!", PlayerMessageType.Death);
+            var respawn = GetComponent<PlayerRespawn>();
+            if (respawn != null) respawn.ScheduleRespawn();
+            PlayerAnimation animation = GetComponent<PlayerAnimation>();
+            if (animation != null) animation.RpcDeath();
+            OnDeath?.Invoke();
+            TOP.Network.TOPNetworkManager networkManager = TOP.Network.TOPNetworkManager.Instance;
+            if (networkManager != null) networkManager.SavePlayerAfterDeath(this);
             Debug.Log($"[PlayerController] {CharacterName} morreu.");
         }
 
@@ -340,6 +382,7 @@ namespace TOP.Player
             CurrentHp = MaxHp;
             CurrentMp = MaxMp;
             CurrentSp = MaxSp;
+            _deathHandled = false;
 
             transform.position = GetSpawnPosition();
 

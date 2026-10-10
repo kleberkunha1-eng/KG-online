@@ -35,6 +35,9 @@ namespace TOP.NPC
             .Select(id => int.TryParse(id, out int parsed) ? parsed : 0)
             .Where(QuestTable.All.ContainsKey).Distinct().ToArray();
 
+        int[] AllNpcQuestIds(bool turnIn) => QuestIds(turnIn ? completesQuests : availableQuests)
+            .Concat(OriginalQuestCatalog.ForNpc(npcName, turnIn)).Distinct().ToArray();
+
         [TargetRpc]
         void TargetOpenDialogue(NetworkConnectionToClient connection, string[] lines, int[] items, int[] offers, int[] turnIns) =>
             TOP.UI.NPCDialogueUI.Open(this, lines, items, offers, turnIns);
@@ -79,7 +82,7 @@ namespace TOP.NPC
             if (ShopItemIds().Length == 0)
             { controller.RpcShowMessage("Este NPC nao possui loja configurada.", PlayerMessageType.Warning); return; }
             var slot = inventory.GetSlot(slotIndex);
-            if (slot == null || slot.IsEquipped || quantity <= 0 || quantity > slot.Quantity
+            if (slot == null || slot.ItemId == 3849 || slot.IsEquipped || quantity <= 0 || quantity > slot.Quantity
                 || !PkoTables.Items.TryGetValue(slot.ItemId, out var item) || !item.Tradeable || item.Price < 2)
             { controller.RpcShowMessage("Item ou quantidade indisponivel para venda.", PlayerMessageType.Warning); return; }
             if (slot.RefineLevel > 0 || slot.Gems.Any(gem => gem >= 0))
@@ -98,12 +101,12 @@ namespace TOP.NPC
             if (!TryCustomer(sender, out var controller, out _)) return;
             var quests = controller.GetComponent<PlayerQuests>();
             if (quests == null) { controller.RpcShowMessage("Sistema de missoes indisponivel.", PlayerMessageType.Warning); return; }
-            if (turnIn && QuestIds(completesQuests).Contains(questId))
+            if (turnIn && AllNpcQuestIds(true).Contains(questId))
             {
                 quests.ServerTurnInQuest(questId);
                 return;
             }
-            if (!turnIn && quests.GetOfferableQuestsFor(QuestIds(availableQuests)).Contains(questId))
+            if (!turnIn && quests.GetOfferableQuestsFor(AllNpcQuestIds(false)).Contains(questId))
             {
                 quests.ServerOfferQuest(questId);
                 return;
@@ -111,8 +114,8 @@ namespace TOP.NPC
             controller.RpcShowMessage("Missao nao disponivel neste NPC ou requisitos incompletos.", PlayerMessageType.Warning);
         }
 
-        public bool OffersQuest(int id) => QuestIds(availableQuests).Contains(id);
-        public bool ReceivesQuest(int id) => QuestIds(completesQuests).Contains(id);
+        public bool OffersQuest(int id) => AllNpcQuestIds(false).Contains(id);
+        public bool ReceivesQuest(int id) => AllNpcQuestIds(true).Contains(id);
 
         [Command(requiresAuthority = false)]
         public void CmdOpenForge(NetworkConnectionToClient sender = null)

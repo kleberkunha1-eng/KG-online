@@ -43,13 +43,13 @@ namespace TOP.Player
         [Command]
         public void CmdPartyInvite(string targetName)
         {
-            if (_pc == null || string.IsNullOrWhiteSpace(targetName) || targetName == _pc.CharacterName) return;
+            if (_pc == null || _pc.ArenaInstanceId > 0 || string.IsNullOrWhiteSpace(targetName) || targetName == _pc.CharacterName) return;
             if (PartyId != 0 && !IsLeader) { ShowMsg("Apenas o lider do grupo pode convidar.", PlayerMessageType.Warning); return; }
             if (PartyId != 0 && _parties.TryGetValue(PartyId, out var current) && current.Count >= MaxPartySize) { ShowMsg("Grupo cheio.", PlayerMessageType.Warning); return; }
 
             var target = FindByName(targetName);
             if (target == null) { ShowMsg("Jogador nao encontrado.", PlayerMessageType.Warning); return; }
-            if (target == this) return;
+            if (target == this || target._pc.ArenaInstanceId > 0) return;
             if (target.PartyId != 0) { ShowMsg(targetName + " ja esta em um grupo.", PlayerMessageType.Warning); return; }
 
             _pendingInvites[targetName] = new PendingInvite { Inviter = this, Time = Time.time };
@@ -66,12 +66,13 @@ namespace TOP.Player
         [Command]
         public void CmdPartyAccept(string inviterName)
         {
+            if (_pc != null && _pc.ArenaInstanceId > 0) return;
             if (_pc == null) return;
             if (!_pendingInvites.TryGetValue(_pc.CharacterName, out var invite) || invite.Inviter == null)
             { ShowMsg("Convite expirado.", PlayerMessageType.Warning); return; }
             _pendingInvites.Remove(_pc.CharacterName);
             var inviter = invite.Inviter;
-            if (inviter._pc == null || inviter._pc.CharacterName != inviterName || Time.time - invite.Time > InviteTimeout)
+            if (inviter._pc == null || inviter._pc.ArenaInstanceId > 0 || inviter._pc.CharacterName != inviterName || Time.time - invite.Time > InviteTimeout)
             { ShowMsg("Convite expirado.", PlayerMessageType.Warning); return; }
             if (PartyId != 0) { ShowMsg("Voce ja esta em um grupo.", PlayerMessageType.Warning); return; }
 
@@ -98,7 +99,7 @@ namespace TOP.Player
         }
 
         [Command]
-        public void CmdPartyLeave() => LeaveParty(true);
+        public void CmdPartyLeave() { if (_pc != null && _pc.ArenaInstanceId == 0) LeaveParty(true); }
 
         [Server]
         void LeaveParty(bool notifySelf)
@@ -125,7 +126,7 @@ namespace TOP.Player
         [Command]
         public void CmdPartyKick(string targetName)
         {
-            if (!IsLeader || PartyId == 0 || !_parties.TryGetValue(PartyId, out var list)) return;
+            if (_pc == null || _pc.ArenaInstanceId > 0 || !IsLeader || PartyId == 0 || !_parties.TryGetValue(PartyId, out var list)) return;
             var target = list.FirstOrDefault(m => m._pc != null && m._pc.CharacterName == targetName);
             if (target == null || target == this) return;
             target.LeaveParty(true);

@@ -38,6 +38,8 @@ namespace TOP.Player
             && _controller != null && other._controller != null
             && _controller.IsInitialized && other._controller.IsInitialized
             && _stats != null && other._stats != null && !_stats.IsDead && !other._stats.IsDead
+            && _controller.ArenaInstanceId == 0 && other._controller.ArenaInstanceId == 0
+            && !_controller.IsAboardBoat && !other._controller.IsAboardBoat
             && _controller.MapName == other._controller.MapName
             && Vector3.Distance(transform.position, other.transform.position) <= 20
             && !(GetComponent<PlayerTrade>()?.InTrade ?? false)

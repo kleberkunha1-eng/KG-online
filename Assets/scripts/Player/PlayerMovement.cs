@@ -107,6 +107,13 @@ namespace TOP.Player
                     return;
 
                 Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+                var boatController = PlayerControllerRef;
+                if (boatController != null && boatController.IsAboardBoat)
+                {
+                    var waterPlane = new Plane(Vector3.up, new Vector3(0f, transform.position.y, 0f));
+                    if (waterPlane.Raycast(ray, out float distance)) CmdMoveTo(ray.GetPoint(distance));
+                    return;
+                }
 
                 if (showDebugRay)
                     Debug.DrawRay(ray.origin, ray.direction * raycastDistance, Color.red, 1f);
@@ -179,6 +186,8 @@ namespace TOP.Player
         [Command]
         public void CmdMoveTo(Vector3 destination)
         {
+            if (PlayerControllerRef != null && PlayerControllerRef.IsAboardBoat
+                && (PlayerControllerRef.BoatOperationPending || !PlayerController.IsWaterPosition(destination))) return;
             ActiveNpc = null;
             GetComponent<PlayerCombat>()?.StopAttack();
             SetDestination(destination);
@@ -187,6 +196,8 @@ namespace TOP.Player
         [Command]
         public void CmdInteractWithNpc(NetworkIdentity npcIdentity)
         {
+            if (PlayerControllerRef != null && PlayerControllerRef.IsAboardBoat)
+            { PlayerControllerRef.RpcShowMessage("Atracque em um porto antes de interagir a pe.", PlayerMessageType.Warning); return; }
             if (npcIdentity == null || PlayerControllerRef == null || PlayerControllerRef.CurrentHp <= 0) return;
             var npc = npcIdentity.GetComponent<TOP.NPC.NPCInteractable>();
             if (npc != null)
@@ -213,7 +224,10 @@ namespace TOP.Player
         [Server]
         public void SetDestination(Vector3 destination)
         {
-            if (PlayerControllerRef != null && PlayerControllerRef.CurrentHp <= 0) return;
+            var life = GetComponent<PlayerLifeServices>();
+            if (life != null && life.StallActive) return;
+            if (PlayerControllerRef != null && (PlayerControllerRef.CurrentHp <= 0 || PlayerControllerRef.BoatOperationPending)) return;
+            if (PlayerControllerRef != null && PlayerControllerRef.IsAboardBoat && !PlayerController.IsWaterPosition(destination)) return;
             if (float.IsNaN(destination.x) || float.IsNaN(destination.z) || float.IsInfinity(destination.x) || float.IsInfinity(destination.z)) return;
             pendingNpc = null;
             ActiveNpc = null;
@@ -245,56 +259,57 @@ namespace TOP.Player
             if (pendingNpc.CanInteract(this)) OpenNpc(pendingNpc);
         }
 
+        bool IsMovementBlocked(Vector3 position) => PlayerControllerRef != null && PlayerControllerRef.ArenaInstanceId > 0
+            ? TOP.Systems.ArenaWorld.IsBlocked(PlayerControllerRef.ArenaInstanceId, position) : WorldBlockGrid.IsBlocked(position);
+
         [Server]
         void UpdateMovementState()
         {
             if (PlayerControllerRef != null && PlayerControllerRef.CurrentHp <= 0) _isMoving = false;
+            var controller = PlayerControllerRef;
+            bool aboard = controller != null && controller.IsAboardBoat;
 
             if (_isMoving)
             {
-                Vector3 delta = _targetPosition - transform.position;
-                delta.y = 0;
-                Vector3 direction = delta.normalized;
-                float distance = delta.magnitude;
-
-                if (distance > stoppingDistance)
-                {
-                    // Ground check — mantém o player no chão
-                    if (Physics.Raycast(transform.position + direction * 0.5f + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 12f, LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore))
-                    {
-                        Vector3 movePos = transform.position + direction * Mathf.Min(distance, (running ? runSpeed : walkSpeed) * MountSpeedMultiplier() * Time.deltaTime);
-                        Vector3 cur = transform.position;
-                        if (WorldBlockGrid.IsBlocked(movePos))
-                        {
-                            // desliza ao longo do eixo livre; senão para
-                            var ax = new Vector3(movePos.x, cur.y, cur.z);
-                            var az = new Vector3(cur.x, cur.y, movePos.z);
-                            if (!WorldBlockGrid.IsBlocked(ax)) movePos = ax;
-                            else if (!WorldBlockGrid.IsBlocked(az)) movePos = az;
-                            else { _isMoving = false; movePos = cur; }
-                        }
-                        movePos.y = hit.point.y; // Mantém no chao
-                        transform.position = movePos;
-
-                        // Rotação suave
-                        if (direction != Vector3.zero)
-                        {
-                            Quaternion targetRotation = Quaternion.LookRotation(direction);
-                            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-                        }
-                    }
-                }
+                if (aboard) UpdateBoatMovement(controller);
                 else
                 {
-                    _isMoving = false;
+                    Vector3 delta = _targetPosition - transform.position;
+                    delta.y = 0;
+                    Vector3 direction = delta.normalized;
+                    float distance = delta.magnitude;
+                    if (distance > stoppingDistance)
+                    {
+                        if (Physics.Raycast(transform.position + direction * 0.5f + Vector3.up * 5f, Vector3.down,
+                            out RaycastHit hit, 12f, LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore))
+                        {
+                            Vector3 movePos = transform.position + direction * Mathf.Min(distance,
+                                (running ? runSpeed : walkSpeed) * MountSpeedMultiplier() * Time.deltaTime);
+                            Vector3 cur = transform.position;
+                            if (IsMovementBlocked(movePos))
+                            {
+                                var ax = new Vector3(movePos.x, cur.y, cur.z);
+                                var az = new Vector3(cur.x, cur.y, movePos.z);
+                                if (!IsMovementBlocked(ax)) movePos = ax;
+                                else if (!IsMovementBlocked(az)) movePos = az;
+                                else { _isMoving = false; movePos = cur; }
+                            }
+                            movePos.y = hit.point.y;
+                            transform.position = movePos;
+                            if (direction != Vector3.zero)
+                                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), rotationSpeed * Time.deltaTime);
+                        }
+                    }
+                    else _isMoving = false;
                 }
             }
-            else if (Physics.Raycast(transform.position + Vector3.up * 5f, Vector3.down, out RaycastHit idleHit, 20f, LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore) && Mathf.Abs(idleHit.point.y - transform.position.y) > 0.01f)
+            else if (!aboard && Physics.Raycast(transform.position + Vector3.up * 5f, Vector3.down, out RaycastHit idleHit,
+                20f, LayerMask.GetMask("Ground", "Terrain"), QueryTriggerInteraction.Ignore)
+                && Mathf.Abs(idleHit.point.y - transform.position.y) > 0.01f)
             {
                 var snapped = transform.position; snapped.y = idleHit.point.y; transform.position = snapped;
             }
 
-            // Eventos de movimento
             if (_wasMoving != _isMoving)
             {
                 if (_isMoving)
@@ -309,6 +324,24 @@ namespace TOP.Player
                 }
             }
             _wasMoving = _isMoving;
+        }
+
+        [Server]
+        void UpdateBoatMovement(PlayerController controller)
+        {
+            if (controller.BoatOperationPending) return;
+            Vector3 delta = _targetPosition - transform.position;
+            delta.y = 0f;
+            float distance = delta.magnitude;
+            if (distance <= stoppingDistance) { _isMoving = false; return; }
+            Vector3 direction = delta / distance;
+            float speed = controller.BoatMovementSpeed;
+            if (speed <= 0f) { _isMoving = false; return; }
+            Vector3 next = transform.position + direction * Mathf.Min(distance, speed * Time.deltaTime);
+            next.y = transform.position.y;
+            if (!PlayerController.IsWaterPosition(next)) { _isMoving = false; return; }
+            transform.position = next;
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), rotationSpeed * Time.deltaTime);
         }
 
         public bool IsMoving => _isMoving;

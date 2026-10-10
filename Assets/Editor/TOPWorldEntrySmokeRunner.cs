@@ -51,6 +51,7 @@ public static class TOPWorldEntrySmokeRunner
 
     public static void RunSocialBatch()
     {
+        SocialComponentInstaller.Install();
         SessionState.SetBool("TOP.SocialSmokeBatch", true);
         File.WriteAllText("Tools/validate-social-gameplay.request", "validate");
         Poll();

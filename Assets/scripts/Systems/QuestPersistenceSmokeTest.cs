@@ -23,9 +23,9 @@ namespace TOP.Testing
     public static class QuestPersistenceSmokeTest
     {
         [Serializable]
-        sealed class RewardRequest { public CharacterData Character; }
+        sealed class RewardRequest { public CharacterData Character; public List<InventoryItemData> Inventory; }
 
-        sealed class ApiFixture : IDisposable
+        internal sealed class ApiFixture : IDisposable
         {
             readonly TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
             readonly ConcurrentQueue<string> replies = new ConcurrentQueue<string>();
@@ -128,7 +128,13 @@ namespace TOP.Testing
             var data = controller.GetCharacterData();
             int oldServiceVersion = data.BoatServicesVersion;
             long oldRevision = data.SaveRevision;
+            string oldActiveBoatId = controller.ActiveBoatId;
+            string oldMapName = data.MapName;
+            float oldX = data.PosX, oldY = data.PosY, oldZ = data.PosZ, oldRotation = data.RotationY;
             var oldBoats = new List<BoatData>(controller.OwnedBoats);
+            var oldInventory = inventory.GetInventoryData();
+            var freightFixture = UnityEngine.Object.FindObjectsByType<NPCInteractable>(FindObjectsSortMode.None).Single(n => n.NpcId == "119");
+            string oldFreightNpcId = freightFixture.NpcId;
             var synchronize = typeof(PlayerController).GetMethod("SynchronizeBoats", fields);
             GameObject service = null;
             using (var fixture = new ApiFixture())
@@ -204,6 +210,65 @@ namespace TOP.Testing
                     yield return Pump(tick, .2f);
                     check(controller.OwnedBoats.Count == 3 && controller.Gold == 20030 && fixture.Requests == beforeRequests,
                         "Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.");
+                    check(BoatCatalog.TryGetPackedItem(4543, out int woodPile) && woodPile == 4547
+                        && BoatCatalog.TryGetPackedItem(4544, out int energyPile) && energyPile == 4548
+                        && BoatCatalog.TryGetPackedItem(4545, out int ironPile) && ironPile == 4549
+                        && BoatCatalog.TryGetPackedItem(4546, out int crystalPile) && crystalPile == 4550
+                        && BoatCatalog.ResourcePackQuantity == 10,
+                        "Original PackBag mappings convert 10 wood/ore resources into their matching freight pile.");
+                    var freight = freightFixture;
+                    var freightSettings = new UnityEditor.SerializedObject(freight);
+                    freightSettings.FindProperty("npcId").stringValue = "120";
+                    freightSettings.ApplyModifiedPropertiesWithoutUndo();
+                    var cargoBoat = controller.OwnedBoats.First(boat => !boat.IsSunk && boat.BerthId == 1);
+                    var movement = player.GetComponent<PlayerMovement>();
+                    player.transform.position = freight.transform.position + Vector3.right;
+                    inventory.AddItem(4543, 10, (ushort)inventory.FindEmptySlot());
+                    SocialGameplaySmokeTest.Send(client, movement, "CmdInteractWithNpc", w => w.WriteNetworkIdentity(freight.netIdentity));
+                    yield return Pump(tick, .2f);
+                    check(movement.ActiveNpc == freight && freight.CanInteract(movement)
+                        && freight.GetComponentsInChildren<Renderer>(true).Any(renderer => renderer != null),
+                        "KCP freight fixture uses an existing original NPC model with the native freight table ID and authoritative range check.");
+                    void Pack(int itemId, int quantity) => SocialGameplaySmokeTest.Send(client, controller, "CmdPackBoatCargo", w =>
+                    { w.WriteString(cargoBoat.Id); w.Write(itemId); w.Write(quantity); });
+                    Pack(4547, 10); Pack(4543, 9); Pack(4543, 10);
+                    yield return Pump(tick, .2f);
+                    check(fixture.Requests == beforeRequests && !controller.BoatOperationPending,
+                        "KCP cargo rejects wrong resource mappings and partial PackBag quantities without saving.");
+                    int cargoRequests = fixture.Requests;
+                    controller.BoatServicesAvailable = true;
+                    AcknowledgeService();
+                    Pack(4543, 10);
+                    yield return Pump(tick, .1f);
+                    check(controller.BoatOperationPending && inventory.HasQuestTransaction
+                        && BoatCatalog.CargoQuantity(controller.OwnedBoats.First(boat => boat.Id == cargoBoat.Id)) == 0,
+                        "Cargo packing reserves ten wood and does not reveal a pile before the durable API acknowledgement.");
+                    yield return AwaitBoatSave(tick, controller, fixture, ++cargoRequests);
+                    var packedBoat = controller.OwnedBoats.First(boat => boat.Id == cargoBoat.Id);
+                    var packedRequest = JsonUtility.FromJson<RewardRequest>(fixture.Bodies.ToArray().Last());
+                    check(packedBoat.Cargo.Single().ItemId == 4547 && packedBoat.Cargo.Single().Quantity == 1
+                        && BoatCatalog.CargoQuantity(packedBoat) <= BoatCatalog.Quote(packedBoat).Capacity
+                        && inventory.GetItemCount(4543) == 0 && packedRequest.Character.Boats.Single(boat => boat.Id == cargoBoat.Id).Cargo[0].ItemId == 4547
+                        && packedRequest.Inventory.All(item => item.ItemId != 4543),
+                        "Ten wood atomically becomes one durable 4547 cargo pile within original boat capacity.");
+                    ulong goldBeforeDelivery = controller.Gold;
+                    int reward = PkoTables.Items[4547].Price;
+                    void Deliver() => SocialGameplaySmokeTest.Send(client, controller, "CmdDeliverBoatCargo", w =>
+                    { w.WriteString(cargoBoat.Id); w.Write(4547); });
+                    AcknowledgeService();
+                    Deliver();
+                    yield return Pump(tick, .1f);
+                    check(controller.BoatOperationPending && controller.Gold == goldBeforeDelivery,
+                        "Freight delivery holds the original pile and reward until the API confirms the atomic save.");
+                    yield return AwaitBoatSave(tick, controller, fixture, ++cargoRequests);
+                    var deliveredBoat = controller.OwnedBoats.First(boat => boat.Id == cargoBoat.Id);
+                    var deliveredRequest = JsonUtility.FromJson<RewardRequest>(fixture.Bodies.ToArray().Last());
+                    check(deliveredBoat.Cargo.Count == 0 && controller.Gold == goldBeforeDelivery + (ulong)reward
+                        && deliveredRequest.Character.Gold == goldBeforeDelivery + (ulong)reward
+                        && deliveredRequest.Character.Boats.Single(boat => boat.Id == cargoBoat.Id).Cargo.Count == 0,
+                        "Freight delivery removes the cargo and credits the original pile value only after durable confirmation.");
+                    controller.Gold = goldBeforeDelivery;
+                    beforeRequests = fixture.Requests;
                     var harbor = UnityEngine.Object.FindObjectsByType<NPCInteractable>(FindObjectsSortMode.None).Single(n => n.NpcId == "88");
                     void Maintain(string id, int action) => SocialGameplaySmokeTest.Send(client, controller, "CmdMaintainBoat", w =>
                     { w.WriteString(id); w.Write(action); });
@@ -298,17 +363,95 @@ namespace TOP.Testing
                     yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
                     check(controller.OwnedBoats[0].Health == 1919 && controller.Gold == 18325,
                         "Original level <=10 repair exemption restores HP with zero charge.");
+
+                    var navigableBoat = controller.OwnedBoats.First(boat => !boat.IsSunk && boat.BerthId == 1);
+                    player.transform.position = harbor.transform.position + Vector3.right;
+                    SocialGameplaySmokeTest.Send(client, movement, "CmdInteractWithNpc", w => w.WriteNetworkIdentity(harbor.netIdentity));
+                    yield return Pump(tick, .2f);
+                    AcknowledgeService();
+                    SocialGameplaySmokeTest.Send(client, controller, "CmdLaunchBoat", w => w.WriteString(navigableBoat.Id));
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(controller.ActiveBoatId == navigableBoat.Id && controller.ActiveBoat.BerthId == 0
+                        && Vector3.Distance(player.transform.position, PlayerController.ArgentLaunchPosition) < .1f,
+                        "Shirley launches the owned Guppy from berth 1 to the native launch coordinates only after durable acknowledgement.");
+                    Vector3 waterTarget = default;
+                    bool foundWater = false;
+                    for (int radius = 6; radius <= 36 && !foundWater; radius += 3)
+                        for (int angle = 0; angle < 360 && !foundWater; angle += 15)
+                        {
+                            float radians = angle * Mathf.Deg2Rad;
+                            var candidate = player.transform.position + new Vector3(Mathf.Cos(radians) * radius, 0f, Mathf.Sin(radians) * radius);
+                            if (PlayerController.IsWaterPosition(candidate)) { waterTarget = candidate; foundWater = true; }
+                        }
+                    check(foundWater, "Harbor launch opens onto the verified water-only navigation surface.");
+                    if (foundWater)
+                    {
+                        Vector3 beforeSailing = player.transform.position;
+                        SocialGameplaySmokeTest.Send(client, movement, "CmdMoveTo", w => w.WriteVector3(waterTarget));
+                        yield return Pump(tick, 1.2f);
+                        float sailingDistance = Vector3.Distance(beforeSailing, player.transform.position);
+                        bool movedByCourse = sailingDistance > .5f && controller.IsAboardBoat;
+                        check(movedByCourse, "KCP water course moves the synchronized vessel; distance=" + sailingDistance.ToString("0.00")
+                            + ", speed=" + controller.BoatMovementSpeed.ToString("0.00") + ", moving=" + movement.IsMoving);
+                        check(Mathf.Approximately(controller.BoatMovementSpeed, BoatCatalog.Quote(navigableBoat).Speed * .01f),
+                            "Boat navigation speed is derived from the original engine attribute, not the on-foot speed.");
+                    }
+                    player.transform.position = PlayerController.ArgentBerthPosition + Vector3.right * 4f;
+                    AcknowledgeService();
+                    SocialGameplaySmokeTest.Send(client, controller, "CmdDockBoat", _ => { });
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(!controller.IsAboardBoat && controller.OwnedBoats.Single(boat => boat.Id == navigableBoat.Id).BerthId == 1
+                        && Vector3.Distance(player.transform.position, PlayerController.ArgentBerthPosition) < .1f,
+                        "Only a boat inside the harbor berth can dock; its owned berth and land spawn persist atomically.");
+
+                    player.transform.position = harbor.transform.position + Vector3.right;
+                    SocialGameplaySmokeTest.Send(client, movement, "CmdInteractWithNpc", w => w.WriteNetworkIdentity(harbor.netIdentity));
+                    yield return Pump(tick, .2f);
+                    AcknowledgeService();
+                    SocialGameplaySmokeTest.Send(client, controller, "CmdLaunchBoat", w => w.WriteString(navigableBoat.Id));
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    var fuelFleet = controller.OwnedBoats.Select(boat => boat.CopySnapshot()).ToList();
+                    var fuelBoat = fuelFleet.Single(boat => boat.Id == navigableBoat.Id);
+                    int nativeMaximum = BoatCatalog.MaximumHealth(fuelBoat);
+                    fuelBoat.Health = nativeMaximum;
+                    fuelBoat.Fuel = 1;
+                    synchronize.Invoke(controller, new object[] { fuelFleet });
+                    data.Boats = fuelFleet;
+                    AcknowledgeService();
+                    typeof(PlayerController).GetMethod("ServerApplyBoatFuelTick", fields).Invoke(controller, null);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    check(controller.ActiveBoat.Fuel == 0 && controller.ActiveBoat.Health == nativeMaximum - (int)(nativeMaximum * .025f),
+                        "Every native five-second fuel tick consumes BSREC and, at zero SP, removes 2.5% max hull HP durably.");
+                    fuelFleet = controller.OwnedBoats.Select(boat => boat.CopySnapshot()).ToList();
+                    fuelBoat = fuelFleet.Single(boat => boat.Id == navigableBoat.Id);
+                    fuelBoat.Health = 1;
+                    synchronize.Invoke(controller, new object[] { fuelFleet });
+                    data.Boats = fuelFleet;
+                    AcknowledgeService();
+                    typeof(PlayerController).GetMethod("ServerApplyBoatFuelTick", fields).Invoke(controller, null);
+                    yield return AwaitBoatSave(tick, controller, fixture, ++beforeRequests);
+                    var sunkBoat = controller.OwnedBoats.Single(boat => boat.Id == navigableBoat.Id);
+                    check(sunkBoat.IsSunk && sunkBoat.BerthId == 1 && sunkBoat.Health == 0 && !controller.IsAboardBoat
+                        && Vector3.Distance(player.transform.position, PlayerController.ArgentBerthPosition) < .1f,
+                        "Fuel-starved hulls sink at zero HP and durably return their owner to the last known Argent berth for salvage.");
                 }
                 finally
                 {
                     rootField.SetValue(null, oldRoot);
-                    controller.Level = oldLevel; controller.Gold = oldGold;
+                    controller.Level = oldLevel; controller.Gold = oldGold; data.Gold = oldGold;
                     controller.BoatOwnershipAvailable = oldCapability;
                     controller.BoatServicesAvailable = oldServices;
+                    controller.ActiveBoatId = oldActiveBoatId;
+                    data.MapName = oldMapName; data.PosX = oldX; data.PosY = oldY; data.PosZ = oldZ; data.RotationY = oldRotation;
                     data.BoatServicesVersion = oldServiceVersion;
                     data.SaveRevision = oldRevision;
                     synchronize.Invoke(controller, new object[] { oldBoats });
                     data.Boats = oldBoats;
+                    inventory.InitializeFromData(oldInventory);
+                    data.Inventory = oldInventory;
+                    var freightSettings = new UnityEditor.SerializedObject(freightFixture);
+                    freightSettings.FindProperty("npcId").stringValue = oldFreightNpcId;
+                    freightSettings.ApplyModifiedPropertiesWithoutUndo();
                     player.transform.position = oldPosition;
                     if (service != null) UnityEngine.Object.Destroy(service);
                 }

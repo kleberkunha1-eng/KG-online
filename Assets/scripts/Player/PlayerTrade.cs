@@ -246,10 +246,12 @@ namespace TOP.Player
 
         bool CanTradeWith(PlayerTrade other)
         {
+            if (_pc == null || other == null || other._pc == null || _pc.ArenaInstanceId > 0 || other._pc.ArenaInstanceId > 0) return false;
             var stats = GetComponent<PlayerStats>();
             var otherStats = other != null ? other.GetComponent<PlayerStats>() : null;
             return other != null && other != this && _pc != null && other._pc != null
                 && _inventory != null && other._inventory != null && _pc.IsInitialized && other._pc.IsInitialized
+                && !_pc.IsAboardBoat && !other._pc.IsAboardBoat
                 && !_inventory.HasQuestTransaction && !other._inventory.HasQuestTransaction
                 && stats != null && otherStats != null && !stats.IsDead && !otherStats.IsDead
                 && _pc.MapName == other._pc.MapName && Vector3.Distance(transform.position, other.transform.position) <= 5

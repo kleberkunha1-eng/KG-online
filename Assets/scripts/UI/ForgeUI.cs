@@ -18,6 +18,8 @@ namespace TOP.UI
         Vector2 scroll;
         PlayerForge forge;
         int selectedSlot = -1;
+        int mode;
+        string firstSlot = "0", secondSlot = "1", thirdSlot = "2";
 
         float Scale => Mathf.Max(1f, Screen.height / 900f);
 
@@ -50,8 +52,24 @@ namespace TOP.UI
             GUI.matrix = old;
         }
 
+        void DrawOriginalOperation()
+        {
+            GUI.Label(new Rect(10, 60, WinW - 20, 45), mode == 1 ? "Fusion: apparel cheio + equipamento do mesmo tipo.\nFusion Scroll (453), Catalyst (454) se refinado/gemas; nivel x 1000 ouro." : "Combinacao: duas gemas identicas + Combining Scroll.\nCusto: 5000 ouro; falha consome ambas as gemas.");
+            GUI.Label(new Rect(10, 120, 200, 22), mode == 1 ? "Slot apparel (0-based)" : "Slot primeira gema (0-based)");
+            firstSlot = GUI.TextField(new Rect(220, 120, 90, 22), firstSlot);
+            GUI.Label(new Rect(10, 150, 200, 22), mode == 1 ? "Slot equipamento" : "Slot segunda gema");
+            secondSlot = GUI.TextField(new Rect(220, 150, 90, 22), secondSlot);
+            if (mode == 2) { GUI.Label(new Rect(10, 180, 200, 22), "Slot Combining Scroll"); thirdSlot = GUI.TextField(new Rect(220, 180, 90, 22), thirdSlot); }
+            if (GUI.Button(new Rect(10, 220, 200, 28), "Confirmar operacao") && int.TryParse(firstSlot, out int a) && int.TryParse(secondSlot, out int b))
+            { if (mode == 1) forge.CmdFuseItem(a, b); else if (int.TryParse(thirdSlot, out int c)) forge.CmdCombineGems(a, b, c); }
+            GUI.DragWindow(new Rect(0, 0, WinW, 20));
+        }
         void Draw(int id)
         {
+            if (GUI.Button(new Rect(190, 20, 80, 22), "Forja")) mode = 0;
+            if (GUI.Button(new Rect(275, 20, 80, 22), "Fusion")) mode = 1;
+            if (GUI.Button(new Rect(360, 20, 85, 22), "Gemas")) mode = 2;
+            if (mode != 0) { DrawOriginalOperation(); return; }
             var inv = forge.Inventory;
             GUI.Label(new Rect(10, 20, WinW - 20, 20), $"Ouro: {forge.Controller.Gold}");
 

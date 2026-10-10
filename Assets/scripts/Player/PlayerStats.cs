@@ -151,6 +151,9 @@ namespace TOP.Player
             Debug.Log($"[PlayerStats] Inicializado — STR:{Strength} AGI:{Agility} CON:{Constitution}");
         }
 
+        [Server]
+        public void ForgetOriginalQuestSkill(int skillId) => learnedSkills.Remove(skillId);
+
         public List<CharacterSkillData> GetSkillsData()
         {
             var skills = new List<CharacterSkillData>();
@@ -218,19 +221,23 @@ namespace TOP.Player
         // ============================================================
         // DANO / CURA
         // ============================================================
-        [Server]
+                [Server]
         public void TakeDamage(int damage, uint attackerId, DamageType damageType = DamageType.Physical)
         {
-            TakeDamage(damage);
+            bool playerAttacker = attackerId != 0 && NetworkServer.spawned.TryGetValue(attackerId, out NetworkIdentity attacker)
+                && attacker != null && attacker.GetComponent<PlayerCombat>() != null;
+            TakeDamageInternal(damage, playerAttacker);
         }
 
         [Server]
         public void TakeTrueDamage(int damage, uint attackerId)
         {
-            TakeDamage(damage);
+            bool playerAttacker = attackerId != 0 && NetworkServer.spawned.TryGetValue(attackerId, out NetworkIdentity attacker)
+                && attacker != null && attacker.GetComponent<PlayerCombat>() != null;
+            TakeDamageInternal(damage, playerAttacker);
         }
 
-        [Server]
+[Server]
         public void Heal(int amount)
         {
             if (IsDead) return;
@@ -342,8 +349,11 @@ namespace TOP.Player
         // ============================================================
         // DANO SERVIDOR
         // ============================================================
+                [Server]
+        public void TakeDamage(int damage) => TakeDamageInternal(damage, false);
+
         [Server]
-        public void TakeDamage(int damage)
+        void TakeDamageInternal(int damage, bool playerAttacker)
         {
             int finalDamage = Mathf.Max(1, damage - PhysicalDefense);
             if (IsDead || damage <= 0) return;
@@ -359,7 +369,7 @@ namespace TOP.Player
                 if (controller != null)
                 {
                     OnDeath?.Invoke();
-                    controller.Die();
+                    controller.Die(playerAttacker);
                 }
             }
         }

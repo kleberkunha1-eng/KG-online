@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Mirror;
 using System.Collections.Generic;
@@ -13,6 +14,8 @@ namespace TOP.Player
     public class PlayerGuild : NetworkBehaviour
     {
         [SyncVar(hook = nameof(OnGuildNameChanged))] public string GuildName = "";
+        [SyncVar] public int GuildId;
+        [SyncVar] public bool GuildDataReady;
 
         PlayerController _pc;
         public GuildData Guild { get; private set; }
@@ -25,10 +28,22 @@ namespace TOP.Player
         [Server]
         public async void RefreshGuildInternal()
         {
-            if (_pc == null) return;
-            var data = await DatabaseService.Instance.GetGuildAsync(_pc.CharacterId, Token);
-            GuildName = data != null && data.InGuild ? data.Name : "";
-            TargetGuildUpdated(connectionToClient, Serialize(data));
+            if (_pc == null || connectionToClient == null || TOPNetworkManager.Instance == null) return;
+            GuildDataReady = false;
+            try
+            {
+                GuildData data = await DatabaseService.Instance.GetGuildAsync(_pc.CharacterId, Token);
+                if (data == null) return;
+                Guild = data;
+                GuildId = data.InGuild ? data.GuildId : 0;
+                GuildName = data.InGuild ? data.Name : "";
+                GuildDataReady = true;
+                TargetGuildUpdated(connectionToClient, Serialize(data));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Guild] Membership refresh failed; guild-protected PK stays blocked: " + ex.Message);
+            }
         }
 
         [Command]
@@ -37,30 +52,60 @@ namespace TOP.Player
         [Command]
         public async void CmdCreateGuild(string name)
         {
-            if (_pc == null || string.IsNullOrWhiteSpace(name)) return;
-            var (success, error, _) = await DatabaseService.Instance.CreateGuildAsync(_pc.CharacterId, name.Trim(), Token);
-            _pc.RpcShowMessage(success ? "Guilda '" + name + "' fundada!" : FriendlyError(error), success ? PlayerMessageType.Success : PlayerMessageType.Warning);
-            if (success) RefreshGuildInternal();
+            if (_pc == null || !GuildDataReady || GuildId != 0 || string.IsNullOrWhiteSpace(name)) return;
+            name = name.Trim();
+            if (name.Length < 3 || name.Length > 32 || name.IndexOfAny(new[] { '|', ';', ':', '\n', '\r' }) >= 0) return;
+            bool created = await PlayerDurableAction.Run(_pc, data =>
+            {
+                var movement = GetComponent<PlayerMovement>();
+                var npc = movement != null ? movement.ActiveNpc : null;
+                if (npc == null || npc.NpcName != "Icicle Royal - Mas" || npc.NpcId != "254" || !npc.CanInteract(movement)) throw new InvalidOperationException("Fale com Mas em Icicle para criar uma guilda.");
+                if (data.Gold < 100000) throw new InvalidOperationException("A guilda custa 100.000 ouro e uma Stone of Oath.");
+                var stone = data.Inventory.Find(i => i.ItemId == 1780 && !i.IsEquipped && !i.IsLocked && i.Quantity > 0);
+                if (stone == null) throw new InvalidOperationException("Falta Stone of Oath (1780).");
+                if (--stone.Quantity == 0) data.Inventory.Remove(stone);
+                data.Gold -= 100000;
+                data.GuildCreateName = name;
+            }, synchronizeBefore: true);
+            if (created) { _pc.RpcShowMessage("Guilda criada.", PlayerMessageType.Success); RefreshGuildInternal(); }
         }
 
+        PlayerGuild pendingInviter;
+        double invitationExpires;
+        [SyncVar] public string InvitationFrom = "";
         [Command]
-        public async void CmdGuildInvite(string targetName)
+        public void CmdGuildInvite(string targetName)
         {
-            if (_pc == null) return;
-            var (success, error) = await DatabaseService.Instance.GuildInviteAsync(_pc.CharacterId, targetName, Token);
-            _pc.RpcShowMessage(success ? targetName + " foi adicionado a guilda." : FriendlyError(error), success ? PlayerMessageType.Success : PlayerMessageType.Warning);
-            if (success)
+            if (_pc == null || Guild == null || !Guild.InGuild || (Guild.MyRank != "Lider" && Guild.MyRank != "Oficial")) return;
+            foreach (var identity in NetworkServer.spawned.Values)
             {
-                foreach (var kv in NetworkServer.spawned)
-                {
-                    var targetPc = kv.Value.GetComponent<PlayerController>();
-                    if (targetPc != null && targetPc.CharacterName == targetName)
-                    {
-                        kv.Value.GetComponent<PlayerGuild>()?.RefreshGuildInternal();
-                        break;
-                    }
-                }
+                var target = identity.GetComponent<PlayerGuild>();
+                var pc = identity.GetComponent<PlayerController>();
+                if (target == null || pc == null || pc.CharacterName != targetName || target == this || !target.GuildDataReady || target.GuildId != 0) continue;
+                target.pendingInviter = this;
+                target.invitationExpires = NetworkTime.time + 30;
+                target.InvitationFrom = GuildName;
+                pc.RpcShowMessage("Convite de guilda: " + GuildName + ". Abra Guilda para aceitar.", PlayerMessageType.Info);
+                return;
             }
+            _pc.RpcShowMessage("Convites exigem jogador online e sem guilda.", PlayerMessageType.Warning);
+        }
+        [Command]
+        public async void CmdGuildAnswerInvite(bool accept)
+        {
+            var inviter = pendingInviter;
+            bool valid = invitationExpires >= NetworkTime.time;
+            pendingInviter = null;
+            InvitationFrom = "";
+            if (!accept || !valid || inviter == null || inviter._pc == null || _pc == null || inviter.connectionToClient == null || GuildId != 0) return;
+            var result = await DatabaseService.Instance.GuildInviteAsync(inviter._pc.CharacterId, _pc.CharacterName, inviter.Token);
+            if (result.success) { RefreshGuildInternal(); inviter.RefreshGuildInternal(); }
+        }
+        [Command]
+        public async void CmdGuildSetRank(string targetName, bool officer)
+        {
+            if (_pc == null || Guild == null || Guild.MyRank != "Lider") return;
+            if (await DatabaseService.Instance.GuildSetRankAsync(_pc.CharacterId, targetName, officer, Token)) RefreshGuildMembers();
         }
 
         [Command]
@@ -69,7 +114,10 @@ namespace TOP.Player
             if (_pc == null) return;
             if (await DatabaseService.Instance.GuildLeaveAsync(_pc.CharacterId, Token))
             {
+                RefreshGuildMembers();
                 GuildName = "";
+                GuildId = 0;
+                GuildDataReady = true;
                 _pc.RpcShowMessage("Voce saiu da guilda.", PlayerMessageType.Info);
                 RefreshGuildInternal();
             }
@@ -81,7 +129,7 @@ namespace TOP.Player
             if (_pc == null) return;
             var (success, error) = await DatabaseService.Instance.GuildKickAsync(_pc.CharacterId, targetName, Token);
             _pc.RpcShowMessage(success ? targetName + " foi expulso da guilda." : FriendlyError(error), success ? PlayerMessageType.Info : PlayerMessageType.Warning);
-            if (success) RefreshGuildInternal();
+            if (success) RefreshGuildMembers();
         }
 
         [Command]
@@ -90,6 +138,15 @@ namespace TOP.Player
             if (await DatabaseService.Instance.GuildSetNoticeAsync(_pc.CharacterId, notice ?? "", Token)) RefreshGuildInternal();
         }
 
+        [Server]
+        void RefreshGuildMembers()
+        {
+            foreach (var identity in NetworkServer.spawned.Values)
+            {
+                var member = identity.GetComponent<PlayerGuild>();
+                if (member != null && member.GuildId == GuildId) member.RefreshGuildInternal();
+            }
+        }
         static string FriendlyError(string error) => error switch
         {
             "INVALID_NAME" => "Nome de guilda invalido (3-32 caracteres).",

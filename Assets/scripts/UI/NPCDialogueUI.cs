@@ -22,6 +22,11 @@ namespace TOP.UI
         string boatName = "Meu barco";
         public static bool BlocksMouse => instance != null && instance.npc != null;
 
+        public static void Close()
+        {
+            if (instance != null) instance.npc = null;
+        }
+
         public static void Open(NPCInteractable npc, string[] lines, int[] items, int[] offers, int[] turnIns)
         {
             if (instance == null)
@@ -67,16 +72,71 @@ namespace TOP.UI
             scroll = GUILayout.BeginScrollView(scroll);
             foreach (var line in lines) GUILayout.Label(line);
             if (lines.Length == 0) GUILayout.Label(npc.GetInteractionName());
+            if (npc.IsArenaAdministrator)
+            {
+                GUILayout.Label("Medal of Valor: nivel >25, 50000 ouro; 20 arenas isoladas. Ao registrar voce aceita o confronto.");
+                var arenaBag = NetworkClient.localPlayer.GetComponent<PlayerInventory>();
+                var medal = arenaBag != null ? arenaBag.GetSlot(arenaBag.FindItemSlot(3849)) : null;
+                if (medal != null) GUILayout.Label("Honra: " + medal.MedalHonor + " | Vitorias: " + medal.MedalWins + " | Participacoes: " + medal.MedalEntries + " | K/D: " + medal.MedalKills + "/" + medal.MedalDeaths);
+                if (GUILayout.Button("Obter Medal of Valor")) npc.CmdObtainArenaMedal();
+                if (GUILayout.Button("Inscrever desafio individual")) npc.CmdArenaRegister(false, false);
+                if (GUILayout.Button("Inscrever grupo (lider; ate 5 membros)")) npc.CmdArenaRegister(true, false);
+                if (GUILayout.Button("Cancelar inscricao")) npc.CmdArenaRegister(false, true);
+            }
             if (npc.NpcId == "87" || npc.NpcId == "88") DrawBoats();
+            if (npc.NpcId == "120" || npc.NpcId == "122" || npc.NpcId == "141") DrawFreight();
             if (offers.Length > 0 || turnIns.Length > 0)
             {
                 GUILayout.Label("Missoes");
                 foreach (int quest in offers)
-                    if (QuestTable.All.TryGetValue(quest, out var def) && GUILayout.Button("Consultar: " + def.Name))
+                    if (QuestTable.All.TryGetValue(quest, out var def) && (!OriginalQuestCatalog.All.ContainsKey(quest)
+                        || NetworkClient.localPlayer.GetComponent<PlayerQuests>().CanBeginOriginal(quest)) && GUILayout.Button("Consultar: " + def.Name))
                         npc.CmdQuestAction(quest, false);
                 foreach (int quest in turnIns)
-                    if (QuestTable.All.TryGetValue(quest, out var def) && GUILayout.Button("Entregar: " + def.Name))
+                    if (QuestTable.All.TryGetValue(quest, out var def) && (!OriginalQuestCatalog.All.ContainsKey(quest)
+                        || NetworkClient.localPlayer.GetComponent<PlayerQuests>().CanResultOriginal(quest)) && GUILayout.Button("Entregar: " + def.Name))
                         npc.CmdQuestAction(quest, true);
+            }
+
+            void DrawFreight()
+            {
+                var controller = NetworkClient.localPlayer.GetComponent<PlayerController>();
+                var inventory = NetworkClient.localPlayer.GetComponent<PlayerInventory>();
+                if (controller == null || inventory == null) return;
+                GUILayout.Space(8);
+                GUILayout.Label("Frete naval - recursos: 10 unidades por pacote. Capacidade por volume de carga do barco.");
+                foreach (var boat in controller.OwnedBoats)
+                {
+                    int capacity;
+                    try { capacity = BoatCatalog.Quote(boat).Capacity; }
+                    catch (InvalidOperationException) { continue; }
+                    int loaded = BoatCatalog.CargoQuantity(boat);
+                    GUILayout.Label(boat.Name + " - porao " + loaded + "/" + capacity + (boat.IsSunk ? " - afundado" : ""));
+                    foreach (int resourceId in new[] { 4543, 4544, 4545, 4546 })
+                    {
+                        if (!PkoTables.Items.TryGetValue(resourceId, out var resource)
+                            || !BoatCatalog.TryGetPackedItem(resourceId, out int pileId)
+                            || !PkoTables.Items.TryGetValue(pileId, out var pile)) continue;
+                        bool available = GUI.enabled;
+                        GUI.enabled = available && !controller.BoatOperationPending && !boat.IsSunk && loaded < capacity
+                            && inventory.GetQuestMaterialCount(resourceId) >= BoatCatalog.ResourcePackQuantity;
+                        if (GUILayout.Button("Embalar " + resource.Name + " x10 -> " + pile.Name + " x1"))
+                            controller.CmdPackBoatCargo(boat.Id, resourceId, BoatCatalog.ResourcePackQuantity);
+                        GUI.enabled = available;
+                    }
+                    if (boat.Cargo != null)
+                        foreach (var cargo in boat.Cargo)
+                        {
+                            if (cargo == null || cargo.Quantity <= 0 || !PkoTables.Items.TryGetValue(cargo.ItemId, out var pile)) continue;
+                            bool available = GUI.enabled;
+                            GUI.enabled = available && !controller.BoatOperationPending && !boat.IsSunk;
+                            if (GUILayout.Button("Entregar " + pile.Name + " x" + cargo.Quantity + " - "
+                                + (ulong)pile.Price * (ulong)cargo.Quantity + " ouro"))
+                                controller.CmdDeliverBoatCargo(boat.Id, cargo.ItemId);
+                            GUI.enabled = available;
+                        }
+                }
+                GUILayout.Label("Entrega remove os pacotes do porao e credita a recompensa apenas apos confirmacao do save.");
             }
 
             void DrawBoats()
@@ -90,6 +150,12 @@ namespace TOP.UI
                         + " - HP " + boat.Health + " - combustivel " + boat.Fuel + (boat.IsSunk ? " - afundado" : ""));
                     if (npc.NpcId == "88" && boat.BerthId == 1)
                     {
+                        bool launchPreviousService = GUI.enabled;
+                        GUI.enabled = launchPreviousService && controller.BoatOwnershipAvailable && controller.BoatServicesAvailable
+                            && !controller.BoatOperationPending && !boat.IsSunk && boat.Health > 0;
+                        if (GUILayout.Button("Lancamento do " + boat.Name + " ? Guppy e configuracao salva"))
+                            controller.CmdLaunchBoat(boat.Id);
+                        GUI.enabled = launchPreviousService;
                         bool previousService = GUI.enabled;
                         GUI.enabled = previousService && controller.BoatServicesAvailable && !controller.BoatOperationPending;
                         if (boat.IsSunk)
@@ -111,7 +177,7 @@ namespace TOP.UI
                         GUI.enabled = previousService;
                     }
                 }
-                GUILayout.Label("Navegacao e carga ainda nao habilitadas.");
+                GUILayout.Label(npc.NpcId == "88" ? "Lance pelo cais de Shirley; atraque junto ao ancoradouro marcado no mar." : "Navegacao naval disponivel no porto de Argent.");
                 if (npc.NpcId == "88" && !controller.BoatServicesAvailable)
                     GUILayout.Label("API naval ainda nao confirmou suporte a manutencao/resgate.");
                 if (!controller.BoatOwnershipAvailable)
@@ -192,7 +258,16 @@ namespace TOP.UI
                 }
             }
             else if (npc.NpcType == NPCType.Merchant) GUILayout.Label("Este NPC ainda nao tem catalogo de loja importado.");
-            else if (npc.NpcType == NPCType.Banker || (npc.NpcType == NPCType.Healer && npc.FullHealCost < 0 && npc.Recipes.Count == 0)
+            else if (npc.NpcType == NPCType.Banker)
+            {
+                GUILayout.Label("Armazenamento pessoal original: 32 espacos em uma pagina; ouro nao e depositado.");
+                var controller = NetworkClient.localPlayer.GetComponent<PlayerController>();
+                GUI.enabled = controller != null && controller.BankStorageAvailable;
+                if (GUILayout.Button("Abrir banco")) npc.CmdOpenBank();
+                GUI.enabled = true;
+                if (controller != null && !controller.BankStorageAvailable) GUILayout.Label("Banco aguardando migracao compativel da API.");
+            }
+            else if ((npc.NpcType == NPCType.Healer && npc.FullHealCost < 0 && npc.Recipes.Count == 0)
                 || npc.NpcType == NPCType.StableMaster
                 || npc.NpcType == NPCType.SkillMaster)
                 GUILayout.Label("Servico original ainda nao importado; nenhuma cobranca sera realizada.");

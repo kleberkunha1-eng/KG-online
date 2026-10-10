@@ -131,6 +131,7 @@ namespace TOP.Data
             Add(new QuestDef { Id = 720, Name = "Playful Squidy", Description = "Lulas travessas atrapalham os pescadores locais.", RequiredLevel = 3, Objective = new QuestObjective { Type = QuestObjectiveType.Kill, Target = "squid", Required = 5 }, RewardExp = 400, RewardGold = 200 });
             Add(new QuestDef { Id = 721, Name = "Leaves Collection", Description = "Colete folhas para o herborista.", RequiredLevel = 2, Objective = new QuestObjective { Type = QuestObjectiveType.Collect, Target = "leaf", Required = 10 }, RewardExp = 250, RewardGold = 120 });
             Add(new QuestDef { Id = 733, Name = "Herbs Gathering", Description = "Colete ervas medicinais para o medico.", RequiredLevel = 2, Objective = new QuestObjective { Type = QuestObjectiveType.Collect, Target = "herb", Required = 10 }, RewardExp = 250, RewardGold = 120 });
+            OriginalQuestCatalog.Register(All);
         }
     }
 }

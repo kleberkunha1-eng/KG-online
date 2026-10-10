@@ -1,0 +1,4658 @@
+{
+  "Total": 1508,
+  "Imported": 962,
+  "PrimaryImported": 952,
+  "Source": "C:\\Tales of Pirates Unity\\Tools\\OriginalQuestSource\\File 2\\meu_servidor\\PrivateTop\\server\\GameServer\\resource\\script\\MisScript",
+  "Archive": "E:\\NEW SV\\File 2.rar",
+  "SourceHashes": {
+    "MissionScript01.lua": "5f6468c3ceb5e63de8c7c63fae7a80d11aa394d1c3e5e721245a513f58afc9a0",
+    "MissionScript02.lua": "8cd66477dcb678f28e085f0f7fed40372599ed7e0fe6ca28276e3aeab309cf96",
+    "MissionScript03.lua": "0e58fa77632f2eed4b8eab6c741d6f445ac714a1cba6dee49f464d6bd5efa3d3",
+    "MissionScript04.lua": "cb5a0496095cf7c7ad9ce1192505c658d8fb6a1696a67429298114babc27a150",
+    "MissionScript05.lua": "4e33b0543661c781077b6973d460289c0b2ba15c98572db15549ae7716b8cd54",
+    "MissionScript06.lua": "11c368ddcb678ba3e9f3fbead80ef67525fd3c5da1949d9cfbaaae59aeca13e8",
+    "MissionScript07.lua": "3de6d82060587722b0e11f4c6ea533fd4896cecfa49f8ee484632a08ee4508fe",
+    "MissionScript08.lua": "f65d65e2186a7f4f0e37dbc57c37859e7c512ca2b4e04375a895cd9eac75af46"
+  },
+  "Reconciliations": [
+    {
+      "Id": 758,
+      "Name": "Journey of the Voyager",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 751,
+      "Name": "Walk of the Cleric",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 755,
+      "Name": "Ways of the Seal",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 749,
+      "Name": "Code of the Crusader",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 750,
+      "Name": "Champion's Valor",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 757,
+      "Name": "Sharpshooter Range",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15072"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 72,
+      "Name": "Swordsman Promotion",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15073"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 151,
+      "Name": "Herbalist Promotion",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15073"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 180,
+      "Name": "Hunter Promotion",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15073"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    },
+    {
+      "Id": 197,
+      "Name": "Explorer Promotion",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "missing client items: 15073"
+      ],
+      "ReplacementSource": "E:\\ToP Server,client,Db,tools\\ToP Server,client,Db,tools\\GameServer\\resource\\script\\MisScript",
+      "ReplacementHash": "556871e0d0823630d0a7d08e6b26ee776898bcc102ac6625756d17745be8902e"
+    }
+  ],
+  "Unsupported": [
+    {
+      "Id": 733,
+      "Name": "Leaves Collection",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 738,
+      "Name": "Decoction Recipe",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 739,
+      "Name": "Mushroom Mushroom",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 719,
+      "Name": "Righteous Document",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 709,
+      "Name": "Courage Certificate",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 735,
+      "Name": "Collector's Habit",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 746,
+      "Name": "Collector's Habit",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 747,
+      "Name": "Collector's Habit",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 729,
+      "Name": "Hunter Manual",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 730,
+      "Name": "Emergency",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 736,
+      "Name": "Shroom Population",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 737,
+      "Name": "Conservation Activity",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 734,
+      "Name": "Grafting Experiment",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 744,
+      "Name": "Fake a Gift",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 745,
+      "Name": "Herbs Gathering",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 731,
+      "Name": "Cactus Invasion",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 740,
+      "Name": "Kicking Monster",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 741,
+      "Name": "Scorpion Crisis",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 732,
+      "Name": "Playful Squidy",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 742,
+      "Name": "There's never too much",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 743,
+      "Name": "Wrong Transfer",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 198,
+      "Name": "Low Lv Commerce",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "action SetTradeItemLevel"
+      ]
+    },
+    {
+      "Id": 199,
+      "Name": "Mid Lv Commerce",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "action SetTradeItemLevel",
+        "condition TradeItemDataCheck",
+        "condition TradeItemLevelCheck",
+        "dynamic condition TradeItemDataCheck",
+        "dynamic condition TradeItemLevelCheck"
+      ]
+    },
+    {
+      "Id": 149,
+      "Name": "High Lv Commerce",
+      "Source": "MissionScript01.lua",
+      "Reasons": [
+        "action SetTradeItemLevel",
+        "condition TradeItemDataCheck",
+        "condition TradeItemLevelCheck",
+        "dynamic condition TradeItemDataCheck",
+        "dynamic condition TradeItemLevelCheck"
+      ]
+    },
+    {
+      "Id": 203,
+      "Name": "Secretary Message",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 204,
+      "Name": "Secretary Message",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 205,
+      "Name": "Secretary Message",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 207,
+      "Name": "A Small Task",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 208,
+      "Name": "Food for the Navy",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 210,
+      "Name": "Missing Tommy",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 212,
+      "Name": "Report to General",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 213,
+      "Name": "Food Poisoning",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 215,
+      "Name": "Quest for Antidote",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 217,
+      "Name": "Tommy's Request",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 218,
+      "Name": "A Crazy Reason",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 219,
+      "Name": "Thorough Investigation",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 221,
+      "Name": "Ditto's Report",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 223,
+      "Name": "A New Task",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 224,
+      "Name": "The Lost Tool",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 225,
+      "Name": "Kill the Shrooms",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 226,
+      "Name": "Ditto's Request",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 227,
+      "Name": "Bandit Hideout Map",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 228,
+      "Name": "Ambush Bandit",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 229,
+      "Name": "Bounty",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 231,
+      "Name": "Desert Visit",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 232,
+      "Name": "Changes",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 235,
+      "Name": "Roland's Notebook",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 237,
+      "Name": "Clues",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 238,
+      "Name": "The Traitor Within",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 239,
+      "Name": "Desert Battle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 241,
+      "Name": "The Truth",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 243,
+      "Name": "Buccaneer's News",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 245,
+      "Name": "Jack's Pirates",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 246,
+      "Name": "Captain Fickle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 248,
+      "Name": "To Whom It May Concern",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 249,
+      "Name": "For Whom It May Concern",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 251,
+      "Name": "Journey to the North",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 253,
+      "Name": "Danger in Icicle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 255,
+      "Name": "Replenishment",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 257,
+      "Name": "Search for Supplies",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 258,
+      "Name": "Recapture the Supplies",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 260,
+      "Name": "Escort the Supplies",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 262,
+      "Name": "Further Investigation",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 263,
+      "Name": "Snowfield Organism",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 264,
+      "Name": "Search for Yeti King",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 266,
+      "Name": "Wisdom of Argent",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 267,
+      "Name": "Blurry",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 269,
+      "Name": "Eight Treasures Wine",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 271,
+      "Name": "A Long Long Time Ago",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 272,
+      "Name": "Wrong Question",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 274,
+      "Name": "Chairman's Dark Secret",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 275,
+      "Name": "Mine Investigation",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 277,
+      "Name": "Secret of the Slip",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 279,
+      "Name": "Behemoth's Escape",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 280,
+      "Name": "Ancient Bounty Token",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 282,
+      "Name": "Scary Monsters",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 284,
+      "Name": "Granny's Pastries",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 285,
+      "Name": "Stolen Lunchbox",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action ObligeAcceptMission",
+        "incomplete trigger",
+        "trigger action SetMissionFailure",
+        "trigger action SystemNotice",
+        "trigger condition NoFlag",
+        "trigger condition NoMisssionFailure"
+      ]
+    },
+    {
+      "Id": 288,
+      "Name": "Eight Treasures Wine",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 289,
+      "Name": "Sea Haven",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 291,
+      "Name": "Navigation Map",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 292,
+      "Name": "Challenge Sea Jelly",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 294,
+      "Name": "Sailing",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 296,
+      "Name": "The Li Brothers",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 297,
+      "Name": "Activity Preparation",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 299,
+      "Name": "Blessing Hand",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 300,
+      "Name": "Spiritual Strength",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 302,
+      "Name": "Return to Icicle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 304,
+      "Name": "Go Forth to Ninth Haven",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 306,
+      "Name": "Who is Andrew?",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 307,
+      "Name": "Navy Don't Move!",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 309,
+      "Name": "Jack Again",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 311,
+      "Name": "Lure Behemoth",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "condition NoMisssionFailure"
+      ]
+    },
+    {
+      "Id": 313,
+      "Name": "Memento of Andrew",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 314,
+      "Name": "Blood of Pirate",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 315,
+      "Name": "Soul of Navy",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 316,
+      "Name": "Nameless One",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 317,
+      "Name": "Blood of Pirate",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 318,
+      "Name": "Soul of Navy",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 319,
+      "Name": "Nameless One",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 321,
+      "Name": "Friend of the Pirates",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 322,
+      "Name": "I'm not a NAVY!",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition NoNavyGuild"
+      ]
+    },
+    {
+      "Id": 323,
+      "Name": "Sever Relationship",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 324,
+      "Name": "I'm not a PIRATE!",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition NoPirateGuild"
+      ]
+    },
+    {
+      "Id": 325,
+      "Name": "Lone Warrior",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition NoGuild"
+      ]
+    },
+    {
+      "Id": 326,
+      "Name": "Powerful Backing",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "condition HasGuild"
+      ]
+    },
+    {
+      "Id": 327,
+      "Name": "Repentant",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 334,
+      "Name": "Love Entanglement",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 336,
+      "Name": "Language of the Pirates",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 355,
+      "Name": "Goddess Test",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 371,
+      "Name": "Exploration Test",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 378,
+      "Name": "Ancient Brooch",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 387,
+      "Name": "Wheel of Fate",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 391,
+      "Name": "Language Barrier",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 392,
+      "Name": "Rare Visitor from Afar",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 525,
+      "Name": "Love Miracle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 535,
+      "Name": "Preservative",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 538,
+      "Name": "Legend of Dragon's Tear",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action ObligeAcceptMission"
+      ]
+    },
+    {
+      "Id": 542,
+      "Name": "Hassli's Deposit",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 546,
+      "Name": "Sea Exploration",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 548,
+      "Name": "Demonic Fruit",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 550,
+      "Name": "Demonic Fruit",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 555,
+      "Name": "Tragedy",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 556,
+      "Name": "Past",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5001,
+      "Name": "Mischief of Fox Sage",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5002,
+      "Name": "Big Secret",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5006,
+      "Name": "Sorcerer's bone powder.",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5008,
+      "Name": "Forgotten Past",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5009,
+      "Name": "Memory Soup",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5014,
+      "Name": "Memory Soup Recipe",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5017,
+      "Name": "Memory Capsule",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5020,
+      "Name": "Calcium Replenishment",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5021,
+      "Name": "Revival Clover",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5022,
+      "Name": "Side effect",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5024,
+      "Name": "Beautiful Past",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5025,
+      "Name": "Used Candle",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5027,
+      "Name": "Ingredient of Restoration Potion",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5031,
+      "Name": "Brimstone",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5036,
+      "Name": "Eyedrop",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5037,
+      "Name": "Dust of the Century",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5043,
+      "Name": "Magical Curse",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5045,
+      "Name": "Tribal Long Spear",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5049,
+      "Name": "Final Password",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5050,
+      "Name": "Stone of Destiny",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5051,
+      "Name": "Destroy the mask",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5054,
+      "Name": "Gold powder on the Sacred Amulet",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5060,
+      "Name": "Peter's suggestion",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5061,
+      "Name": "Ray's suggestion",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5063,
+      "Name": "Daniel's Suggestion",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5073,
+      "Name": "Harden Will",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "condition HasState"
+      ]
+    },
+    {
+      "Id": 5096,
+      "Name": "Advance Disciple",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5100,
+      "Name": "Advance Disciple",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5104,
+      "Name": "Advance Disciple",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5108,
+      "Name": "Advance Disciple",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5140,
+      "Name": "8th Gate",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5146,
+      "Name": "Perfect Pirate Mission",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExp1500000",
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5160,
+      "Name": "Guardian of Truth",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 5165,
+      "Name": "Mysterious Curse",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "action AddExpAndType"
+      ]
+    },
+    {
+      "Id": 100,
+      "Name": "A Swordsman's Life",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 101,
+      "Name": "A Hunter's Life",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 102,
+      "Name": "A Herbalist's Life",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 103,
+      "Name": "An Explorer's Life",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 104,
+      "Name": "Low Lv Commerce",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "condition TradeItemDataCheck",
+        "condition TradeItemLevelCheck",
+        "dynamic condition TradeItemDataCheck",
+        "dynamic condition TradeItemLevelCheck",
+        "not bound to an original NPC",
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 105,
+      "Name": "Mid Lv Commerce",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "condition TradeItemDataCheck",
+        "condition TradeItemLevelCheck",
+        "dynamic condition TradeItemDataCheck",
+        "dynamic condition TradeItemLevelCheck",
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 106,
+      "Name": "High Lv Commerce",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "condition TradeItemLevelCheck",
+        "dynamic condition TradeItemLevelCheck",
+        "not bound to an original NPC",
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 112,
+      "Name": "Quiz",
+      "Source": "MissionScript03.lua",
+      "Reasons": [
+        "condition HasNoItem",
+        "condition HasReadExp",
+        "not bound to an original NPC",
+        "random mission generator"
+      ]
+    },
+    {
+      "Id": 476,
+      "Name": "Commander's Complaint",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 477,
+      "Name": "Commander's Complaint",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 478,
+      "Name": "Secret of the Commander",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 479,
+      "Name": "Secret of the Commander",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 480,
+      "Name": "Navy's Weapon",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 481,
+      "Name": "Navy Manual",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 482,
+      "Name": "SOS",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 483,
+      "Name": "SOS",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 484,
+      "Name": "Jack Vs Jack",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 485,
+      "Name": "Jack Vs Jack",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 486,
+      "Name": "Treasure of the Caribbean",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 487,
+      "Name": "The Congregation",
+      "Source": "MissionScript04.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 894,
+      "Name": "Counter Probe",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 895,
+      "Name": "Peerless Pirate",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 896,
+      "Name": "Commander's Head",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasPirateGuild"
+      ]
+    },
+    {
+      "Id": 897,
+      "Name": "Pirate's Food",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 898,
+      "Name": "Pirate's Annihilation",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 899,
+      "Name": "Cursed Black Jewel",
+      "Source": "MissionScript05.lua",
+      "Reasons": [
+        "condition HasNavyGuild"
+      ]
+    },
+    {
+      "Id": 902,
+      "Name": "Fight Evil, Eat Dumplings!",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 903,
+      "Name": "Fight Evil, Eat Dumplings!",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 904,
+      "Name": "Fight Evil, Eat Dumplings!",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 905,
+      "Name": "Pirate King Anniversary",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 906,
+      "Name": "Pirate King Anniversary",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 907,
+      "Name": "Search for Flower",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 908,
+      "Name": "Search for Flower",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 909,
+      "Name": "Mooncake Affinity",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 910,
+      "Name": "Flower's Letter",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 911,
+      "Name": "Flower's Letter",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 912,
+      "Name": "Reverse Love Potion",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 913,
+      "Name": "Reverse Love Potion",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 914,
+      "Name": "Decoct Reverse Love Potion",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 915,
+      "Name": "Purchase Golden Jade Bottle",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 916,
+      "Name": "Love in the Past",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 917,
+      "Name": "Love in the Past",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 919,
+      "Name": "Bloodied High Heels",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6000,
+      "Name": "Phoenix Rebirth",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5500,
+      "Name": "Snowball Fight",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5501,
+      "Name": "Snowball Fight",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5502,
+      "Name": "Snowball Fight",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6001,
+      "Name": "Mark of a Warrior",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5503,
+      "Name": "Valentine's Day gift",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5504,
+      "Name": "Valentine's Day gift",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5505,
+      "Name": "Fortune of 7 Pigs",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5506,
+      "Name": "Lucky Piggy",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5507,
+      "Name": "Auspicious Gift",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5508,
+      "Name": "What is love",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5509,
+      "Name": "Beautiful Love",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action Starteffect",
+        "condition CheckItem",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5536,
+      "Name": "Beautiful Love",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action Starteffect",
+        "condition CheckItem"
+      ]
+    },
+    {
+      "Id": 5510,
+      "Name": "Challenge Genesis",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem1",
+        "condition CheckBagEmp"
+      ]
+    },
+    {
+      "Id": 5511,
+      "Name": "Challenge Genesis",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5512,
+      "Name": "Challenge Genesis 2",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5513,
+      "Name": "Challenge Genesis 2",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5514,
+      "Name": "Challenge Genesis",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5515,
+      "Name": "Challenge Genesis",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5516,
+      "Name": "Challenge Genesis 4",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5517,
+      "Name": "Challenge Genesis 4",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5518,
+      "Name": "Challenge Genesis 5",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5519,
+      "Name": "Challenge Genesis 5",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5520,
+      "Name": "Challenge Genesis6",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5521,
+      "Name": "Challenge Genesis6",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5522,
+      "Name": "Challenge Genesis 7",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5523,
+      "Name": "Challenge Genesis 7",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5524,
+      "Name": "Challenge Genesis 8",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5525,
+      "Name": "Challenge Genesis 8",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5526,
+      "Name": "Challenge Genesis 9",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5527,
+      "Name": "Challenge Genesis 9",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5528,
+      "Name": "Challenge Genesis10",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5529,
+      "Name": "Challenge Genesis10",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5530,
+      "Name": "Challenge Genesis 11",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5531,
+      "Name": "Challenge Genesis 11",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5532,
+      "Name": "Challenge Genesis 12",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5533,
+      "Name": "Challenge Genesis 12",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5534,
+      "Name": "Challenge Genesis 13",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5535,
+      "Name": "Challenge Genesis 13",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem2",
+        "condition CheckBag"
+      ]
+    },
+    {
+      "Id": 5536,
+      "Name": "Vampiric Aries Battle Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5537,
+      "Name": "Vampiric Aries Renown Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5539,
+      "Name": "Vampiric Aries Honorable Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5542,
+      "Name": "Vampiric Aries Battle Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5543,
+      "Name": "Vampiric Aries Renown Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5545,
+      "Name": "Vampiric Aries Honorable Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5547,
+      "Name": "Vampiric Aries Battle Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5548,
+      "Name": "Vampiric Aries Renown Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5550,
+      "Name": "Vampiric Aries Honorable Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5600,
+      "Name": "Special Operation �C Vampiric Aries",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem3",
+        "action AddChaItem4"
+      ]
+    },
+    {
+      "Id": 5601,
+      "Name": "Fruit of April's Fool",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5602,
+      "Name": "April��s Fool Bounty",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5603,
+      "Name": "Death of April��s Fool",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckPoint",
+        "condition HaveNoItem",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6016,
+      "Name": "Tough? Or troublesome?",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ZSSTART"
+      ]
+    },
+    {
+      "Id": 6021,
+      "Name": "Time based Challenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition LessTime"
+      ]
+    },
+    {
+      "Id": 6022,
+      "Name": "Time based Challenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition LessTime",
+        "condition MoreTime"
+      ]
+    },
+    {
+      "Id": 6023,
+      "Name": "Time based Challenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition LessTime",
+        "condition MoreTime"
+      ]
+    },
+    {
+      "Id": 6026,
+      "Name": "Battle of Aries Palace",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition BaiyangOn"
+      ]
+    },
+    {
+      "Id": 6030,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6032,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6034,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6036,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6038,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6040,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6042,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6044,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6046,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6048,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6050,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6052,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6054,
+      "Name": "World Tour",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action DelRoleCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 6059,
+      "Name": "Testament of the Piety",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action GiveNSDX",
+        "condition CheckEnergy"
+      ]
+    },
+    {
+      "Id": 5604,
+      "Name": "Ingredient to make sushi",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5605,
+      "Name": "Super Sushi",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5606,
+      "Name": "Cake Warrior",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5607,
+      "Name": "Famous Cake",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6071,
+      "Name": "New challenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6072,
+      "Name": "New challenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6073,
+      "Name": "Mystic Shrub hatred",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6074,
+      "Name": "Hatred Shrub request",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6075,
+      "Name": "Hatred Shrub request",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6076,
+      "Name": "Hatred Shrub request",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6077,
+      "Name": "Report situation",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6078,
+      "Name": "Report situation",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6079,
+      "Name": "Gather feathers",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6080,
+      "Name": "Help other people",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6081,
+      "Name": "Charm of the rose",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS",
+        "condition HasState"
+      ]
+    },
+    {
+      "Id": 6082,
+      "Name": "Charm of the rose",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS",
+        "condition HasState"
+      ]
+    },
+    {
+      "Id": 6085,
+      "Name": "Unlucky Model",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6086,
+      "Name": "The Dream for Loric Dragon Set",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6087,
+      "Name": "The Dream for Loric Dragon Set",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6088,
+      "Name": "The Dream for Loric Dragon Set",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6089,
+      "Name": "The Dream for Loric Dragon Set",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6090,
+      "Name": "The Dream for Loric Dragon Set",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6091,
+      "Name": "Express delivery",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "condition CheckSpeed",
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6093,
+      "Name": "Express delivery",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6094,
+      "Name": "opening scroll is good for you",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6095,
+      "Name": "opening scroll is good for you",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6096,
+      "Name": "opening scroll is good for you",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6097,
+      "Name": "Spy for army information",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckZS"
+      ]
+    },
+    {
+      "Id": 6098,
+      "Name": "Spy for army information",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6100,
+      "Name": "Spy for army information",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6101,
+      "Name": "Peter's Revenge",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp"
+      ]
+    },
+    {
+      "Id": 6102,
+      "Name": "Challenge Black Dragon",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6103,
+      "Name": "Challenge Wandering Soul",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6104,
+      "Name": "Challenge Snowman Warlord",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6105,
+      "Name": "Challenge Snowman Warlord",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6106,
+      "Name": "Challenge Deathsoul Commander",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6107,
+      "Name": "Challenge Kraken",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6108,
+      "Name": "Challenge Black Jewel",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6109,
+      "Name": "Challenge Despair Knight - Saro",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6110,
+      "Name": "Challenge Abyss Mudmonster - Karu",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6111,
+      "Name": "Challenge Abyss Prisoner - Aruthur",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6112,
+      "Name": "Challenge Abyss Demon - Sacrois",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6113,
+      "Name": "Challenge Abyss Beast - Kuroo",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddSailExp",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5608,
+      "Name": "Blood Shed Taurus Hero of Chaos",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5609,
+      "Name": "Bloody Taurus - Reputed Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5611,
+      "Name": "Blood Shed Taurus Hero of Honor",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5614,
+      "Name": "Blood Shed Taurus Hero of Chaos",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5615,
+      "Name": "Bloody Taurus - Reputed Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5617,
+      "Name": "Blood Shed Taurus Hero of Honor",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5619,
+      "Name": "Blood Shed Taurus Hero of Chaos",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5620,
+      "Name": "Bloody Taurus - Reputed Hero",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5622,
+      "Name": "Blood Shed Taurus Hero of Honor",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5675,
+      "Name": "Blood Shed Taurus Special Operation",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem3"
+      ]
+    },
+    {
+      "Id": 5676,
+      "Name": "Blood Shed Taurus Special Operation",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem5"
+      ]
+    },
+    {
+      "Id": 5670,
+      "Name": "Prize for completing Sailor of Taurus",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action JINNiuSS"
+      ]
+    },
+    {
+      "Id": 5671,
+      "Name": "Prize of completing Pirate of Taurus",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action JINNiuHD"
+      ]
+    },
+    {
+      "Id": 5672,
+      "Name": "Prize for completing Captain of Taurus",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action JINNiuCZ"
+      ]
+    },
+    {
+      "Id": 5673,
+      "Name": "�λ�˫��֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5674,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5742,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5679,
+      "Name": "�λ�˫��֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5680,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5682,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5684,
+      "Name": "�λ�˫��֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5685,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5687,
+      "Name": "�λ�˫��֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5733,
+      "Name": "˫��֮ˮ�ֹ��ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiSS"
+      ]
+    },
+    {
+      "Id": 5734,
+      "Name": "˫��֮�������ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiHD"
+      ]
+    },
+    {
+      "Id": 5735,
+      "Name": "˫��֮�������ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiCZ"
+      ]
+    },
+    {
+      "Id": 5736,
+      "Name": "�����䴫��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5737,
+      "Name": "ȵ������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5738,
+      "Name": "ȵ������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5739,
+      "Name": "ǧ�ﴫ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5740,
+      "Name": "ǧ�ﴫ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6127,
+      "Name": "�����ѧ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6128,
+      "Name": "���������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckTeam1",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6129,
+      "Name": "��������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6130,
+      "Name": "��ѧ֤��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6131,
+      "Name": "��ѧ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6132,
+      "Name": "��ѧ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6133,
+      "Name": "��ѧ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6134,
+      "Name": "��ѧ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckRightNum",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6135,
+      "Name": "��ѧ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckErroNum",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6136,
+      "Name": "�������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6137,
+      "Name": "�������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5800,
+      "Name": "�����з֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5801,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5803,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5806,
+      "Name": "�����з֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5807,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5809,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5811,
+      "Name": "�����з֮�Ҷ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeFightingPoint",
+        "condition HasFightingPoint"
+      ]
+    },
+    {
+      "Id": 5812,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeCredit",
+        "condition HasCredit"
+      ]
+    },
+    {
+      "Id": 5814,
+      "Name": "�����з֮����Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action TakeHonorPoint",
+        "condition HasHonorPoint"
+      ]
+    },
+    {
+      "Id": 5860,
+      "Name": "��з֮�ر��ж���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem3"
+      ]
+    },
+    {
+      "Id": 5861,
+      "Name": "��з֮�ر��ж���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaItem4"
+      ]
+    },
+    {
+      "Id": 5862,
+      "Name": "��з֮ˮ�ֹ��ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiSS"
+      ]
+    },
+    {
+      "Id": 5863,
+      "Name": "��з֮�������ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiHD"
+      ]
+    },
+    {
+      "Id": 5864,
+      "Name": "��з֮�������ؽ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action ShuangZiCZ"
+      ]
+    },
+    {
+      "Id": 5865,
+      "Name": "����ʮ���ͷ׼��ڳ�ëз",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5866,
+      "Name": "����ʮ�´��������բз",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 5867,
+      "Name": "����ʮ�������ڴ���з��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action Givecrab",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6138,
+      "Name": "������������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckXSZCh",
+        "condition HasNoItem",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6139,
+      "Name": "���Ƚ�������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6140,
+      "Name": "������͸©����Ϣ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6141,
+      "Name": "������͸©����Ϣ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6142,
+      "Name": "��Ӷ�Ĳ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6143,
+      "Name": "��ֵ�ŮӶ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6144,
+      "Name": "��ֵ�ŮӶ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6145,
+      "Name": "���ƶ�����ط�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6146,
+      "Name": "��˼ҵ�С��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6147,
+      "Name": "��˼ҵ�С��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6148,
+      "Name": "С�ص�����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6149,
+      "Name": "������ػ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6150,
+      "Name": "������ػ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6151,
+      "Name": "һ��������һ������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6152,
+      "Name": "����һ������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6153,
+      "Name": "����һ������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6154,
+      "Name": "�ܼҵķ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6155,
+      "Name": "�ܼҵı���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6156,
+      "Name": "�ܼҵı���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6157,
+      "Name": "��Ů�����ذ���",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6158,
+      "Name": "����������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6159,
+      "Name": "����������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6160,
+      "Name": "����Ҳ���Ǻ��ǵ�!",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6161,
+      "Name": "Ŷ!ûԿ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6162,
+      "Name": "Ŷ!ûԿ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6163,
+      "Name": "����С�������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6164,
+      "Name": "��ο����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6165,
+      "Name": "һ��Կ�׿�һ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6166,
+      "Name": "һ��Կ�׿�һ����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6167,
+      "Name": "The Hero��s Relic",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpPer",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6168,
+      "Name": "The Hero��s Relic",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpPer"
+      ]
+    },
+    {
+      "Id": 6169,
+      "Name": "The Hero��s Relic",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpAndType",
+        "action AddExpPer"
+      ]
+    },
+    {
+      "Id": 6171,
+      "Name": "The Brave Love",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpPer",
+        "action AddReadingBook"
+      ]
+    },
+    {
+      "Id": 6174,
+      "Name": "�ļ�����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpNextLv1",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6175,
+      "Name": "�˷�����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddExpNextLv2",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6176,
+      "Name": "��֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6177,
+      "Name": "��֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6178,
+      "Name": "����ĺ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6179,
+      "Name": "����ĺ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6180,
+      "Name": "����ĺ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action AddChaHJ",
+        "condition CheckHJ",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6181,
+      "Name": "�һ�õ�廨��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6182,
+      "Name": "�һ�õ�廨��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6183,
+      "Name": "�һؾ���������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6184,
+      "Name": "�һؾ���������",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6185,
+      "Name": "����ʥ��С����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action CreatBBBB",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6186,
+      "Name": "����ʥ��С����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action CheckBBBB",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6187,
+      "Name": "�𼦴��Բ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action CpHuojiNum",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6188,
+      "Name": "��¹���Բ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action CpMiluNum",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6189,
+      "Name": "ѩ�˴��Բ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action CpXuerenNum",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6190,
+      "Name": "���̴�����ʥ������(һ)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6191,
+      "Name": "���̴�����ʥ������(һ)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6192,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6193,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6194,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6195,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6196,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6197,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6198,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6199,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6200,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6201,
+      "Name": "���̴�����ʥ������(��)",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6202,
+      "Name": "�þ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition XmasNotice",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6203,
+      "Name": "�þ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition XmasNotice",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6204,
+      "Name": "�þ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition XmasNotice",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6205,
+      "Name": "�þ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition XmasNotice",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6205,
+      "Name": "Andrew??gift pack rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6206,
+      "Name": "Andrew??gift to the rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6207,
+      "Name": "Xiang Qing??rat Festival",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6208,
+      "Name": "Andrew??gift pack rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6209,
+      "Name": "Andrew??gift to the rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6210,
+      "Name": "Xiang Qing??rat Festival",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6211,
+      "Name": "Andrew??gift pack rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6212,
+      "Name": "Andrew??gift to the rat",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6213,
+      "Name": "Xiang Qing??rat Festival",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6214,
+      "Name": "Revival I",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition Checksailexpmore",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6227,
+      "Name": "Revival II",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6230,
+      "Name": "Way to be Disimprisoned",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6231,
+      "Name": "Way to be Disimprisoned",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6232,
+      "Name": "the challenge of waste maze of Hope",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6233,
+      "Name": "swamp maze challenges",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6234,
+      "Name": "Rubik's cube maze challenges",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6235,
+      "Name": "2 level king treasure key",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6236,
+      "Name": "3 level king treasure key",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition HasCredit",
+        "condition HasHonorPoint",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6237,
+      "Name": "4 level king treasure key",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6238,
+      "Name": "5 king treasure level key",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6239,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6240,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6241,
+      "Name": "??test",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6242,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6243,
+      "Name": "Zilongjin test",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6244,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6245,
+      "Name": "ice test",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6246,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6247,
+      "Name": "St. fighters cosplay",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6248,
+      "Name": "kill the Pope's evil",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6249,
+      "Name": "kill the Pope's evil",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6250,
+      "Name": "Missing Sacred Flame",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6251,
+      "Name": "Make a new Torch",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6252,
+      "Name": "Make a new Torch",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6253,
+      "Name": "Ignite Sacred Flame",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6254,
+      "Name": "Ignite Sacred Flame",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6255,
+      "Name": "Loving Heart",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6256,
+      "Name": "Loving Heart",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6257,
+      "Name": "Loving Heart 2",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6258,
+      "Name": "Loving Heart 2",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6259,
+      "Name": "Loving Heart 3",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6260,
+      "Name": "Loving Heart 3",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6261,
+      "Name": "�ʐ�֮����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6262,
+      "Name": "�ʐ�֮����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6263,
+      "Name": "�ʐ�֮����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6264,
+      "Name": "�ʐ�֮����",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6265,
+      "Name": "�ʐ�֮�ĽK",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6266,
+      "Name": "�ʐ�֮�ĽK",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6267,
+      "Name": "�µĿ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6268,
+      "Name": "�µĿ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6269,
+      "Name": "�oη֮��һ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action SysteamNotice",
+        "dynamic action SysteamNotice",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6270,
+      "Name": "�oη֮��һ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "condition CheckPoint",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6271,
+      "Name": "��I֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6272,
+      "Name": "��I֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6273,
+      "Name": "��I֮��һ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6274,
+      "Name": "��I֮�Ķ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6275,
+      "Name": "��I֮�Ķ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6276,
+      "Name": "�ǻ�֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6277,
+      "Name": "�ǻ�֮��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6278,
+      "Name": "�ǻ�֮��һ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6279,
+      "Name": "�}��̨",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6280,
+      "Name": "�}��̨",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6628,
+      "Name": "��ʳ����ʢ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6623,
+      "Name": "��ʳ����ʢ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6624,
+      "Name": "�Ӽ{��ʳ����ۙ�E",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "action Jiu_Action",
+        "condition Jiu_Check",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6625,
+      "Name": "�Ӽ{��ʳ�����ؼ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6626,
+      "Name": "�Ӽ{��ʳ�����ؼ�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6627,
+      "Name": "������c���Ӽ{ʢ�硱",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6629,
+      "Name": "����Ć����C��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6114,
+      "Name": "The First Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "condition HexatlonTime",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6115,
+      "Name": "The First Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_1"
+      ]
+    },
+    {
+      "Id": 6117,
+      "Name": "The Second Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_1"
+      ]
+    },
+    {
+      "Id": 6119,
+      "Name": "The Third Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_3"
+      ]
+    },
+    {
+      "Id": 6121,
+      "Name": "The Fourth Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_4"
+      ]
+    },
+    {
+      "Id": 6123,
+      "Name": "The Fifth Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_5"
+      ]
+    },
+    {
+      "Id": 6125,
+      "Name": "The Sixth Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action AddExp_6",
+        "condition HexaTeamCheck"
+      ]
+    },
+    {
+      "Id": 6890,
+      "Name": "Capture the fearsome Wang Xiao Hu",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "condition CheckWangTime",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6942,
+      "Name": "Donate for EXPO!",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6943,
+      "Name": "Lv55 Bracelet Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6944,
+      "Name": "Lv55 Bracelet Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6945,
+      "Name": "Lv55 Handguard Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6946,
+      "Name": "Lv65 Bracelet Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6947,
+      "Name": "Lv65 Bracelet Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 6948,
+      "Name": "Lv65 Handguard Quest",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "action GiveXinZhuangBei",
+        "condition CheckSecondAdv",
+        "not bound to an original NPC"
+      ]
+    },
+    {
+      "Id": 591,
+      "Name": "Wellington's Blessing",
+      "Source": "MissionScript06.lua",
+      "Reasons": [
+        "missing client items: 15054"
+      ]
+    },
+    {
+      "Id": 5741,
+      "Name": "�λ�˫��֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1876"
+      ]
+    },
+    {
+      "Id": 5677,
+      "Name": "�λ�˫��֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1878,1882"
+      ]
+    },
+    {
+      "Id": 5678,
+      "Name": "�λ�˫��֮˫��ĩ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1880"
+      ]
+    },
+    {
+      "Id": 5681,
+      "Name": "�λ�˫��֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1876"
+      ]
+    },
+    {
+      "Id": 5683,
+      "Name": "�λ�˫��֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1878,1882"
+      ]
+    },
+    {
+      "Id": 5686,
+      "Name": "�λ�˫��֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1876"
+      ]
+    },
+    {
+      "Id": 5688,
+      "Name": "�λ�˫��֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1878,1882"
+      ]
+    },
+    {
+      "Id": 5730,
+      "Name": "Community Hero 21",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1879"
+      ]
+    },
+    {
+      "Id": 5731,
+      "Name": "�λ�˫��֮�ر��ж�",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 1881"
+      ]
+    },
+    {
+      "Id": 5802,
+      "Name": "�����з֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2570"
+      ]
+    },
+    {
+      "Id": 5804,
+      "Name": "�����з֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2572,2576"
+      ]
+    },
+    {
+      "Id": 5805,
+      "Name": "�����з֮��зĩ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2574"
+      ]
+    },
+    {
+      "Id": 5808,
+      "Name": "�����з֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2570"
+      ]
+    },
+    {
+      "Id": 5810,
+      "Name": "�����з֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2572,2576"
+      ]
+    },
+    {
+      "Id": 5813,
+      "Name": "�����з֮�ȼ�Ӣ��",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2570"
+      ]
+    },
+    {
+      "Id": 5815,
+      "Name": "�����з֮�ɼ���ʹ",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2572,2576"
+      ]
+    },
+    {
+      "Id": 5857,
+      "Name": "Community Hero 21",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2573"
+      ]
+    },
+    {
+      "Id": 6170,
+      "Name": "The Brave Love",
+      "Source": "MissionScript07.lua",
+      "Reasons": [
+        "missing client items: 2671"
+      ]
+    },
+    {
+      "Id": 510,
+      "Name": "Make the Finishing Point",
+      "Source": "MissionScript02.lua",
+      "Reasons": [
+        "trigger definition missing or unsupported"
+      ]
+    },
+    {
+      "Id": 6116,
+      "Name": "The Second Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "trigger definition missing or unsupported"
+      ]
+    },
+    {
+      "Id": 6120,
+      "Name": "The Fourth Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "trigger definition missing or unsupported"
+      ]
+    },
+    {
+      "Id": 6122,
+      "Name": "The Fifth Task",
+      "Source": "MissionScript08.lua",
+      "Reasons": [
+        "trigger definition missing or unsupported"
+      ]
+    }
+  ]
+}

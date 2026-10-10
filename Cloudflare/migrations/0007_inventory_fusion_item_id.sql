@@ -1,0 +1,1 @@
+ALTER TABLE inventory ADD COLUMN fusion_item_id INTEGER NOT NULL DEFAULT 0;

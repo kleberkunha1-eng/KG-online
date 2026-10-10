@@ -63,6 +63,8 @@ namespace TOP.Network
             base.Awake();
             if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
+            if (GetComponent<ArenaInterestManagement>() == null) gameObject.AddComponent<ArenaInterestManagement>();
+            if (GetComponent<TOP.Systems.ArenaCoordinator>() == null) gameObject.AddComponent<TOP.Systems.ArenaCoordinator>();
             DontDestroyOnLoad(gameObject);
         }
 
@@ -165,6 +167,7 @@ namespace TOP.Network
         public override void OnStartServer()
         {
             base.OnStartServer();
+            var arena = GetComponent<TOP.Systems.ArenaCoordinator>(); if (arena != null) arena.ResetServer();
             Debug.Log("[TOPNetworkManager] Servidor iniciado");
             StartEnvironmentServer();
 
@@ -233,6 +236,8 @@ namespace TOP.Network
         public override void OnServerDisconnect(NetworkConnectionToClient conn)
         {
             Debug.Log($"[Server] OnServerDisconnect conn={conn.connectionId}");
+            if (conn.identity != null && TOP.Systems.ArenaCoordinator.Instance != null)
+                TOP.Systems.ArenaCoordinator.Instance.Leave(conn.identity.GetComponent<PlayerController>());
 
             if (_connections.TryGetValue(conn.connectionId, out PlayerConnection playerConn))
             {
@@ -887,8 +892,15 @@ namespace TOP.Network
                     break;
 
                 case ChatChannel.Guild:
-                    // Ainda nao ha sistema de guilda; avisa apenas quem enviou.
-                    conn.Send(new ChatMessage { Channel = ChatChannel.System, Text = "Sistema de guilda ainda nao disponivel." });
+                    var senderGuild = conn.identity.GetComponent<PlayerGuild>();
+                    if (senderGuild == null || !senderGuild.GuildDataReady || senderGuild.GuildId <= 0) break;
+                    foreach (var recipient in NetworkServer.connections.Values)
+                    {
+                        if (recipient == null || recipient.identity == null) continue;
+                        var guild = recipient.identity.GetComponent<PlayerGuild>();
+                        if (guild != null && guild.GuildDataReady && guild.GuildId == senderGuild.GuildId)
+                            recipient.Send(new ChatMessage { Channel = ChatChannel.Guild, Text = msg.Text.Trim(), SenderName = senderName, SenderNetId = conn.identity.netId });
+                    }
                     break;
 
                 default:
@@ -965,6 +977,22 @@ namespace TOP.Network
             finally { savingPlayers = false; }
         }
 
+        [Server]
+        public void SavePlayerAfterDeath(PlayerController player)
+        {
+            if (player == null || DatabaseService.Instance == null) return;
+            foreach (PlayerConnection playerConn in _connections.Values)
+            {
+                if (playerConn.PlayerController != player || playerConn.State != ConnectionState.InGame) continue;
+                PlayerQuests quests = player.GetComponent<PlayerQuests>();
+                if ((quests != null && quests.HasPendingCompletion) || player.BoatOperationPending) return;
+                CharacterData data = player.GetCharacterData();
+                if (data == null) return;
+                data = data.CopySnapshot();
+                _ = DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
+                return;
+            }
+        }
         async Task SavePlayerAsync(PlayerConnection playerConn)
         {
             if (playerConn?.PlayerController == null) return;
@@ -978,10 +1006,6 @@ namespace TOP.Network
             CharacterData data = playerConn.PlayerController.GetCharacterData();
             if (data != null)
             {
-                data.PosX = playerConn.PlayerController.transform.position.x;
-                data.PosY = playerConn.PlayerController.transform.position.y;
-                data.PosZ = playerConn.PlayerController.transform.position.z;
-                data.RotationY = playerConn.PlayerController.transform.rotation.eulerAngles.y;
 
                 bool saved = await DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
                 if (saved)
@@ -1007,10 +1031,6 @@ namespace TOP.Network
                 CharacterData data = playerConn.PlayerController.GetCharacterData();
                 if (data != null)
                 {
-                    data.PosX = playerConn.PlayerController.transform.position.x;
-                    data.PosY = playerConn.PlayerController.transform.position.y;
-                    data.PosZ = playerConn.PlayerController.transform.position.z;
-                    data.RotationY = playerConn.PlayerController.transform.rotation.eulerAngles.y;
 
                     bool saved = await DatabaseService.Instance.SaveCharacterAsync(data, playerConn.SessionToken);
                     Debug.Log($"[SaveAndDisconnect] {(saved ? "✅" : "❌")} {data.Name} salvo antes de desconectar.");

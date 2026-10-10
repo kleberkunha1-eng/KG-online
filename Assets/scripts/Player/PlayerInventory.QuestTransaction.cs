@@ -14,6 +14,9 @@ namespace TOP.Player
 
         public bool RejectQuestMutation()
         {
+            if (GetComponent<PlayerController>() != null && GetComponent<PlayerController>().ArenaInstanceId > 0) return true;
+            var life = GetComponent<PlayerLifeServices>();
+            if (life != null && life.StallActive) return true;
             if (!HasQuestTransaction) return false;
             var controller = GetComponent<PlayerController>();
             if (controller != null && connectionToClient != null)
@@ -61,6 +64,39 @@ namespace TOP.Player
                 { error = "Libere espaco no inventario para receber a recompensa."; return null; }
                 snapshot.Add(new InventoryItemData { SlotIndex = (ushort)slot, ItemId = rewardItemId, Quantity = rewardQuantity,
                     Durability = (ushort)Mathf.Clamp(reward.Durability, 0, ushort.MaxValue) });
+            }
+            questTransaction = new QuestInventoryTransaction(this, snapshot);
+            return questTransaction;
+        }
+
+        [Server]
+        public QuestInventoryTransaction PrepareOriginalQuestTransaction(IReadOnlyList<QuestCollectionItem> materials,
+            IReadOnlyList<QuestCollectionItem> rewards, int bagNeed, out string error)
+        {
+            error = null;
+            if (HasQuestTransaction || (GetComponent<PlayerTrade>()?.InTrade ?? false) || (GetComponent<PlayerMail>()?.InventoryRequestPending ?? false))
+            { error = "Aguarde a operacao de inventario em andamento."; return null; }
+            var snapshot = GetInventoryData();
+            if (bagNeed < 0 || totalSlots - snapshot.Count < bagNeed)
+            { error = "Libere espaco no inventario para a etapa original."; return null; }
+            foreach (var material in materials)
+                if (material.Quantity <= 0 || !TryConsumeMaterials(snapshot, material.ItemId, material.Quantity))
+                { error = "Faltam materiais disponiveis para a etapa original."; return null; }
+            foreach (var reward in rewards)
+            {
+                if (reward.Quantity <= 0 || !PkoTables.Items.TryGetValue(reward.ItemId, out var item))
+                { error = "Recompensa original ausente do catalogo de itens."; return null; }
+                int remaining = reward.Quantity;
+                while (remaining > 0)
+                {
+                    int slot = 0;
+                    while (slot < totalSlots && snapshot.Any(i => i.SlotIndex == slot)) slot++;
+                    if (slot == totalSlots) { error = "Libere espaco para todas as recompensas originais."; return null; }
+                    int amount = Math.Min(remaining, Math.Max(1, item.Stack));
+                    snapshot.Add(new InventoryItemData { ItemId = reward.ItemId, Quantity = amount, SlotIndex = (ushort)slot,
+                        Durability = (ushort)Mathf.Clamp(item.Durability, 0, ushort.MaxValue) });
+                    remaining -= amount;
+                }
             }
             questTransaction = new QuestInventoryTransaction(this, snapshot);
             return questTransaction;

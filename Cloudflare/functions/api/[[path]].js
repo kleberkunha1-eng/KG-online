@@ -13,6 +13,42 @@ const BASE_STATS = { 0: [15, 10, 12, 8, 10, 150, 50, 100], 1: [10, 15, 10, 10, 1
 BASE_STATS[4] = BASE_STATS[0]; // NewCharacterTest inherits Lance's starting attributes.
 const DEFAULT_STATS = [10, 10, 10, 10, 10, 100, 50, 100];
 const MAX_INV = 300, MAX_SKILLS = 300;
+
+
+const gameplayStateValid = state => state && state.Version === 1 && typeof state.StallName === 'string' && state.StallName.length <= 32
+    && Array.isArray(state.Fairies) && state.Fairies.length <= 300 && new Set(state.Fairies.map(f=>f && f.ItemKey)).size===state.Fairies.length
+    && state.Fairies.every(f=>f && typeof f.ItemKey==='string' && f.ItemKey.length<=64 && ['Growth','Stamina','Strength','Agility','Accuracy','Constitution','Spirit'].every(k=>Number.isInteger(f[k]) && f[k]>=0) && f.Growth<=6480 && f.Stamina<=32000 && f.Strength+f.Agility+f.Accuracy+f.Constitution+f.Spirit<=42)
+    && Array.isArray(state.Offers) && state.Offers.length <= 24 && new Set(state.Offers.map(o=>o && o.ItemKey)).size===state.Offers.length
+    && state.Offers.every(o=>o && typeof o.ItemKey==='string' && o.ItemKey.length<=64 && Number.isInteger(o.ItemId) && o.ItemId>0 && Number.isInteger(o.Quantity) && o.Quantity>0 && o.Quantity<=100000 && Number.isSafeInteger(o.Price) && o.Price>0 && o.Price*o.Quantity<=1000000000);
+
+const STALL_COLS = ['unique_item_id','character_id','slot_index','item_id','quantity','durability','fusion_item_id','medal_honor','medal_wins','medal_entries','medal_kills','medal_deaths','is_equipped','is_locked','owner_character_id','refine_level','gem_slot_1','gem_slot_2','gem_slot_3'];
+function stallSale(b,buyer,seller,item,state,occupied) {
+    if (!buyer || !seller || buyer.id === seller.id || buyer.is_deleted || seller.is_deleted || buyer.save_revision !== b.buyerRevision || seller.save_revision !== b.sellerRevision) throw Error('SAVE_CONFLICT');
+    const offer = state && state.Offers && state.Offers.find(o=>o.ItemKey===b.itemKey);
+    if (!state || state.Version!==1 || !state.StallName || !offer || !item || item.is_equipped || item.is_locked || (item.owner_character_id != null && item.owner_character_id >= 0) || occupied || offer.Quantity < b.quantity || item.quantity < b.quantity || !Number.isSafeInteger(offer.Price) || offer.Price<=0) throw Error('INVALID_OFFER');
+    const total=offer.Price*b.quantity;
+    if (!Number.isSafeInteger(total) || total<=0 || Number(buyer.gold)<total || !Number.isSafeInteger(Number(seller.gold)+total)) throw Error('INSUFFICIENT_GOLD');
+    offer.Quantity-=b.quantity;
+    state.Offers=state.Offers.filter(o=>o.Quantity>0);
+    if (!state.Offers.length) state.StallName='';
+    const moved={...item,unique_item_id:b.operationId,character_id:buyer.id,slot_index:b.buyerSlot,quantity:b.quantity};
+    return {state,moved,total,response:{success:true,gameplayStateVersion:1,buyerRevision:b.buyerRevision+1,sellerRevision:b.sellerRevision+1,buyerGold:Number(buyer.gold)-total,sellerGold:Number(seller.gold)+total,itemUniqueId:b.operationId}};
+}
+const validStallRequest = b => b && typeof b.operationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.operationId) && ['sellerId','buyerRevision','sellerRevision','quantity','buyerSlot'].every(k=>Number.isSafeInteger(b[k])) && b.sellerId>0 && b.buyerRevision>=0 && b.sellerRevision>=0 && b.quantity>0 && b.quantity<=100000 && b.buyerSlot>=0 && b.buyerSlot<300 && typeof b.itemKey === 'string' && b.itemKey.length<=64;
+
+const questStateValid = state => state && state.Version === 1
+    && Array.isArray(state.Records) && state.Records.length <= 4096
+    && new Set(state.Records).size === state.Records.length
+    && state.Records.every(n => Number.isInteger(n) && n > 0 && n <= 65535)
+    && Array.isArray(state.Missions) && state.Missions.length <= 64
+    && new Set(state.Missions.map(m => m && m.Id)).size === state.Missions.length
+    && state.Missions.every(m => m && Number.isInteger(m.Id) && m.Id > 0 && m.Id <= 65535
+        && Number.isInteger(m.DefinitionId) && m.DefinitionId > 0 && m.DefinitionId <= 65535
+        && Array.isArray(m.Flags) && m.Flags.length <= 1024 && new Set(m.Flags).size === m.Flags.length
+        && m.Flags.every(n => Number.isInteger(n) && n >= 0 && n < 1024)
+        && Array.isArray(m.Triggers) && m.Triggers.length <= 64 && new Set(m.Triggers).size === m.Triggers.length
+        && m.Triggers.every(n => Number.isInteger(n) && n > 0 && n <= 2147483647));
+
 const SESSION_SECONDS = 24 * 3600;
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -240,6 +276,11 @@ game.use('*', async (c, next) => {
 });
 const owned = async (c, charId, accountId) => !!(await one(c, 'SELECT id FROM characters WHERE id = ? AND account_id = ? AND is_deleted = 0', charId, accountId));
 
+game.get('/capabilities', async c => {
+    await all(c,'SELECT gameplay_state_json FROM characters LIMIT 0');
+    await all(c,'SELECT operation_id FROM stall_purchase_receipts LIMIT 0');
+    return c.json({success:true,gameplayStateVersion:1,guildVersion:1,forgeVersion:1,fairyVersion:1,stallsVersion:1,genericSkillsVersion:1});
+});
 game.get('/me', c => { const u = c.get('user'); return c.json({ success: true, admin: !!u.is_admin, username: u.username, accountId: u.id }); });
 
 game.get('/characters', async c => {
@@ -291,6 +332,11 @@ game.get('/characters/:id', async c => {
             Id: r.id, AccountId: r.account_id, Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: r.exp,
             SaveRevision: r.save_revision || 0,
             Boats: JSON.parse(r.boats_json || '[]'),
+            BankStorageVersion: r.bank_json !== undefined ? 1 : 0,
+            GameplayStateVersion: r.gameplay_state_json !== undefined ? 1 : 0,
+            Gameplay: JSON.parse(r.gameplay_state_json || '{"Version":1,"Fairies":[],"Offers":[],"StallName":""}'),
+            QuestStateVersion: r.quest_state_json !== undefined ? 1 : 0,
+            OriginalQuests: JSON.parse(r.quest_state_json || '{"Version":1,"Records":[],"Missions":[]}'),
             BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
             BoatServicesVersion: r.boats_json !== undefined ? 1 : 0,
             CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
@@ -302,30 +348,55 @@ game.get('/characters/:id', async c => {
         Inventory: inv.map(i => ({
             Id: i.id, UniqueItemId: i.unique_item_id, SlotIndex: i.slot_index, ItemId: i.item_id, Quantity: i.quantity, Durability: i.durability ?? 100,
             IsEquipped: !!i.is_equipped, IsLocked: !!i.is_locked, OwnerCharacterId: i.owner_character_id ?? -1, RefineLevel: i.refine_level || 0,
-            Gem1: i.gem_slot_1 ?? -1, Gem2: i.gem_slot_2 ?? -1, Gem3: i.gem_slot_3 ?? -1,
+            Gem1: i.gem_slot_1 ?? -1, Gem2: i.gem_slot_2 ?? -1, Gem3: i.gem_slot_3 ?? -1, FusionItemId: i.fusion_item_id || 0, MedalHonor: i.medal_honor || 0, MedalWins: i.medal_wins || 0, MedalEntries: i.medal_entries || 0, MedalKills: i.medal_kills || 0, MedalDeaths: i.medal_deaths || 0,
         })),
+        BankItems: JSON.parse(r.bank_json || '[]'),
         Skills: sk.map(s => ({ Id: s.id, SkillId: s.skill_id, Level: s.level, Exp: s.exp })),
     });
 });
 
 // Salva so o que mudou (poupa as escritas do plano gratuito do D1).
 const itemRow = (id, i) => [
-    String(i.UniqueItemId || crypto.randomUUID()).slice(0, 64), id, int(i.SlotIndex), int(i.ItemId), Math.max(1, int(i.Quantity, 1)), int(i.Durability, 100),
+    String(i.UniqueItemId || crypto.randomUUID()).slice(0, 64), id, int(i.SlotIndex), int(i.ItemId), Math.max(1, int(i.Quantity, 1)), int(i.Durability, 100), int(i.FusionItemId), int(i.MedalHonor), int(i.MedalWins), int(i.MedalEntries), int(i.MedalKills), int(i.MedalDeaths),
     int(i.RefineLevel), opt(i.Gem1), opt(i.Gem2), opt(i.Gem3), i.IsEquipped ? 1 : 0, i.IsLocked ? 1 : 0, opt(i.OwnerCharacterId),
 ];
-const COLS = ['unique_item_id', 'character_id', 'slot_index', 'item_id', 'quantity', 'durability', 'refine_level', 'gem_slot_1', 'gem_slot_2', 'gem_slot_3', 'is_equipped', 'is_locked', 'owner_character_id'];
+const COLS = ['unique_item_id', 'character_id', 'slot_index', 'item_id', 'quantity', 'durability', 'fusion_item_id', 'medal_honor', 'medal_wins', 'medal_entries', 'medal_kills', 'medal_deaths', 'refine_level', 'gem_slot_1', 'gem_slot_2', 'gem_slot_3', 'is_equipped', 'is_locked', 'owner_character_id'];
 
 game.put('/characters/:id', async c => {
     const u = c.get('user'), id = Number(c.req.param('id')), b = await body(c);
     if (!Number.isSafeInteger(id) || id <= 0) return c.json({ success: false, error: 'INVALID_CHARACTER' });
     if (!(await owned(c, id, u.id))) return c.json({ success: false, error: 'NOT_FOUND' });
     const ch = b.Character || {}, inv = b.Inventory, skills = b.Skills;
+    const bank = b.BankItems, bankVersion = ch.BankStorageVersion;
+    const questVersion = ch.QuestStateVersion;
+        const gameplayVersion = ch.GameplayStateVersion;
+        if (gameplayVersion !== undefined && gameplayVersion !== 0 && gameplayVersion !== 1) return c.json({ success: false, error: 'INVALID_GAMEPLAY_STATE' });
+        if (gameplayVersion === 1 && !gameplayStateValid(ch.Gameplay)) return c.json({ success: false, error: 'INVALID_GAMEPLAY_STATE' });
+    if (questVersion !== undefined && questVersion !== 0 && questVersion !== 1)
+        return c.json({ success: false, error: 'INVALID_QUEST_STATE' });
+    if (questVersion === 1 && (!questStateValid(ch.OriginalQuests) || !Number.isInteger(ch.Job) || ch.Job < 0 || ch.Job > 18))
+        return c.json({ success: false, error: 'INVALID_QUEST_STATE' });
     const questId = b.QuestId === undefined ? 0 : b.QuestId;
     if (typeof b.OperationId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.OperationId)
         || !Number.isSafeInteger(ch.SaveRevision) || ch.SaveRevision < 0 || ch.SaveRevision >= Number.MAX_SAFE_INTEGER
         || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
         return c.json({ success: false, error: 'INVALID_TRANSACTION' });
-    if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS))) return c.json({ success: false, error: 'INVALID' });
+    if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV || inv.some(i => !i || ["MedalHonor","MedalWins","MedalEntries","MedalKills","MedalDeaths"].some(f => i[f] !== undefined && (!Number.isInteger(i[f]) || i[f] < -2147483648 || i[f] > 2147483647)) || (i.FusionItemId !== undefined && (!Number.isInteger(i.FusionItemId) || i.FusionItemId < 0))))) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS))) return c.json({ success: false, error: 'INVALID' });
+    if (bankVersion !== undefined && bankVersion !== 0 && bankVersion !== 1)
+        return c.json({ success: false, error: 'INVALID_BANK' });
+    if (bankVersion === 1 && (!Array.isArray(bank) || bank.length > 32
+        || new Set(bank.map(item => item && item.SlotIndex)).size !== bank.length
+        || new Set(bank.map(item => item && item.UniqueItemId)).size !== bank.length
+        || bank.some(item => !item || !Number.isInteger(item.SlotIndex) || item.SlotIndex < 0 || item.SlotIndex >= 32
+            || typeof item.UniqueItemId !== 'string' || item.UniqueItemId.length > 64
+            || !Number.isInteger(item.ItemId) || item.ItemId <= 0 || !Number.isInteger(item.Quantity) || item.Quantity <= 0
+            || item.Quantity > 100000 || item.IsEquipped || item.IsLocked
+            || (Number.isInteger(item.OwnerCharacterId) && item.OwnerCharacterId >= 0 && item.OwnerCharacterId !== id))))
+        return c.json({ success: false, error: 'INVALID_BANK' });
+    if (bankVersion === 1 && Array.isArray(inv)
+        && new Set([...bank.map(item => item.UniqueItemId), ...inv.map(item => item && item.UniqueItemId).filter(Boolean)]).size
+            !== bank.length + inv.filter(item => item && item.UniqueItemId).length)
+        return c.json({ success: false, error: 'INVALID_BANK' });
     if (questId > 0 && (!Array.isArray(inv) || !Array.isArray(skills)))
         return c.json({ success: false, error: 'INVALID_TRANSACTION' });
     if (!Number.isSafeInteger(ch.Gold) || ch.Gold < 0 || !Number.isSafeInteger(ch.Exp) || ch.Exp < 0)
@@ -338,16 +409,27 @@ game.put('/characters/:id', async c => {
             || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
             || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
                 .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
-            || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1 || boat.Level > 100
-            || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean'))))
+            || boat.TypeId < 1 || boat.BerthId < 0 || boat.Level < 1 || boat.Level > 100
+            || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean')
+            || (boat.Cargo !== undefined && (!Array.isArray(boat.Cargo) || boat.Cargo.length > 4
+                || new Set(boat.Cargo.map(item => item && item.ItemId)).size !== boat.Cargo.length
+                || boat.Cargo.some(item => !item || ![4547,4548,4549,4550].includes(item.ItemId)
+                    || !Number.isInteger(item.Quantity) || item.Quantity <= 0 || item.Quantity > 10000))))))
         return c.json({ success: false, error: 'INVALID_BOATS' });
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify(b)))))
         .map(value => value.toString(16).padStart(2, '0')).join('');
     const receipt = await one(c, 'SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', id, b.OperationId);
     const replay = saved => saved.payload_hash === hash
-        ? c.json({ success: true, revision: saved.expected_revision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 })
+        ? c.json({ success: true, revision: saved.expected_revision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1, bankStorageVersion: bankVersion === 1 ? 1 : 0, questStateVersion: questVersion === 1 ? 1 : 0, gameplayStateVersion: gameplayVersion === 1 ? 1 : 0 })
         : c.json({ success: false, error: 'OPERATION_MISMATCH' });
     if (receipt) return replay(receipt);
+    if (ch.GuildCreateName) {
+        const name = String(ch.GuildCreateName).trim();
+        const stones = await one(c,'SELECT COALESCE(SUM(quantity),0) AS n FROM inventory WHERE character_id = ? AND item_id = 1780 AND is_equipped = 0 AND is_locked = 0',id);
+        const member = await one(c,'SELECT id FROM guild_members WHERE character_id = ?',id);
+        const remaining = (inv || []).filter(i=>i.ItemId===1780).reduce((n,i)=>n+i.Quantity,0);
+        if (name.length < 3 || name.length > 32 || member || ch.Gold > (await one(c,'SELECT gold FROM characters WHERE id = ?',id)).gold-100000 || remaining !== stones.n-1) return c.json({success:false,error:'INVALID_GUILD_CREATION'});
+    }
     const db = c.env.DB, stmts = [];
     stmts.push(db.prepare('INSERT INTO character_save_receipts (character_id, operation_id, payload_hash, expected_revision, quest_id) VALUES (?, ?, ?, ?, ?)')
         .bind(id, b.OperationId, hash, ch.SaveRevision, questId));
@@ -362,8 +444,18 @@ game.put('/characters/:id', async c => {
         num(ch.PosX), num(ch.PosY), num(ch.PosZ), num(ch.RotationY), String(ch.MapName || 'garner').slice(0, 64),
         int(ch.BaseStr), int(ch.BaseAgi), int(ch.BaseCon), int(ch.BaseSpr), int(ch.BaseSta), int(ch.MaxHp), int(ch.MaxMp), int(ch.MaxSp),
         Math.max(0, num(ch.Gold)), int(ch.StatPoints), int(ch.SkillPoints), int(ch.PkPoints), int(ch.Reputation), now(), id, u.id));
+    if (ch.GuildCreateName) {
+        stmts.push(db.prepare('INSERT INTO guilds (name,leader_character_id) VALUES (?,?)').bind(ch.GuildCreateName.trim(),id));
+        stmts.push(db.prepare('INSERT INTO guild_members (guild_id,character_id,character_name,rank_name) SELECT id,?,?,\'Lider\' FROM guilds WHERE name = ?').bind(id,(await one(c,'SELECT name FROM characters WHERE id=?',id)).name,ch.GuildCreateName.trim()));
+    }
     if (boats !== undefined)
         stmts.push(db.prepare('UPDATE characters SET boats_json = ? WHERE id = ?').bind(JSON.stringify(boats), id));
+    if (questVersion === 1)
+        stmts.push(db.prepare('UPDATE characters SET quest_state_json = ?, job = ? WHERE id = ?').bind(JSON.stringify(ch.OriginalQuests), ch.Job, id));
+    if (gameplayVersion === 1)
+        stmts.push(db.prepare('UPDATE characters SET gameplay_state_json = ? WHERE id = ?').bind(JSON.stringify(ch.Gameplay), id));
+    if (bankVersion === 1)
+        stmts.push(db.prepare('UPDATE characters SET bank_json = ? WHERE id = ?').bind(JSON.stringify(bank), id));
 
     if (inv) {
         const cur = new Map((await all(c, 'SELECT * FROM inventory WHERE character_id = ?', id)).map(r => [r.unique_item_id, r]));
@@ -403,7 +495,7 @@ game.put('/characters/:id', async c => {
         if (String(error.message).includes('QUEST_NOT_ACTIVE')) return c.json({ success: false, error: 'QUEST_NOT_ACTIVE' });
         throw error;
     }
-    return c.json({ success: true, revision: ch.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 });
+    return c.json({ success: true, revision: ch.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1, bankStorageVersion: bankVersion === 1 ? 1 : 0, questStateVersion: questVersion === 1 ? 1 : 0, gameplayStateVersion: gameplayVersion === 1 ? 1 : 0 });
 });
 
 game.post('/characters/:id/delete', async c => {
@@ -479,6 +571,74 @@ game.post('/audit', async c => {
         u.id, b.charId > 0 ? int(b.charId) : null, String(b.action || '').slice(0, 64), data, ipOf(c));
     return c.json({ success: true });
 });
+// Guild writes share the durable character receipt path for creation and D1 batches for leadership changes.
+game.get('/guild/:charId', async c => {
+    const id=int(c.req.param('charId')), u=c.get('user');
+    if (!(await owned(c,id,u.id))) return c.json({success:false,error:'NOT_FOUND'});
+    const member=await one(c,'SELECT guild_id,rank_name FROM guild_members WHERE character_id = ?',id);
+    if (!member) return c.json({success:true,InGuild:false});
+    const guild=await one(c,'SELECT * FROM guilds WHERE id = ?',member.guild_id);
+    if (!guild) return c.json({success:true,InGuild:false});
+    const members=await all(c,'SELECT character_id,character_name,rank_name FROM guild_members WHERE guild_id = ?',member.guild_id);
+    return c.json({success:true,InGuild:true,GuildId:guild.id,Name:guild.name,Notice:guild.notice,Level:guild.level,LeaderCharacterId:guild.leader_character_id,MyRank:member.rank_name,Members:members.map(m=>({CharacterId:m.character_id,Name:m.character_name,Rank:m.rank_name}))});
+});
+game.post('/guild/:charId/:action',async c=>{
+    const id=int(c.req.param('charId')),u=c.get('user'),action=c.req.param('action'),b=await c.req.json();
+    if (!(await owned(c,id,u.id))) return c.json({success:false,error:'NOT_FOUND'});
+    if (action==='create') return c.json({success:false,error:'ATOMIC_SAVE_REQUIRED'});
+    const member=await one(c,'SELECT guild_id,rank_name FROM guild_members WHERE character_id = ?',id);
+    if (!member) return c.json({success:false,error:'NOT_IN_GUILD'});
+    const db=c.env.DB,stmts=[];
+    if (action==='leave') {
+        if (member.rank_name==='Lider') {
+            const successor=await one(c,'SELECT character_id FROM guild_members WHERE guild_id = ? AND character_id != ? ORDER BY joined_at LIMIT 1',member.guild_id,id);
+            if (successor) {
+                stmts.push(db.prepare('UPDATE guild_members SET rank_name = \'Lider\' WHERE character_id = ?').bind(successor.character_id));
+                stmts.push(db.prepare('UPDATE guilds SET leader_character_id = ? WHERE id = ?').bind(successor.character_id,member.guild_id));
+            } else stmts.push(db.prepare('DELETE FROM guilds WHERE id = ?').bind(member.guild_id));
+        }
+        stmts.push(db.prepare('DELETE FROM guild_members WHERE character_id = ?').bind(id));
+    } else {
+        if (!['Lider','Oficial'].includes(member.rank_name)) return c.json({success:false,error:'NOT_AUTHORIZED'});
+        if (action==='invite') {
+            const target=await one(c,'SELECT id,name FROM characters WHERE name = ? AND is_deleted = 0',String(b.targetName || ''));
+            if (!target) return c.json({success:false,error:'PLAYER_NOT_FOUND'});
+            if (await one(c,'SELECT id FROM guild_members WHERE character_id = ?',target.id)) return c.json({success:false,error:'TARGET_IN_GUILD'});
+            stmts.push(db.prepare('INSERT INTO guild_members (guild_id,character_id,character_name,rank_name) VALUES (?,?,?,\'Membro\')').bind(member.guild_id,target.id,target.name));
+        } else if (action==='kick') stmts.push(db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND character_name = ? AND rank_name != \'Lider\'').bind(member.guild_id,String(b.targetName || '')));
+        else if (action==='rank' && member.rank_name==='Lider') stmts.push(db.prepare('UPDATE guild_members SET rank_name = ? WHERE guild_id = ? AND character_name = ? AND rank_name != \'Lider\'').bind(b.officer===true?'Oficial':'Membro',member.guild_id,String(b.targetName || '')));
+        else if (action==='notice') stmts.push(db.prepare('UPDATE guilds SET notice = ? WHERE id = ?').bind(String(b.notice || '').slice(0,512),member.guild_id));
+        else return c.json({success:false,error:'INVALID_ACTION'});
+    }
+    await db.batch(stmts);
+    return c.json({success:true});
+});
+
+game.post('/stalls/:charId/buy',async c=>{
+    const id=int(c.req.param('charId')),b=await body(c),u=c.get('user');
+    if (!validStallRequest(b) || id===b.sellerId) return c.json({success:false,error:'INVALID_STALL_REQUEST'});
+    if (!(await owned(c,id,u.id))) return c.json({success:false,error:'NOT_FOUND'});
+    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(JSON.stringify(b))))).map(n=>n.toString(16).padStart(2,'0')).join('');
+    const receipt=await one(c,'SELECT payload_hash,response_json FROM stall_purchase_receipts WHERE buyer_id=? AND operation_id=?',id,b.operationId);
+    if (receipt) return c.json(receipt.payload_hash===hash?JSON.parse(receipt.response_json):{success:false,error:'OPERATION_MISMATCH'});
+    try {
+        const buyer=await one(c,'SELECT * FROM characters WHERE id=?',id),seller=await one(c,'SELECT * FROM characters WHERE id=?',b.sellerId);
+        const item=await one(c,'SELECT * FROM inventory WHERE character_id=? AND unique_item_id=?',b.sellerId,b.itemKey);
+        const occupied=await one(c,'SELECT id FROM inventory WHERE character_id=? AND slot_index=?',id,b.buyerSlot);
+        const sale=stallSale(b,buyer,seller,item,JSON.parse(seller?.gameplay_state_json || '{}'),!!occupied),db=c.env.DB,stmts=[];
+        for (const [charId,revision] of [[id,b.buyerRevision],[b.sellerId,b.sellerRevision]]) stmts.push(db.prepare('INSERT INTO character_save_receipts (character_id,operation_id,payload_hash,expected_revision,quest_id) VALUES (?,?,?,?,0)').bind(charId,b.operationId,hash,revision));
+        stmts.push(db.prepare('INSERT INTO stall_purchase_receipts (buyer_id,operation_id,payload_hash,response_json) VALUES (?,?,?,?)').bind(id,b.operationId,hash,JSON.stringify(sale.response)));
+        if (item.quantity===b.quantity) stmts.push(db.prepare('DELETE FROM inventory WHERE character_id=? AND unique_item_id=?').bind(b.sellerId,b.itemKey));
+        else stmts.push(db.prepare('UPDATE inventory SET quantity=quantity-? WHERE character_id=? AND unique_item_id=?').bind(b.quantity,b.sellerId,b.itemKey));
+        stmts.push(db.prepare('INSERT INTO inventory ('+STALL_COLS.join(',')+') VALUES ('+STALL_COLS.map(()=>'?').join(',')+')').bind(...STALL_COLS.map(k=>sale.moved[k])));
+        stmts.push(db.prepare('UPDATE characters SET gold=?,save_revision=save_revision+1 WHERE id=?').bind(sale.response.buyerGold,id));
+        stmts.push(db.prepare('UPDATE characters SET gold=?,save_revision=save_revision+1,gameplay_state_json=? WHERE id=?').bind(sale.response.sellerGold,JSON.stringify(sale.state),b.sellerId));
+        await db.batch(stmts); return c.json(sale.response);
+    } catch(e) { return c.json({success:false,error:['SAVE_CONFLICT','INVALID_OFFER','INSUFFICIENT_GOLD'].includes(e.message)?e.message:'SAVE_CONFLICT'}); }
+});
+
+game.post('/mail/:charId/send', c=>c.json({success:false,error:'ORIGINAL_GM_MAIL_ONLY'}));
+game.post('/mail/:charId/:mailId/claim', c=>c.json({success:false,error:'ORIGINAL_GM_MAIL_ONLY'}));
 app.route('/game', game);
 
 // ---------- admin (painel F10 / ApiClient) ----------
@@ -520,5 +680,6 @@ adm.post('/admin/give', async c => {
     return c.json({ success: true, slot });
 });
 app.route('/', adm);
+
 
 export const onRequest = handle(app);

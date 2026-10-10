@@ -372,6 +372,8 @@ async function migrate() {
         await dbPool.query(sql);
     await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0005_quest_objectives.sql'), 'utf8'));
     await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0006_boat_ownership.sql'), 'utf8'));
+    await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0009_character_bank_storage.sql'), 'utf8'));
+    await dbPool.query(fs.readFileSync(path.join(__dirname, 'migrations', '0010_original_quest_state.sql'), 'utf8'));
 }
 
 require('./routes')(app, dbPool);

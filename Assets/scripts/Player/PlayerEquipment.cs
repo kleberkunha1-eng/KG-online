@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Mirror;
 using System.Collections.Generic;
 using TOP.Core;
@@ -45,7 +45,7 @@ namespace TOP.Player
         public void EquipItem(InventoryItem item, EquipmentSlot slot)
         {
             if (_inventory != null && _inventory.RejectQuestMutation()) return;
-            EquipmentData itemData = ItemDatabase.Instance?.GetEquipment(item.ItemId);
+            EquipmentData itemData = ItemDatabase.Instance?.GetEquipment(item.FusionItemId > 0 ? item.FusionItemId : item.ItemId);
             if (itemData == null) return;
 
             if (_equippedItems.ContainsKey(slot))
@@ -57,7 +57,7 @@ namespace TOP.Player
             {
                 Slot = slot,
                 ItemId = item.ItemId,
-                ItemDatabaseId = item.ItemId,
+                ItemDatabaseId = item.FusionItemId > 0 ? item.FusionItemId : item.ItemId,
                 InventorySlot = item.SlotIndex,
                 Durability = item.Durability,
                 Extra = TOP.Data.PkoGems.InstanceBonus(item)
@@ -100,6 +100,8 @@ namespace TOP.Player
             _stats.ResetEquipmentBonuses();
             foreach (var entry in _equippedItems.Values)
             {
+                InventoryItem worn = _inventory != null ? _inventory.GetSlot(entry.InventorySlot) : null;
+                if (worn != null && worn.Durability > 0 && worn.Durability < 50) continue;
                 var data = ItemDatabase.Instance.GetEquipment(entry.ItemDatabaseId);
                 if (data == null)
                 {
@@ -108,6 +110,13 @@ namespace TOP.Player
                 }
                 ApplyEquipmentStats(data, true);
                 ApplyExtra(entry.Extra, 1);
+                var controller = GetComponent<PlayerController>();
+                if (worn != null && controller != null && controller.IsInitialized)
+                {
+                    var fairy = controller.GetCharacterData().Gameplay.Fairies.Find(f => f.ItemKey == worn.UniqueItemId);
+                    if (fairy != null && fairy.Stamina > 49)
+                        ApplyExtra(new TOP.Data.ItemBonus { Str = fairy.Strength, Agi = fairy.Agility, Acc = fairy.Accuracy, Con = fairy.Constitution, Spr = fairy.Spirit }, 1);
+                }
             }
             _stats.FinishEquipmentStats();
         }
@@ -183,9 +192,9 @@ namespace TOP.Player
             {
                 if (!it.IsEquipped) continue;
                 EquipmentSlot slot;
-                var data = ItemDatabase.Instance?.GetEquipment(it.ItemId);
+                var data = ItemDatabase.Instance?.GetEquipment(it.FusionItemId > 0 ? it.FusionItemId : it.ItemId);
                 if (data != null) slot = data.slot;
-                else if (TOP.Data.PkoTables.Items.TryGetValue(it.ItemId, out var pi)) slot = TOP.Data.PkoTables.SlotOf(pi);
+                else if (TOP.Data.PkoTables.Items.TryGetValue(it.FusionItemId > 0 ? it.FusionItemId : it.ItemId, out var pi)) slot = TOP.Data.PkoTables.SlotOf(pi);
                 else continue;
                 if (slot == EquipmentSlot.Weapon && _equippedItems.ContainsKey(slot) && IsOffhandSword(it.ItemId)) slot = EquipmentSlot.Shield;
                 else if (IsRing(slot) && _equippedItems.ContainsKey(slot)) slot = slot == EquipmentSlot.Ring1 ? EquipmentSlot.Ring2 : slot;
@@ -197,7 +206,7 @@ namespace TOP.Player
                 }
                 _equippedItems[slot] = new EquipmentEntry
                 {
-                    Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.ItemId,
+                    Slot = slot, ItemId = it.ItemId, ItemDatabaseId = it.FusionItemId > 0 ? it.FusionItemId : it.ItemId,
                     InventorySlot = it.SlotIndex, Durability = it.Durability,
                     Extra = TOP.Data.PkoGems.InstanceBonus(instance)
                 };
@@ -320,7 +329,7 @@ namespace TOP.Player
 
             InventoryItem item = _inventory.GetSlot(inventorySlot);
             if (item == null || item.IsEmpty || item.IsEquipped) return false;
-            var data = ItemDatabase.Instance?.GetEquipment(item.ItemId);
+            var data = ItemDatabase.Instance?.GetEquipment(item.FusionItemId > 0 ? item.FusionItemId : item.ItemId);
             if (data == null)
             {
                 ShowEquipWarning("This item cannot be equipped.");
@@ -333,7 +342,7 @@ namespace TOP.Player
             }
             // A second sword goes to the off hand (where the shield would be) instead of replacing the first one.
             if (targetSlot == EquipmentSlot.Weapon && IsOffhandSword(item.ItemId) && TypeOf(EquipmentSlot.Weapon) == 1 && !_equippedItems.ContainsKey(EquipmentSlot.Shield)) targetSlot = EquipmentSlot.Shield;
-            if (!CanWear(item.ItemId, data, targetSlot, out var slot))
+            if (!CanWear(item.FusionItemId > 0 ? item.FusionItemId : item.ItemId, data, targetSlot, out var slot))
             {
                 ShowEquipWarning("This item does not fit that slot or your character does not meet its requirements.");
                 return false;

@@ -1,0 +1,1 @@
+ALTER TABLE characters ADD COLUMN IF NOT EXISTS quest_state_json LONGTEXT NULL;

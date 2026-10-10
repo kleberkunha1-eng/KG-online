@@ -10,15 +10,17 @@ namespace TOP.Player
         [Server] public void Die() { GetComponent<PlayerController>().Die(); }
         [Server] public void ScheduleRespawn()
         {
-            if (waiting) return;
+            if (waiting || GetComponent<PlayerController>().ArenaInstanceId > 0) return;
             waiting = true;
             GetComponent<PlayerCombat>()?.StopAttack();
             GetComponent<PlayerMovement>()?.Stop();
             Invoke(nameof(RespawnPlayer), respawnDelay);
         }
+        [Server] public void CancelPendingRespawn() { waiting = false; CancelInvoke(nameof(RespawnPlayer)); }
         [Server] void RespawnPlayer()
         {
             waiting = false;
+            if (GetComponent<PlayerController>().ArenaInstanceId > 0) return;
             GetComponent<PlayerController>().RespawnPlayer();
         }
     }

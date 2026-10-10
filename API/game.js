@@ -13,9 +13,45 @@ BASE_STATS[4] = BASE_STATS[0]; // NewCharacterTest inherits Lance's starting att
 const DEFAULT_STATS = [10, 10, 10, 10, 10, 100, 50, 100];
 const MAX_INV = 300, MAX_SKILLS = 300;
 
+
+const gameplayStateValid = state => state && state.Version === 1 && typeof state.StallName === 'string' && state.StallName.length <= 32
+    && Array.isArray(state.Fairies) && state.Fairies.length <= 300 && new Set(state.Fairies.map(f=>f && f.ItemKey)).size===state.Fairies.length
+    && state.Fairies.every(f=>f && typeof f.ItemKey==='string' && f.ItemKey.length<=64 && ['Growth','Stamina','Strength','Agility','Accuracy','Constitution','Spirit'].every(k=>Number.isInteger(f[k]) && f[k]>=0) && f.Growth<=6480 && f.Stamina<=32000 && f.Strength+f.Agility+f.Accuracy+f.Constitution+f.Spirit<=42)
+    && Array.isArray(state.Offers) && state.Offers.length <= 24 && new Set(state.Offers.map(o=>o && o.ItemKey)).size===state.Offers.length
+    && state.Offers.every(o=>o && typeof o.ItemKey==='string' && o.ItemKey.length<=64 && Number.isInteger(o.ItemId) && o.ItemId>0 && Number.isInteger(o.Quantity) && o.Quantity>0 && o.Quantity<=100000 && Number.isSafeInteger(o.Price) && o.Price>0 && o.Price*o.Quantity<=1000000000);
+
+const STALL_COLS = ['unique_item_id','character_id','slot_index','item_id','quantity','durability','fusion_item_id','medal_honor','medal_wins','medal_entries','medal_kills','medal_deaths','is_equipped','is_locked','owner_character_id','refine_level','gem_slot_1','gem_slot_2','gem_slot_3'];
+function stallSale(b,buyer,seller,item,state,occupied) {
+    if (!buyer || !seller || buyer.id === seller.id || buyer.is_deleted || seller.is_deleted || buyer.save_revision !== b.buyerRevision || seller.save_revision !== b.sellerRevision) throw Error('SAVE_CONFLICT');
+    const offer = state && state.Offers && state.Offers.find(o=>o.ItemKey===b.itemKey);
+    if (!state || state.Version!==1 || !state.StallName || !offer || !item || item.is_equipped || item.is_locked || (item.owner_character_id != null && item.owner_character_id >= 0) || occupied || offer.Quantity < b.quantity || item.quantity < b.quantity || !Number.isSafeInteger(offer.Price) || offer.Price<=0) throw Error('INVALID_OFFER');
+    const total=offer.Price*b.quantity;
+    if (!Number.isSafeInteger(total) || total<=0 || Number(buyer.gold)<total || !Number.isSafeInteger(Number(seller.gold)+total)) throw Error('INSUFFICIENT_GOLD');
+    offer.Quantity-=b.quantity;
+    state.Offers=state.Offers.filter(o=>o.Quantity>0);
+    if (!state.Offers.length) state.StallName='';
+    const moved={...item,unique_item_id:b.operationId,character_id:buyer.id,slot_index:b.buyerSlot,quantity:b.quantity};
+    return {state,moved,total,response:{success:true,gameplayStateVersion:1,buyerRevision:b.buyerRevision+1,sellerRevision:b.sellerRevision+1,buyerGold:Number(buyer.gold)-total,sellerGold:Number(seller.gold)+total,itemUniqueId:b.operationId}};
+}
+const validStallRequest = b => b && typeof b.operationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.operationId) && ['sellerId','buyerRevision','sellerRevision','quantity','buyerSlot'].every(k=>Number.isSafeInteger(b[k])) && b.sellerId>0 && b.buyerRevision>=0 && b.sellerRevision>=0 && b.quantity>0 && b.quantity<=100000 && b.buyerSlot>=0 && b.buyerSlot<300 && typeof b.itemKey === 'string' && b.itemKey.length<=64;
+
+
 const int = (v, d = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
 const opt = v => (v === undefined || v === null || v < 0 ? null : v);
+
+const questStateValid = state => state && state.Version === 1
+    && Array.isArray(state.Records) && state.Records.length <= 4096
+    && new Set(state.Records).size === state.Records.length
+    && state.Records.every(n => Number.isInteger(n) && n > 0 && n <= 65535)
+    && Array.isArray(state.Missions) && state.Missions.length <= 64
+    && new Set(state.Missions.map(m => m && m.Id)).size === state.Missions.length
+    && state.Missions.every(m => m && Number.isInteger(m.Id) && m.Id > 0 && m.Id <= 65535
+        && Number.isInteger(m.DefinitionId) && m.DefinitionId > 0 && m.DefinitionId <= 65535
+        && Array.isArray(m.Flags) && m.Flags.length <= 1024 && new Set(m.Flags).size === m.Flags.length
+        && m.Flags.every(n => Number.isInteger(n) && n >= 0 && n < 1024)
+        && Array.isArray(m.Triggers) && m.Triggers.length <= 64 && new Set(m.Triggers).size === m.Triggers.length
+        && m.Triggers.every(n => Number.isInteger(n) && n > 0 && n <= 2147483647));
 
 module.exports = function register(app, db) {
     const limiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
@@ -49,6 +85,12 @@ module.exports = function register(app, db) {
     app.use(g, limiter, auth);
 
     app.get(`${g}/me`, (req, res) => res.json({ success: true, admin: req.user.admin, username: req.user.username, accountId: req.user.id }));
+
+    app.get(`${g}/capabilities`, wrap(async (req,res) => {
+        await db.execute('SELECT gameplay_state_json FROM characters LIMIT 0');
+        await db.execute('SELECT operation_id FROM stall_purchase_receipts LIMIT 0');
+        return res.json({success:true,gameplayStateVersion:1,guildVersion:1,forgeVersion:1,fairyVersion:1,stallsVersion:1,genericSkillsVersion:1});
+    }));
 
     app.get(`${g}/characters`, wrap(async (req, res) => {
         const [rows] = await db.execute(
@@ -97,7 +139,7 @@ module.exports = function register(app, db) {
         const r = rows[0];
         const [inv] = await db.execute(
             `SELECT id, unique_item_id, slot_index, item_id, quantity, durability, is_equipped, is_locked, owner_character_id,
-                    refine_level, gem_slot_1, gem_slot_2, gem_slot_3 FROM inventory WHERE character_id = ?`, [id]);
+                    refine_level, gem_slot_1, gem_slot_2, gem_slot_3, fusion_item_id, medal_honor, medal_wins, medal_entries, medal_kills, medal_deaths FROM inventory WHERE character_id = ?`, [id]);
         const [sk] = await db.execute('SELECT id, skill_id, level, exp FROM skills WHERE character_id = ?', [id]);
         res.json({
             success: true,
@@ -105,6 +147,11 @@ module.exports = function register(app, db) {
                 Id: Number(r.id), AccountId: Number(r.account_id), Name: r.name, Job: r.job, Gender: r.gender, Level: r.level, Exp: Number(r.exp || 0),
                 SaveRevision: Number(r.save_revision || 0),
                 Boats: JSON.parse(r.boats_json || '[]'),
+                BankStorageVersion: r.bank_json !== undefined ? 1 : 0,
+            GameplayStateVersion: r.gameplay_state_json !== undefined ? 1 : 0,
+            Gameplay: JSON.parse(r.gameplay_state_json || '{"Version":1,"Fairies":[],"Offers":[],"StallName":""}'),
+                QuestStateVersion: r.quest_state_json !== undefined ? 1 : 0,
+                OriginalQuests: JSON.parse(r.quest_state_json || '{"Version":1,"Records":[],"Missions":[]}'),
                 BoatOwnershipVersion: r.boats_json !== undefined ? 1 : 0,
                 BoatServicesVersion: r.boats_json !== undefined ? 1 : 0,
                 CurrentHp: r.current_hp, CurrentMp: r.current_mp, CurrentSp: r.current_sp, MaxHp: r.max_hp, MaxMp: r.max_mp, MaxSp: r.max_sp,
@@ -119,7 +166,10 @@ module.exports = function register(app, db) {
                 OwnerCharacterId: i.owner_character_id == null ? -1 : Number(i.owner_character_id),
                 RefineLevel: i.refine_level || 0,
                 Gem1: i.gem_slot_1 == null ? -1 : i.gem_slot_1, Gem2: i.gem_slot_2 == null ? -1 : i.gem_slot_2, Gem3: i.gem_slot_3 == null ? -1 : i.gem_slot_3,
+                FusionItemId: i.fusion_item_id || 0,
+                MedalHonor: i.medal_honor || 0, MedalWins: i.medal_wins || 0, MedalEntries: i.medal_entries || 0, MedalKills: i.medal_kills || 0, MedalDeaths: i.medal_deaths || 0,
             })),
+            BankItems: JSON.parse(r.bank_json || '[]'),
             Skills: sk.map(s => ({ Id: Number(s.id), SkillId: s.skill_id, Level: s.level, Exp: Number(s.exp || 0) })),
         });
     }));
@@ -138,13 +188,38 @@ module.exports = function register(app, db) {
             || !Number.isInteger(questId) || questId < 0 || questId > 2147483647)
             return res.json({ success: false, error: 'INVALID_TRANSACTION' });
         const hash = createHash('sha256').update(JSON.stringify(req.body)).digest('hex');
-        if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV)) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS)))
+        if ((inv && (!Array.isArray(inv) || inv.length > MAX_INV || inv.some(i => !i || ["MedalHonor","MedalWins","MedalEntries","MedalKills","MedalDeaths"].some(f => i[f] !== undefined && (!Number.isInteger(i[f]) || i[f] < -2147483648 || i[f] > 2147483647)) || (i.FusionItemId !== undefined && (!Number.isInteger(i.FusionItemId) || i.FusionItemId < 0))))) || (skills && (!Array.isArray(skills) || skills.length > MAX_SKILLS)))
             return res.json({ success: false, error: 'INVALID' });
         if (questId > 0 && (!Array.isArray(inv) || !Array.isArray(skills)))
             return res.json({ success: false, error: 'INVALID_TRANSACTION' });
         if (!Number.isSafeInteger(c.Gold) || c.Gold < 0 || !Number.isSafeInteger(c.Exp) || c.Exp < 0)
             return res.json({ success: false, error: 'INVALID_CHARACTER_VALUES' });
         const boats = c.Boats;
+        const bank = (req.body || {}).BankItems;
+        const bankVersion = c.BankStorageVersion;
+        const questVersion = c.QuestStateVersion;
+        const gameplayVersion = c.GameplayStateVersion;
+        if (gameplayVersion !== undefined && gameplayVersion !== 0 && gameplayVersion !== 1) return res.json({ success: false, error: 'INVALID_GAMEPLAY_STATE' });
+        if (gameplayVersion === 1 && !gameplayStateValid(c.Gameplay)) return res.json({ success: false, error: 'INVALID_GAMEPLAY_STATE' });
+        if (questVersion !== undefined && questVersion !== 0 && questVersion !== 1)
+            return res.json({ success: false, error: 'INVALID_QUEST_STATE' });
+        if (questVersion === 1 && (!questStateValid(c.OriginalQuests) || !Number.isInteger(c.Job) || c.Job < 0 || c.Job > 18))
+            return res.json({ success: false, error: 'INVALID_QUEST_STATE' });
+        if (bankVersion !== undefined && bankVersion !== 0 && bankVersion !== 1)
+            return res.json({ success: false, error: 'INVALID_BANK' });
+        if (bankVersion === 1 && (!Array.isArray(bank) || bank.length > 32
+            || new Set(bank.map(item => item && item.SlotIndex)).size !== bank.length
+            || new Set(bank.map(item => item && item.UniqueItemId)).size !== bank.length
+            || bank.some(item => !item || !Number.isInteger(item.SlotIndex) || item.SlotIndex < 0 || item.SlotIndex >= 32
+                || typeof item.UniqueItemId !== 'string' || item.UniqueItemId.length > 64
+                || !Number.isInteger(item.ItemId) || item.ItemId <= 0 || !Number.isInteger(item.Quantity) || item.Quantity <= 0
+                || item.Quantity > 100000 || item.IsEquipped || item.IsLocked
+                || (Number.isInteger(item.OwnerCharacterId) && item.OwnerCharacterId >= 0 && item.OwnerCharacterId !== id))))
+            return res.json({ success: false, error: 'INVALID_BANK' });
+        if (bankVersion === 1 && Array.isArray(inv)
+            && new Set([...bank.map(item => item.UniqueItemId), ...inv.map(item => item && item.UniqueItemId).filter(Boolean)]).size
+                !== bank.length + inv.filter(item => item && item.UniqueItemId).length)
+            return res.json({ success: false, error: 'INVALID_BANK' });
         if (boats !== undefined && (!Array.isArray(boats) || boats.length > 3
             || new Set(boats.map(boat => boat && boat.Id)).size !== boats.length
             || boats.some(boat => !boat || typeof boat.Id !== 'string'
@@ -152,23 +227,38 @@ module.exports = function register(app, db) {
                 || typeof boat.Name !== 'string' || !/^[\x20-\x7e]{2,16}$/.test(boat.Name) || /[<>]/.test(boat.Name)
                 || ['TypeId','BerthId','Level','HullId','EngineId','BowId','CannonId','ComponentId','Health','Fuel']
                     .some(key => !Number.isInteger(boat[key]) || boat[key] < 0 || boat[key] > 2147483647)
-                || boat.TypeId < 1 || boat.BerthId < 1 || boat.Level < 1 || boat.Level > 100
-                || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean'))))
+                || boat.TypeId < 1 || boat.BerthId < 0 || boat.Level < 1 || boat.Level > 100
+                || (boat.IsSunk !== undefined && typeof boat.IsSunk !== 'boolean')
+                || (boat.Cargo !== undefined && (!Array.isArray(boat.Cargo) || boat.Cargo.length > 4
+                    || new Set(boat.Cargo.map(item => item && item.ItemId)).size !== boat.Cargo.length
+                    || boat.Cargo.some(item => !item || ![4547,4548,4549,4550].includes(item.ItemId)
+                        || !Number.isInteger(item.Quantity) || item.Quantity <= 0 || item.Quantity > 10000))))))
             return res.json({ success: false, error: 'INVALID_BOATS' });
         const conn = await db.getConnection();
         try {
             await conn.beginTransaction();
-            const [characters] = await conn.execute('SELECT save_revision FROM characters WHERE id = ? AND account_id = ? AND is_deleted = 0 FOR UPDATE', [id, req.user.id]);
+            const [characters] = await conn.execute('SELECT save_revision, gold, name FROM characters WHERE id = ? AND account_id = ? AND is_deleted = 0 FOR UPDATE', [id, req.user.id]);
             if (!characters.length) { await conn.rollback(); return res.json({ success: false, error: 'NOT_FOUND' }); }
             const [receipts] = await conn.execute('SELECT payload_hash, expected_revision FROM character_save_receipts WHERE character_id = ? AND operation_id = ?', [id, operationId]);
             if (receipts.length) {
                 await conn.rollback();
                 return res.json(receipts[0].payload_hash === hash
-                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 }
+                    ? { success: true, revision: Number(receipts[0].expected_revision) + 1, boatOwnershipVersion: 1, boatServicesVersion: 1, bankStorageVersion: bankVersion === 1 ? 1 : 0, questStateVersion: questVersion === 1 ? 1 : 0, gameplayStateVersion: gameplayVersion === 1 ? 1 : 0 }
                     : { success: false, error: 'OPERATION_MISMATCH' });
             }
             if (Number(characters[0].save_revision) !== c.SaveRevision) {
                 await conn.rollback(); return res.json({ success: false, error: 'SAVE_CONFLICT' });
+            }
+            if (c.GuildCreateName) {
+                const name = String(c.GuildCreateName).trim();
+                const [stones] = await conn.execute('SELECT COALESCE(SUM(quantity),0) AS n FROM inventory WHERE character_id = ? AND item_id = 1780 AND is_equipped = 0 AND is_locked = 0', [id]);
+                const [membership] = await conn.execute('SELECT id FROM guild_members WHERE character_id = ?', [id]);
+                const remaining = (inv || []).filter(i => i.ItemId === 1780).reduce((n,i) => n+i.Quantity, 0);
+                if (name.length < 3 || name.length > 32 || membership.length || Number(characters[0].gold) < 100000 || c.Gold > Number(characters[0].gold)-100000 || remaining !== Number(stones[0].n)-1) {
+                    await conn.rollback(); return res.json({success:false,error:'INVALID_GUILD_CREATION'});
+                }
+                const [guild] = await conn.execute('INSERT INTO guilds (name, leader_character_id) VALUES (?,?)',[name,id]);
+                await conn.execute('INSERT INTO guild_members (guild_id,character_id,character_name,rank_name) VALUES (?,?,?,"Lider")',[guild.insertId,id,characters[0].name]);
             }
             if (questId > 0) {
                 const [result] = await conn.execute('UPDATE quest_progress SET completed_at = NOW() WHERE character_id = ? AND quest_id = ? AND completed_at IS NULL', [id, questId]);
@@ -186,14 +276,20 @@ module.exports = function register(app, db) {
                     Math.max(0, num(c.Gold)), int(c.StatPoints), int(c.SkillPoints), int(c.PkPoints), int(c.Reputation), id, req.user.id]);
             if (boats !== undefined)
                 await conn.execute('UPDATE characters SET boats_json = ? WHERE id = ?', [JSON.stringify(boats), id]);
+            if (questVersion === 1)
+                await conn.execute('UPDATE characters SET quest_state_json = ?, job = ? WHERE id = ?', [JSON.stringify(c.OriginalQuests), c.Job, id]);
+            if (gameplayVersion === 1)
+                await conn.execute('UPDATE characters SET gameplay_state_json = ? WHERE id = ?', [JSON.stringify(c.Gameplay), id]);
+            if (bankVersion === 1)
+                await conn.execute('UPDATE characters SET bank_json = ? WHERE id = ?', [JSON.stringify(bank), id]);
             if (inv) {
                 await conn.execute('DELETE FROM inventory WHERE character_id = ?', [id]);
                 for (const i of inv) {
                     await conn.execute(
-                        `INSERT INTO inventory (unique_item_id, character_id, slot_index, item_id, quantity, durability, is_equipped, is_locked,
+                        `INSERT INTO inventory (unique_item_id, character_id, slot_index, item_id, quantity, durability, fusion_item_id, medal_honor, medal_wins, medal_entries, medal_kills, medal_deaths, is_equipped, is_locked,
                             owner_character_id, refine_level, gem_slot_1, gem_slot_2, gem_slot_3)
-                         VALUES (COALESCE(NULLIF(?, ''), UUID()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [String(i.UniqueItemId || '').slice(0, 64), id, int(i.SlotIndex), int(i.ItemId), Math.max(1, int(i.Quantity, 1)), int(i.Durability, 100),
+                         VALUES (COALESCE(NULLIF(?, ''), UUID()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [String(i.UniqueItemId || '').slice(0, 64), id, int(i.SlotIndex), int(i.ItemId), Math.max(1, int(i.Quantity, 1)), int(i.Durability, 100), int(i.FusionItemId), int(i.MedalHonor), int(i.MedalWins), int(i.MedalEntries), int(i.MedalKills), int(i.MedalDeaths),
                             i.IsEquipped ? 1 : 0, i.IsLocked ? 1 : 0, opt(i.OwnerCharacterId), int(i.RefineLevel),
                             opt(i.Gem1), opt(i.Gem2), opt(i.Gem3)]);
                 }
@@ -204,7 +300,7 @@ module.exports = function register(app, db) {
                     await conn.execute('INSERT INTO skills (character_id, skill_id, level, exp) VALUES (?, ?, ?, ?)', [id, int(s.SkillId), int(s.Level), Math.max(0, num(s.Exp))]);
             }
             await conn.commit();
-            res.json({ success: true, revision: c.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1 });
+            res.json({ success: true, revision: c.SaveRevision + 1, boatOwnershipVersion: 1, boatServicesVersion: 1, bankStorageVersion: bankVersion === 1 ? 1 : 0, questStateVersion: questVersion === 1 ? 1 : 0, gameplayStateVersion: gameplayVersion === 1 ? 1 : 0 });
         } catch (e) {
             await conn.rollback();
             throw e;
@@ -283,40 +379,8 @@ module.exports = function register(app, db) {
         });
     }));
 
-    app.post(`${g}/mail/:charId/send`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const b = req.body || {};
-        const targetName = String(b.targetName || '').trim();
-        const [senderRows] = await db.execute('SELECT name, gold FROM characters WHERE id = ?', [charId]);
-        if (!senderRows.length) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const gold = Math.max(0, num(b.gold, 0));
-        if (gold > senderRows[0].gold) return res.json({ success: false, error: 'INSUFFICIENT_GOLD' });
-        const [targetRows] = await db.execute('SELECT id FROM characters WHERE name = ? AND is_deleted = 0', [targetName]);
-        if (!targetRows.length) return res.json({ success: false, error: 'PLAYER_NOT_FOUND' });
-        if (gold > 0) await db.execute('UPDATE characters SET gold = gold - ? WHERE id = ?', [gold, charId]);
-        await db.execute(
-            `INSERT INTO mails (sender_id, sender_name, recipient_id, subject, body, gold, item_id, item_quantity, item_refine)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [charId, senderRows[0].name, targetRows[0].id, String(b.subject || '').slice(0, 80), String(b.body || '').slice(0, 1000),
-                gold, opt(b.itemId) ?? -1, int(b.itemQuantity, 0), int(b.itemRefine, 0)]);
-        res.json({ success: true });
-    }));
-
-    app.post(`${g}/mail/:charId/:mailId/claim`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        const mailId = int(req.params.mailId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const [rows] = await db.execute('SELECT * FROM mails WHERE id = ? AND recipient_id = ? AND is_claimed = 0', [mailId, charId]);
-        if (!rows.length) return res.json({ success: false, error: 'MAIL_NOT_FOUND' });
-        const mail = rows[0];
-        if (mail.gold > 0) await db.execute('UPDATE characters SET gold = gold + ? WHERE id = ?', [mail.gold, charId]);
-        await db.execute('UPDATE mails SET is_claimed = 1, is_read = 1 WHERE id = ?', [mailId]);
-        res.json({
-            success: true, Gold: Number(mail.gold), ItemId: mail.item_id,
-            ItemQuantity: mail.item_quantity, ItemRefine: mail.item_refine,
-        });
-    }));
+    app.post(`${g}/mail/:charId/send`, wrap(async (req,res)=>res.json({success:false,error:'ORIGINAL_GM_MAIL_ONLY'})));
+    app.post(`${g}/mail/:charId/:mailId/claim`, wrap(async (req,res)=>res.json({success:false,error:'ORIGINAL_GM_MAIL_ONLY'})));
 
     app.post(`${g}/mail/:charId/:mailId/read`, wrap(async (req, res) => {
         const charId = int(req.params.charId);
@@ -337,6 +401,32 @@ module.exports = function register(app, db) {
     // =================================================================
     // GUILDA
     // =================================================================
+    app.post(`${g}/stalls/:charId/buy`,wrap(async(req,res)=>{
+        const id=int(req.params.charId), b=req.body || {};
+        if (!validStallRequest(b) || id===b.sellerId) return res.json({success:false,error:'INVALID_STALL_REQUEST'});
+        const hash=createHash('sha256').update(JSON.stringify(b)).digest('hex'),conn=await db.getConnection();
+        try {
+            await conn.beginTransaction();
+            const [chars]=await conn.execute('SELECT id,account_id,is_deleted,save_revision,gold,gameplay_state_json FROM characters WHERE id IN (?,?) ORDER BY id FOR UPDATE',[id,b.sellerId]);
+            const buyer=chars.find(c=>Number(c.id)===id),seller=chars.find(c=>Number(c.id)===b.sellerId);
+            if (!buyer || Number(buyer.account_id)!==req.user.id) { await conn.rollback(); return res.json({success:false,error:'NOT_FOUND'}); }
+            const [receipts]=await conn.execute('SELECT payload_hash,response_json FROM stall_purchase_receipts WHERE buyer_id=? AND operation_id=?',[id,b.operationId]);
+            if (receipts.length) { await conn.rollback(); return res.json(receipts[0].payload_hash===hash?JSON.parse(receipts[0].response_json):{success:false,error:'OPERATION_MISMATCH'}); }
+            const [items]=await conn.execute('SELECT * FROM inventory WHERE character_id=? AND unique_item_id=?',[b.sellerId,b.itemKey]);
+            const [occupied]=await conn.execute('SELECT id FROM inventory WHERE character_id=? AND slot_index=?',[id,b.buyerSlot]);
+            const sale=stallSale(b,{...buyer,id:Number(buyer.id),save_revision:Number(buyer.save_revision)},seller?{...seller,id:Number(seller.id),save_revision:Number(seller.save_revision)}:null,items[0],JSON.parse(seller?.gameplay_state_json || '{}'),occupied.length>0);
+            await conn.execute('INSERT INTO stall_purchase_receipts (buyer_id,operation_id,payload_hash,response_json) VALUES (?,?,?,?)',[id,b.operationId,hash,JSON.stringify(sale.response)]);
+            for (const [charId,revision] of [[id,b.buyerRevision],[b.sellerId,b.sellerRevision]]) await conn.execute('INSERT INTO character_save_receipts (character_id,operation_id,payload_hash,expected_revision,quest_id) VALUES (?,?,?,?,0)',[charId,b.operationId,hash,revision]);
+            if (items[0].quantity===b.quantity) await conn.execute('DELETE FROM inventory WHERE character_id=? AND unique_item_id=?',[b.sellerId,b.itemKey]);
+            else await conn.execute('UPDATE inventory SET quantity=quantity-? WHERE character_id=? AND unique_item_id=?',[b.quantity,b.sellerId,b.itemKey]);
+            await conn.execute('INSERT INTO inventory ('+STALL_COLS.join(',')+') VALUES ('+STALL_COLS.map(()=>'?').join(',')+')',STALL_COLS.map(k=>sale.moved[k]));
+            await conn.execute('UPDATE characters SET gold=?,save_revision=save_revision+1 WHERE id=?',[sale.response.buyerGold,id]);
+            await conn.execute('UPDATE characters SET gold=?,save_revision=save_revision+1,gameplay_state_json=? WHERE id=?',[sale.response.sellerGold,JSON.stringify(sale.state),b.sellerId]);
+            await conn.commit(); return res.json(sale.response);
+        } catch(e) { await conn.rollback(); return res.json({success:false,error:['SAVE_CONFLICT','INVALID_OFFER','INSUFFICIENT_GOLD'].includes(e.message)?e.message:'DB_ERROR'}); }
+        finally { conn.release(); }
+    }));
+
     app.get(`${g}/guild/:charId`, wrap(async (req, res) => {
         const charId = int(req.params.charId);
         if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
@@ -353,27 +443,7 @@ module.exports = function register(app, db) {
         });
     }));
 
-    app.post(`${g}/guild/:charId/create`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const name = String((req.body || {}).name || '').trim();
-        if (name.length < 3 || name.length > 32) return res.json({ success: false, error: 'INVALID_NAME' });
-        const [[existing]] = [await db.execute('SELECT id FROM guild_members WHERE character_id = ?', [charId])];
-        if (existing.length) return res.json({ success: false, error: 'ALREADY_IN_GUILD' });
-        const [[charRow]] = [await db.execute('SELECT name, gold FROM characters WHERE id = ?', [charId])];
-        if (!charRow.length) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const COST = 100000;
-        if (charRow[0].gold < COST) return res.json({ success: false, error: 'INSUFFICIENT_GOLD' });
-        try {
-            const [ins] = await db.execute('INSERT INTO guilds (name, leader_character_id) VALUES (?, ?)', [name, charId]);
-            await db.execute('INSERT INTO guild_members (guild_id, character_id, character_name, rank_name) VALUES (?, ?, ?, "Lider")', [ins.insertId, charId, charRow[0].name]);
-            await db.execute('UPDATE characters SET gold = gold - ? WHERE id = ?', [COST, charId]);
-            res.json({ success: true, GuildId: ins.insertId });
-        } catch (e) {
-            if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, error: 'NAME_TAKEN' });
-            throw e;
-        }
-    }));
+    app.post(`${g}/guild/:charId/create`, wrap(async (req,res) => res.json({success:false,error:"ATOMIC_SAVE_REQUIRED"})));
 
     app.post(`${g}/guild/:charId/invite`, wrap(async (req, res) => {
         const charId = int(req.params.charId);
@@ -395,25 +465,25 @@ module.exports = function register(app, db) {
         }
     }));
 
-    app.post(`${g}/guild/:charId/leave`, wrap(async (req, res) => {
-        const charId = int(req.params.charId);
-        if (!(await owned(charId, req.user.id))) return res.json({ success: false, error: 'CHARACTER_NOT_FOUND' });
-        const [[membership]] = [await db.execute('SELECT guild_id, rank_name FROM guild_members WHERE character_id = ?', [charId])];
-        if (!membership.length) return res.json({ success: false, error: 'NOT_IN_GUILD' });
-        const guildId = membership[0].guild_id;
-        if (membership[0].rank_name === 'Lider') {
-            const [[others]] = [await db.execute('SELECT character_id FROM guild_members WHERE guild_id = ? AND character_id != ? ORDER BY joined_at LIMIT 1', [guildId, charId])];
-            await db.execute('DELETE FROM guild_members WHERE character_id = ?', [charId]);
-            if (others.length) {
-                await db.execute('UPDATE guild_members SET rank_name = "Lider" WHERE character_id = ?', [others[0].character_id]);
-                await db.execute('UPDATE guilds SET leader_character_id = ? WHERE id = ?', [others[0].character_id, guildId]);
-            } else {
-                await db.execute('DELETE FROM guilds WHERE id = ?', [guildId]);
+    app.post(`${g}/guild/:charId/leave`, wrap(async (req,res) => {
+        const id = int(req.params.charId);
+        if (!(await owned(id,req.user.id))) return res.json({success:false,error:'NOT_FOUND'});
+        const conn=await db.getConnection();
+        try {
+            await conn.beginTransaction();
+            const [membership]=await conn.execute('SELECT guild_id,rank_name FROM guild_members WHERE character_id=? FOR UPDATE',[id]);
+            if (!membership.length) { await conn.rollback(); return res.json({success:false,error:'NOT_IN_GUILD'}); }
+            const guild=membership[0].guild_id;
+            if (membership[0].rank_name==='Lider') {
+                const [others]=await conn.execute('SELECT character_id FROM guild_members WHERE guild_id=? AND character_id!=? ORDER BY joined_at LIMIT 1 FOR UPDATE',[guild,id]);
+                if (others.length) {
+                    await conn.execute('UPDATE guild_members SET rank_name="Lider" WHERE character_id=?',[others[0].character_id]);
+                    await conn.execute('UPDATE guilds SET leader_character_id=? WHERE id=?',[others[0].character_id,guild]);
+                } else await conn.execute('DELETE FROM guilds WHERE id=?',[guild]);
             }
-        } else {
-            await db.execute('DELETE FROM guild_members WHERE character_id = ?', [charId]);
-        }
-        res.json({ success: true });
+            await conn.execute('DELETE FROM guild_members WHERE character_id=?',[id]);
+            await conn.commit(); return res.json({success:true});
+        } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }));
 
     app.post(`${g}/guild/:charId/kick`, wrap(async (req, res) => {
@@ -425,6 +495,13 @@ module.exports = function register(app, db) {
             return res.json({ success: false, error: 'NOT_AUTHORIZED' });
         await db.execute('DELETE FROM guild_members WHERE guild_id = ? AND character_name = ? AND rank_name != "Lider"', [membership[0].guild_id, targetName]);
         res.json({ success: true });
+    }));
+
+    app.post(`${g}/guild/:charId/rank`, wrap(async (req,res) => {
+        const id = int(req.params.charId), b = req.body || {};
+        if (!(await owned(id,req.user.id))) return res.json({success:false,error:'NOT_FOUND'});
+        const [result] = await db.execute('UPDATE guild_members target JOIN guild_members leader ON target.guild_id = leader.guild_id SET target.rank_name = ? WHERE leader.character_id = ? AND leader.rank_name = "Lider" AND target.character_name = ? AND target.rank_name != "Lider"', [b.officer === true ? 'Oficial':'Membro',id,String(b.targetName || '')]);
+        res.json({success:result.affectedRows>0});
     }));
 
     app.post(`${g}/guild/:charId/notice`, wrap(async (req, res) => {

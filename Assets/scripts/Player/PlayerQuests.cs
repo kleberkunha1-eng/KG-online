@@ -15,7 +15,7 @@ namespace TOP.Player
     // progresso por personagem e persistido via API; a entrega grava quest e personagem juntos.
     // Os ganchos de progresso automatico (matar monstro,
     // falar com NPC) sao chamados pelo EnemyStats/NPCInteractable via metodos [Server] publicos.
-    public class PlayerQuests : NetworkBehaviour
+    public partial class PlayerQuests : NetworkBehaviour
     {
         class ActiveQuest
         {
@@ -47,12 +47,13 @@ namespace TOP.Player
 
         public event System.Action OnQuestsChanged;
         public event System.Action<int> OnQuestOffered;
-        public List<(int questId, int progress)> ActiveQuests => _active.Select(a => (a.QuestId, a.Progress)).ToList();
+        public List<(int questId, int progress)> ActiveQuests => _active.Select(a => (a.QuestId, a.Progress)).Concat(OriginalActiveQuests()).ToList();
         public IReadOnlyCollection<int> CompletedQuests => _completed;
         public bool HasPendingCompletion => _pendingTurnIns.Count != 0;
-        public bool HasUnsavedProgress => _dirtyProgress.Count != 0;
+        public bool HasUnsavedProgress => _dirtyProgress.Count != 0 || originalProgressDirty || !originalProgressTask.IsCompleted;
         public int GetObjectiveProgress(int questId, int objectiveIndex)
-            => _active.FirstOrDefault(a => a.QuestId == questId)?.GetProgress(objectiveIndex) ?? 0;
+            => OriginalQuestCatalog.All.ContainsKey(questId) ? OriginalObjectiveProgress(questId, objectiveIndex)
+                : _active.FirstOrDefault(a => a.QuestId == questId)?.GetProgress(objectiveIndex) ?? 0;
 
         bool HasPendingProgress(int questId) => _progressPending.Any(key => key.questId == questId);
         void ClearDirtyProgress(int questId)
@@ -89,6 +90,9 @@ namespace TOP.Player
             _refreshPending = true;
             try
             {
+                if (originalProgressDirty && originalProgressTask.IsCompleted) originalProgressTask = PersistOriginalProgressAsync();
+                await originalProgressTask;
+                if (this == null || connectionToClient == null || originalProgressDirty) return;
                 foreach (var key in _dirtyProgress.Keys.ToArray())
                     _ = PersistQuestProgressAsync(key);
                 while (_progressPending.Count != 0)
@@ -138,6 +142,7 @@ namespace TOP.Player
         [Server]
         public async void ServerAcceptQuest(int questId)
         {
+            if (OriginalQuestCatalog.All.ContainsKey(questId)) { await OriginalTransitionAsync(questId, 0); return; }
             if (_pc == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
             if (!def.HasValidObjectives)
             {
@@ -179,6 +184,7 @@ namespace TOP.Player
         [Server]
         public async void ServerAbandonQuest(int questId)
         {
+            if (OriginalQuestCatalog.All.ContainsKey(questId)) { await OriginalTransitionAsync(questId, 2); return; }
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
                 || _pendingTurnIns.Count != 0 || HasPendingProgress(questId))
             { _pc.RpcShowMessage("Aguarde a operacao de missao em andamento.", PlayerMessageType.Warning); return; }
@@ -207,6 +213,7 @@ namespace TOP.Player
         [Server]
         public async void ServerTurnInQuest(int questId)
         {
+            if (OriginalQuestCatalog.All.ContainsKey(questId)) { await OriginalTransitionAsync(questId, 1); return; }
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return;
             if (_refreshPending || _pendingAccepts.Contains(questId) || _pendingAbandons.Contains(questId)
@@ -336,8 +343,10 @@ namespace TOP.Player
         // Ganchos de progresso automatico (chamados pelo servidor a partir de outros sistemas)
         // ------------------------------------------------------------------------------
         [Server]
-        public void ServerNotifyKill(string monsterName)
+        public void ServerNotifyKill(string monsterName, int originalMonsterId = 0)
         {
+            int nativeId = originalMonsterId > 0 ? originalMonsterId : OriginalQuestCatalog.MonsterId(monsterName);
+            if (nativeId > 0) OriginalNotify("IsMonster", nativeId, 1);
             if (string.IsNullOrEmpty(monsterName) || _active.Count == 0) return;
             string lower = monsterName.ToLowerInvariant();
             bool changed = false;
@@ -435,6 +444,7 @@ namespace TOP.Player
             var result = new List<int>();
             foreach (var id in npcQuestIds)
             {
+                if (OriginalQuestCatalog.All.ContainsKey(id)) { if (CanBeginOriginal(id)) result.Add(id); continue; }
                 if (!QuestTable.All.TryGetValue(id, out var def) || !def.HasValidObjectives) continue;
                 if (_active.Any(a => a.QuestId == id) || _completed.Contains(id)) continue;
                 if (!def.CanAcceptAtLevel(_pc.Level)) continue;
@@ -445,11 +455,13 @@ namespace TOP.Player
         }
 
         [Server]
-        public bool HasActiveQuest(int questId) => _active.Any(a => a.QuestId == questId);
+        public bool HasActiveQuest(int questId) => OriginalQuestCatalog.All.TryGetValue(questId, out var original)
+            ? OriginalState != null && OriginalState.HasMission(original.MissionId) : _active.Any(a => a.QuestId == questId);
 
         [Server]
         public bool CanTurnIn(int questId)
         {
+            if (OriginalQuestCatalog.All.ContainsKey(questId)) return CanResultOriginal(questId);
             var entry = _active.FirstOrDefault(a => a.QuestId == questId);
             if (entry == null || !QuestTable.All.TryGetValue(questId, out var def)) return false;
             return IsObjectiveComplete(def, entry, out _);
@@ -493,6 +505,7 @@ namespace TOP.Player
             }
             sb.Append('|');
             sb.Append(string.Join(",", _completed));
+            sb.Append('|').Append(JsonUtility.ToJson(new OriginalPayload { State = OriginalState, Available = OriginalQuestsAvailable }));
             TargetQuestsUpdated(connectionToClient, sb.ToString());
         }
 
@@ -516,6 +529,14 @@ namespace TOP.Player
                 int sep = data.IndexOf('|');
                 string activePart = sep >= 0 ? data.Substring(0, sep) : data;
                 string completedPart = sep >= 0 ? data.Substring(sep + 1) : "";
+                int originalSep = completedPart.IndexOf('|');
+                if (originalSep >= 0)
+                {
+                    var original = JsonUtility.FromJson<OriginalPayload>(completedPart.Substring(originalSep + 1));
+                    clientOriginalState = original.State ?? new OriginalQuestState();
+                    clientOriginalAvailable = original.Available;
+                    completedPart = completedPart.Substring(0, originalSep);
+                }
                 if (!string.IsNullOrEmpty(activePart))
                     foreach (var e in activePart.Split(';'))
                     {

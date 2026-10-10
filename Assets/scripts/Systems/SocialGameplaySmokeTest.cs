@@ -7,6 +7,7 @@ using System.Reflection;
 using kcp2k;
 using Mirror;
 using TOP.Data;
+using TOP.Core;
 using TOP.Player;
 using UnityEngine;
 
@@ -48,6 +49,7 @@ namespace TOP.Testing
 
         public static IEnumerator Run(GameObject first, KcpClient client, Action tick, Action<bool, string> check)
         {
+            RemainingSystemsSmokeTest.Run(check);
             check(!OriginalPvpRules.AreEnemies(1, 0, 0, 0, 0, 0, 0)
                 && !OriginalPvpRules.AreEnemies(0, 0, 0, 0, 0, 0, 0)
                 && !OriginalPvpRules.AreEnemies(99, 0, 0, 0, 0, 0, 0), "Original normal/unknown maps never allow PK.");
@@ -63,12 +65,62 @@ namespace TOP.Testing
             check(OriginalPvpRules.IsSafe(2) && !OriginalPvpRules.IsSafe(1)
                 && OriginalPvpRules.IsLand(1) && OriginalPvpRules.IsLand(8) && !OriginalPvpRules.IsLand(128),
                 "Original safe, land and bridge masks match native CompCommand.h.");
-            check(!OriginalPvpRules.ArenaLosesStamina(10, 12, Array.Empty<int>())
-                && OriginalPvpRules.ArenaLosesStamina(11, 12, Array.Empty<int>())
-                && !OriginalPvpRules.ArenaLosesStamina(75, 18, new[] { 2817, 2818, 2819 })
-                && OriginalPvpRules.ArenaLosesStamina(75, 17, new[] { 2817, 2818, 2819 })
-                && OriginalPvpRules.ArenaLosesStamina(74, 18, new[] { 2817, 2818, 2819 }),
-                "Original teampk stamina loss respects level 10 and direct Death set nighttime exemption at level 75.");
+            check(OriginalPvpRules.IsPvpMap("puzzleworld") && !OriginalPvpRules.IsPvpMap("garner")
+                && OriginalPvpRules.RequiresGuildData("abandonedcity") && !OriginalPvpRules.RequiresGuildData("teampk")
+                && !OriginalPvpRules.CanFightInArea(4, true, 2, 1, 0, 0, 0, 0, 0, 0)
+                && OriginalPvpRules.CanFightInArea(4, true, 1, 8, 0, 0, 0, 0, 0, 0),
+                "PK requires an enabled native map, safe-zone cells block combat, and guild membership is required only by map types 2/4.");
+            var pveDeath = new CharacterData { Level = 20, Exp = 1000, CurrentSp = 40, MapName = "garner", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult pvePenalty = OriginalDeathPenalty.Apply(pveDeath, false, 12);
+            check(pvePenalty.ExperienceLost == Math.Min(PkoTables.ExpToNextLevel(20) / 50UL, 1000UL)
+                && pveDeath.Exp == 1000UL - pvePenalty.ExperienceLost && pveDeath.CurrentSp == 0,
+                "Original PvE death removes 2% of current-level EXP (capped by current EXP) and clears SP.");
+            var protectedDeath = new CharacterData { Level = 20, Exp = 1000, CurrentSp = 40, MapName = "garner", Inventory = new List<InventoryItemData> { new InventoryItemData { ItemId = 3846, Quantity = 1 } } };
+            OriginalDeathPenaltyResult protectedPenalty = OriginalDeathPenalty.Apply(protectedDeath, false, 12);
+            check(protectedPenalty.ConsumedProtectionItem == 3846 && protectedDeath.Exp == 1000 && protectedDeath.CurrentSp == 0
+                && protectedDeath.Inventory.Count == 0, "Original protection item consumes one stack unit and suppresses EXP loss, not SP loss.");
+            var playerDeath = new CharacterData { Level = 50, Exp = 1000, CurrentSp = 40, MapName = "teampk", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult playerPenalty = OriginalDeathPenalty.Apply(playerDeath, true, 12);
+            check(playerPenalty.LostStamina && playerDeath.Exp == 1000 && playerDeath.CurrentSp == 0,
+                "Original teampk player kill clears SP but exempts EXP and durability.");
+            var pkMapDeath = new CharacterData { Level = 20, Exp = 250000, CurrentSp = 40, MapName = "puzzleworld", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult pkMapPenalty = OriginalDeathPenalty.Apply(pkMapDeath, true, 12);
+            ulong expectedPkLoss = Math.Min(400UL * 20UL, Math.Min(PkoTables.ExpToNextLevel(20) / 50UL, 250000UL));
+            check(pkMapPenalty.LostStamina && pkMapDeath.CurrentSp == 0 && pkMapPenalty.ExperienceLost == expectedPkLoss
+                && pkMapDeath.Exp == 250000UL - expectedPkLoss, "Original player kill on native PK maps applies the capped level-squared EXP loss plus SP loss.");
+            var highLevelPkDeath = new CharacterData { Level = 80, Exp = 250000, CurrentSp = 40, MapName = "hell", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult highLevelPkPenalty = OriginalDeathPenalty.Apply(highLevelPkDeath, true, 12);
+            ulong expectedHighLevelPkLoss = Math.Min(80UL * 80UL * 20UL, Math.Min(PkoTables.ExpToNextLevel(80) / 50UL, 250000UL)) / 50UL;
+            check(highLevelPkPenalty.ExperienceLost == expectedHighLevelPkLoss
+                && highLevelPkDeath.Exp == 250000UL - expectedHighLevelPkLoss, "Original level-80+ player-kill EXP loss is scaled down by 50 after the native cap.");            var pkProtectedDeath = new CharacterData { Level = 20, Exp = 250000, CurrentSp = 40, MapName = "hell", Inventory = new List<InventoryItemData> { new InventoryItemData { ItemId = 3846, Quantity = 1, IsLocked = true } } };
+            OriginalDeathPenaltyResult pkProtectedPenalty = OriginalDeathPenalty.Apply(pkProtectedDeath, true, 12);
+            check(pkProtectedPenalty.ConsumedProtectionItem == 3846 && pkProtectedDeath.Exp == 250000 && pkProtectedDeath.CurrentSp == 0
+                && pkProtectedDeath.Inventory.Count == 0, "Original PvP voodoo doll suppresses EXP/equipment loss but does not suppress SP loss, including when bound.");
+            PkoItem repairableHelmet = PkoTables.Items.Values.First(item => item.Type == 20 && item.Durability >= 100 && PkoTables.SlotOf(item) == EquipmentSlot.Helmet);
+            ushort startingDurability = (ushort)repairableHelmet.Durability;
+            int expectedDurability = Math.Max(49, startingDurability - (int)Math.Floor(startingDurability * 0.05f));
+            var wornDeath = new CharacterData { Level = 21, Exp = 500000, CurrentSp = 40, MapName = "garner", Inventory = new List<InventoryItemData> { new InventoryItemData { ItemId = repairableHelmet.Id, Quantity = 1, Durability = startingDurability, IsEquipped = true } } };
+            OriginalDeathPenaltyResult wearPenalty = OriginalDeathPenalty.Apply(wornDeath, false, 12);
+            check(wearPenalty.EquipmentWorn == 1 && wornDeath.Inventory[0].Durability == expectedDurability,
+                "Original PvE death reduces each eligible equipped repair item by 5%, stopping at durability 49.");
+            var teampkPveDeath = new CharacterData { Level = 20, Exp = 250000, CurrentSp = 40, MapName = "teampk", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult teampkPvePenalty = OriginalDeathPenalty.Apply(teampkPveDeath, false, 12);
+            check(teampkPvePenalty.LostStamina && teampkPveDeath.CurrentSp == 0 && teampkPveDeath.Exp == 250000,
+                "Original PvE teampk death is exempt from EXP and durability penalties but clears SP.");
+            var directDeathSet = new List<InventoryItemData> { new InventoryItemData { ItemId = 2817, IsEquipped = true }, new InventoryItemData { ItemId = 2818, IsEquipped = true }, new InventoryItemData { ItemId = 2819, IsEquipped = true } };
+            var nightDeathSet = new CharacterData { Level = 75, Exp = 250000, CurrentSp = 40, MapName = "garner", Inventory = directDeathSet };
+            OriginalDeathPenaltyResult nightSetPenalty = OriginalDeathPenalty.Apply(nightDeathSet, false, 18);
+            var lowDeathSet = new CharacterData { Level = 74, Exp = 250000, CurrentSp = 40, MapName = "garner", Inventory = new List<InventoryItemData> { new InventoryItemData { ItemId = 2817, IsEquipped = true }, new InventoryItemData { ItemId = 2818, IsEquipped = true }, new InventoryItemData { ItemId = 2819, IsEquipped = true } } };
+            OriginalDeathPenaltyResult lowSetPenalty = OriginalDeathPenalty.Apply(lowDeathSet, false, 18);
+            var pirateSet = new CharacterData { Level = 70, Exp = 250000, CurrentSp = 40, MapName = "garner", Inventory = new List<InventoryItemData> { new InventoryItemData { ItemId = 5964, FusionItemId = 2530, IsEquipped = true }, new InventoryItemData { ItemId = 6145, FusionItemId = 2531, IsEquipped = true }, new InventoryItemData { ItemId = 6146, FusionItemId = 2532, IsEquipped = true } } };
+            OriginalDeathPenaltyResult pirateSetPenalty = OriginalDeathPenalty.Apply(pirateSet, false, 6);
+            check(!nightSetPenalty.Applied && nightDeathSet.Exp == 250000 && nightDeathSet.CurrentSp == 40
+                && lowSetPenalty.LostStamina && lowDeathSet.CurrentSp == 0
+                && !pirateSetPenalty.Applied && pirateSet.Exp == 250000 && pirateSet.CurrentSp == 40,
+                "Original nighttime Death/Pirate set exemptions honor minimum levels and persisted fusion IDs.");            var exemptDeath = new CharacterData { Level = 20, Exp = 1000, CurrentSp = 40, MapName = "secretgarden", Inventory = new List<InventoryItemData>() };
+            OriginalDeathPenaltyResult exemptPenalty = OriginalDeathPenalty.Apply(exemptDeath, false, 12);
+            check(exemptDeath.Exp == 1000 && exemptDeath.CurrentSp == 0 && exemptPenalty.ExperienceLost == 0,
+                "Original secretgarden death loses SP only and skips EXP and equipment wear.");
             var attributes = Resources.Load<TextAsset>("PKO/teampk.atr").bytes;
             check(OriginalPvpRules.TryReadAttributes(attributes, 20, 20, out ushort area) && area == 1
                 && !OriginalPvpRules.TryReadAttributes(attributes, 95, 20, out _)
@@ -77,8 +129,10 @@ namespace TOP.Testing
                 "Packed arena attributes use native row-major indexing and fail closed for malformed/boundary cells.");
             var quote = BoatCatalog.Quote(1, 15, 8, 53, 73);
             check(quote.Price == 9990 && quote.Health == 2280 && quote.Fuel == 500 && quote.Defense == 46
-                && quote.Speed == 450 && quote.MinimumAttack == 167 && quote.MaximumAttack == 250 && quote.Capacity == 24,
-                "Original default Guppy costs exactly 9990 gold with native hull/engine/bow/cannon/component statistics.");
+                && quote.Speed == 450 && quote.FuelConsumption == 1 && BoatCatalog.HullModelId(new BoatData { TypeId = 1 }) == 2004000000
+                && new[] { 2004000000, 2004020000, 2004010000, 2004040000 }.All(id => Resources.Load<GameObject>("PKOShips/Models/model/character/" + id) != null)
+                && quote.MinimumAttack == 167 && quote.MaximumAttack == 250 && quote.Capacity == 24,
+                "Original default Guppy costs exactly 9990 gold with native hull model, BSREC, fuel, speed and equipment statistics.");
             check(!BoatCatalog.CanBuild(1, 14, 0) && BoatCatalog.CanBuild(1, 15, 0)
                 && !BoatCatalog.CanBuild(3, 29, 0) && BoatCatalog.CanBuild(3, 30, 0)
                 && !BoatCatalog.IsArgentOffering(4) && BoatCatalog.IsArgentOffering(6),
@@ -492,6 +546,7 @@ namespace TOP.Testing
                     a.transform.position = positionA; b.transform.position = positionB;
                     sb.SetCurrentHpMpSp(sb.MaxHp, sb.MaxMp, sb.MaxSp);
                 }
+                yield return ArenaGameplaySmokeTest.Run(first, other, client, second, tick, check);
                 second.Disconnect();
                 yield return Pump(tick, second);
                 check(a.DuelOpponentNetId == 0 && a.CurrentTargetNetId == 0,

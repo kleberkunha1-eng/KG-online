@@ -7,6 +7,15 @@ using UnityEngine;
 namespace TOP.Data
 {
     [Serializable]
+    public sealed class BoatCargoItemData
+    {
+        public int ItemId;
+        public int Quantity;
+
+        public BoatCargoItemData CopySnapshot() => (BoatCargoItemData)MemberwiseClone();
+    }
+
+    [Serializable]
     public sealed class BoatData
     {
         public string Id;
@@ -17,8 +26,14 @@ namespace TOP.Data
         public int HullId, EngineId, BowId, CannonId, ComponentId;
         public int Health, Fuel;
         public bool IsSunk;
+        public List<BoatCargoItemData> Cargo = new List<BoatCargoItemData>();
 
-        public BoatData CopySnapshot() => (BoatData)MemberwiseClone();
+        public BoatData CopySnapshot()
+        {
+            var copy = (BoatData)MemberwiseClone();
+            copy.Cargo = Cargo == null ? new List<BoatCargoItemData>() : Cargo.ConvertAll(item => item.CopySnapshot());
+            return copy;
+        }
     }
 
     public sealed class BoatDefinition
@@ -30,18 +45,30 @@ namespace TOP.Data
 
     public sealed class BoatPart
     {
-        public int Id, Price, Health, Fuel, Defense, MinimumAttack, MaximumAttack, Speed;
+        public int Id, ModelId, Price, Health, Fuel, FuelConsumption, Defense, MinimumAttack, MaximumAttack, Speed;
         public int[] Motors;
     }
 
     public sealed class BoatBuildQuote
     {
-        public int Price, Health, Fuel, Defense, MinimumAttack, MaximumAttack, Speed, Capacity;
+        public int Price, Health, Fuel, FuelConsumption, Defense, MinimumAttack, MaximumAttack, Speed, Capacity;
     }
 
     public static class BoatCatalog
     {
         public const int MaximumBoats = 3;
+        public const int ResourcePackQuantity = 10;
+        static readonly Dictionary<int, int> resourcePiles = new Dictionary<int, int>
+        {
+            { 4543, 4547 }, { 4544, 4548 }, { 4545, 4549 }, { 4546, 4550 }
+        };
+
+        public static bool TryGetPackedItem(int resourceItemId, out int pileItemId) => resourcePiles.TryGetValue(resourceItemId, out pileItemId);
+
+        public static bool IsCargoPile(int itemId) => itemId >= 4547 && itemId <= 4550;
+
+        public static int CargoQuantity(BoatData boat) => boat == null || boat.Cargo == null
+            ? 0 : boat.Cargo.Where(item => item != null).Sum(item => Mathf.Max(0, item.Quantity));
         static Dictionary<int, BoatDefinition> definitions;
         static Dictionary<int, BoatPart> parts;
         public static IReadOnlyDictionary<int, BoatDefinition> Definitions { get { Load(); return definitions; } }
@@ -66,9 +93,9 @@ namespace TOP.Data
             var loadedParts = new Dictionary<int, BoatPart>();
             foreach (var row in Rows("shipiteminfo"))
             {
-                var part = new BoatPart { Id = Number(row[0]), Price = Number(row[7]), Health = Number(row[8]),
+                var part = new BoatPart { Id = Number(row[0]), ModelId = Number(row[2]), Price = Number(row[7]), Health = Number(row[8]),
                     Defense = Number(row[10]), MinimumAttack = Number(row[12]), MaximumAttack = Number(row[13]),
-                    Fuel = Number(row[18]), Speed = Number(row[21]),
+                    Fuel = Number(row[18]), FuelConsumption = Number(row[19]), Speed = Number(row[21]),
                     Motors = new[] { Number(row[3]), Number(row[4]), Number(row[5]), Number(row[6]) } };
                 loadedParts.Add(part.Id, part);
             }
@@ -93,6 +120,14 @@ namespace TOP.Data
 
         public static BoatBuildQuote Quote(BoatData boat) =>
             Quote(boat.TypeId, boat.EngineId, boat.BowId, boat.CannonId, boat.ComponentId);
+
+        public static int HullModelId(BoatData boat)
+        {
+            Load();
+            if (!definitions.TryGetValue(boat.TypeId, out var definition) || !parts.TryGetValue(definition.HullId, out var hull))
+                throw new InvalidOperationException("Original boat hull model is missing.");
+            return hull.ModelId;
+        }
 
         public static int MaximumHealth(BoatData boat)
         {
@@ -124,7 +159,7 @@ namespace TOP.Data
             foreach (int motor in parts[engineId].Motors)
                 if (motor > 0) selected.Add(parts[motor]);
             return new BoatBuildQuote { Price = checked(selected.Sum(p => p.Price)), Health = selected.Sum(p => p.Health),
-                Fuel = selected.Sum(p => p.Fuel), Defense = selected.Sum(p => p.Defense),
+                Fuel = selected.Sum(p => p.Fuel), FuelConsumption = selected.Sum(p => p.FuelConsumption), Defense = selected.Sum(p => p.Defense),
                 MinimumAttack = selected.Sum(p => p.MinimumAttack), MaximumAttack = selected.Sum(p => p.MaximumAttack),
                 Speed = selected.Sum(p => p.Speed), Capacity = definition.Capacity };
         }

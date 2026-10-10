@@ -30,7 +30,8 @@ namespace TOP.Services
                 party.CmdPartyInvite(text.Substring(8).Trim());
                 return true;
             }
-            if (text.StartsWith("/p ", StringComparison.OrdinalIgnoreCase)) { channel = ChatChannel.Party; text = text.Substring(3).Trim(); }
+            if (text.StartsWith("/g ", StringComparison.OrdinalIgnoreCase)) { channel = ChatChannel.Guild; text = text.Substring(3).Trim(); }
+            else if (text.StartsWith("/p ", StringComparison.OrdinalIgnoreCase)) { channel = ChatChannel.Party; text = text.Substring(3).Trim(); }
             else if (text.StartsWith("/s ", StringComparison.OrdinalIgnoreCase)) { channel = ChatChannel.Shout; text = text.Substring(3).Trim(); }
             else if (text.StartsWith("/w ", StringComparison.OrdinalIgnoreCase))
             {

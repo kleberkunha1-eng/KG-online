@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 8038990920828760552}
   - component: {fileID: 1993193203516384457}
   - component: {fileID: 7942013771286735908}
+  - component: {fileID: 2775220885352595863}
   m_Layer: 3
   m_Name: Player
   m_TagString: Player
@@ -346,8 +347,17 @@ MonoBehaviour:
   HairColor: 0
   FaceStyle: 0
   MapName: garner
+  ArenaInstanceId: 0
+  ArenaSide: 0
+  ArenaResult: 0
   PkPoints: 0
   Reputation: 0
+  BoatOperationPending: 0
+  BoatOwnershipAvailable: 0
+  BoatServicesAvailable: 0
+  BankStorageAvailable: 0
+  BankOperationPending: 0
+  ActiveBoatId: 
 --- !u!95 &4671171365136999713
 Animator:
   serializedVersion: 7
@@ -504,6 +514,7 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  DuelOpponentNetId: 0
   attackRange: 2.5
   attackCooldown: 1
   attackPoint: {fileID: 0}
@@ -708,6 +719,9 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   GuildName: 
+  GuildId: 0
+  GuildDataReady: 0
+  InvitationFrom: 
 --- !u!114 &8038990920828760552
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -757,6 +771,27 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+--- !u!114 &2775220885352595863
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 141669980532557786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 496bbba7f0f217b49a3b55851bbaf2d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TOP.Player.PlayerLifeServices
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  FairyGrowth: 0
+  FairyStamina: 0
+  FairyLevel: 0
+  StallName: 
+  StallData: 
 --- !u!1 &180819209368657504
 GameObject:
   m_ObjectHideFlags: 0

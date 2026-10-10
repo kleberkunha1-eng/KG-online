@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using TOP.Data;
@@ -33,7 +33,7 @@ namespace TOP.Admin
         // Usado pelo click-to-move: clique sobre o painel nao deve mover o personagem.
         public static bool BlocksMouse => panelBlocks || WeaponTuner.Blocks || WingTuner.BlocksMouse
             || TOP.UI.GameWindowControls.BlocksMouse || TOP.World.WorldEnvironment.BlocksMouse
-            || TOP.UI.PlayerInteractionMenu.BlocksMouse || TOP.UI.NPCDialogueUI.BlocksMouse;
+            || TOP.UI.PlayerInteractionMenu.BlocksMouse || TOP.UI.NPCDialogueUI.BlocksMouse || TOP.UI.BankStorageUI.BlocksMouse;
         static bool panelBlocks;
 
         bool open;

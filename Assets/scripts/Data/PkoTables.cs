@@ -63,6 +63,7 @@ namespace TOP.Data
         public Dictionary<int, int> ClassMaxLevel = new Dictionary<int, int>();
         public string SpFormula, DamageFormula;
         public int SpCost;
+        public string Prerequisites;
     }
 
     public class PkoSkillEffect { public int Id; public string Name, Description, Icon; public bool CanMove = true, CanAttack = true, CanUseSkills = true; }
@@ -105,6 +106,7 @@ namespace TOP.Data
 
     public class PkoItem
     {
+        public int OriginalMaxDurability;
         public int Id, Type, Price, Level, Stack = 1, Durability, VisualEffectId, VisualEffectDummy = -1;
         public string Name, Icon, Description, Model;
         // Per-race model ids (Lance, Carsise, Phyllis, Ami); "0" when the item has no model for that race.
@@ -345,12 +347,12 @@ namespace TOP.Data
                     Id = I(c, 0), Name = S(c, 1), IsLife = I(c, 2) != 1 && I(c, 2) != 0,
                     Phase = I(c, 8), Type = I(c, 9), LearnLevel = Mathf.Max(1, I(c, 11, 1)), Points = Mathf.Max(1, I(c, 13, 1)),
                     Range = I(c, 16), TargetMode = I(c, 17), AttackShape = I(c, 18), Angle = I(c, 19), Radius = I(c, 20),
-                    SpFormula = S(c, 33), DamageFormula = S(c, 37), CooldownMs = I(c, 44), Description = S(c, 70), Icon = S(c, 67) is string ic && ic.Length > 2 ? ic : null
+                    Prerequisites = S(c, 12), SpFormula = S(c, 33), DamageFormula = S(c, 37), CooldownMs = I(c, 44), Description = S(c, 70), Icon = S(c, 67) is string ic && ic.Length > 2 ? ic : null
                 };
                 foreach (var pair in S(c, 3).Split(';'))
                 {
                     var p = pair.Split(',');
-                    if (p.Length == 2 && int.TryParse(p[0], out var cls) && int.TryParse(p[1], out var max) && cls > 0)
+                    if (p.Length == 2 && int.TryParse(p[0], out var cls) && int.TryParse(p[1], out var max) && cls >= -1)
                         s.ClassMaxLevel[cls] = max;
                 }
                 s.SpCost = FormulaCost(s.SpFormula, "sp");
@@ -389,7 +391,7 @@ namespace TOP.Data
                     MinAtk = Pair(c, 60), MaxAtk = Pair(c, 61), Def = Pair(c, 62), Hp = Pair(c, 63), Sp = Pair(c, 64),
                     Flee = Pair(c, 65), Hit = Pair(c, 66), Crit = Pair(c, 67), MoveSpeed = Pair(c, 71),
                     Resist = Pair(c, 73, 0), HpRec = Pair(c, 69, 0), SpRec = Pair(c, 70, 0), PctDef = I(c, 41), PctHp = I(c, 42), PctCrit = I(c, 46), MaxSockets = Mathf.Clamp(I(c, 77, 0), 0, 3),
-                    Durability = Pair(c, 76, 1) / 50, Description = S(c, 93), VisualEffectId = Pair(c, 90, 0),
+                    OriginalMaxDurability = Pair(c, 76, 1), Durability = Pair(c, 76, 1) / 50, Description = S(c, 93), VisualEffectId = Pair(c, 90, 0),
                     VisualEffectDummy = Pair(c, 90, 1)
                 };
                 _items[it.Id] = it;
@@ -442,6 +444,14 @@ namespace TOP.Data
             return CharacterClass.None;
         }
 
+        public static bool TryTargetFormula(string formula, out string stat, out int perLevel)
+        {
+            stat = null; perLevel = 0;
+            var match = System.Text.RegularExpressions.Regex.Match(formula ?? "", @"^(hp|sp)=\1\(1\)([+-])sklv\(0\)\*(\d+)$");
+            if (!match.Success || !int.TryParse(match.Groups[3].Value, out int value)) return false;
+            stat = match.Groups[1].Value; perLevel = match.Groups[2].Value == "-" ? -value : value;
+            return true;
+        }
         public static SkillData ToSkillData(PkoSkill s)
         {
             var d = ScriptableObject.CreateInstance<SkillData>();
@@ -451,15 +461,22 @@ namespace TOP.Data
             d.targetType = s.TargetMode switch
             {
                 1 => SkillTargetType.Self,
+                2 => SkillTargetType.SingleAlly,
                 4 => s.AttackShape == 2 ? SkillTargetType.Cone : SkillTargetType.SingleEnemy,
                 _ => s.Radius > 0 ? SkillTargetType.AreaEnemy : SkillTargetType.SingleEnemy
             };
             d.requiredClass = MapClass(s);
             d.requiredLevel = s.LearnLevel; d.requiredSkillPoints = s.Points;
             d.spCost = s.SpCost; d.range = Mathf.Max(1f, s.Range / 100f); d.areaRadius = s.Radius / 100f; d.coneAngle = s.Angle;
-            d.cooldown = s.CooldownMs / 1000f;
+            d.cooldown = OriginalSkillParameters.Cooldown(s.Id, 1, Mathf.Max(0, s.CooldownMs) / 1000f);
+            d.spCost = OriginalSkillParameters.Cost(s.Id, 1, s.SpCost);
             int max = 10; foreach (var v in s.ClassMaxLevel.Values) max = v;
             d.maxLevel = max;
+            if (TryTargetFormula(s.DamageFormula, out string stat, out int perLevel))
+            {
+                if (stat == "hp" && perLevel < 0) d.baseDamage = -perLevel;
+                if (stat == "hp" && perLevel > 0) d.healAmount = perLevel;
+            }
             return d;
         }
 

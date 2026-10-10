@@ -31,44 +31,85 @@ PASS World Ready associates the selected player with its connection.
 PASS World Ready delivers owner=True, spawns=74, observing=74, server spawned=74, send rate=60, ticks=5, loading=False.
 PASS World entry completes without transport error.
 PASS Player actually moves under server authority and stays on city ground.
-PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272467
-PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
-PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165264
-PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
-PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645396
-PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823801
-PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,07168144
-PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048177
-PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,1343608
-PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139835
-PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402215
-PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843345
-PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851831
+PASS Monster visual stays at ground height: Monster_3_Forest_Spirit gap=0,0716815
+PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313407
+PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950438
+PASS Monster visual stays at ground height: Monster_14_Piglet gap=-0,02165252
+PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224003
 PASS Monster visual stays at ground height: Monster_6_Mini_Bee gap=0,01313245
-PASS Monster visual stays at ground height: Monster_1_Mystic_Shrub gap=-0,06224015
-PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703775
-PASS Monster visual stays at ground height: Monster_11_Cuddly_Lamb gap=0,1313406
-PASS Monster visual stays at ground height: Monster_5_Mystic_Flower gap=-0,006950498
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,008599699
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,004618108
-PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02842957
+PASS Monster visual stays at ground height: Monster_9_Grass_Tortoise gap=-0,01843327
+PASS Monster visual stays at ground height: Monster_18_Armored_Crab gap=0,03645414
+PASS Monster visual stays at ground height: Monster_19_Sentry_Crab gap=0,01703769
+PASS Monster visual stays at ground height: Monster_16_Oyster gap=0,1272469
+PASS Monster visual stays at ground height: Monster_15_Bear_Cub gap=0,09402233
+PASS Monster visual stays at ground height: Monster_4_Little_Squirt gap=0,2227244
+PASS Monster visual stays at ground height: Monster_10_Sea_Snail gap=0,134361
+PASS Monster visual stays at ground height: Monster_8_Greedy_Shroom gap=-0,04139823
+PASS Monster visual stays at ground height: Monster_13_Marsh_Spirit gap=-0,003851712
+PASS Monster visual stays at ground height: Monster_12_Bubble_Clam gap=-0,01823789
+PASS Monster visual stays at ground height: Monster_17_Whacky_Lamb gap=0,08048201
+PASS Monster visual stays at ground height: Monster_7_Little_Squidy gap=-0,01238215
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,001741707
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=-0,006100953
+PASS Monster visual stays at ground height: Mob_Slime(Clone) gap=0,02458638
 PASS Server monsters navigate on the baked world NavMesh.
 PASS An unspawned client replica never activates server navigation.
 PASS No missing-scene spawns or invalid NavMesh agent creation occurred.
+PASS Bank deposits split item stacks while preserving item attributes.
+PASS Bank withdrawals partially restore stacks and merge compatible inventory items.
+PASS Original personal bank has 32 slots on one page.
+PASS Original banker item blacklist is enforced server-side.
+PASS Character-bound bank items cannot be moved to another character.
+PASS Equipped items cannot be deposited.
+PASS Locked items cannot be deposited.
+PASS A full bank rejects deposits without consuming inventory items.
+PASS A full inventory rejects withdrawals without removing bank items.
+PASS Guild creation payment is isolated in a rollback-safe character snapshot.
+PASS Guild invite consent and leader rank commands are woven into the core.
+PASS Original forge rates/failure levels remain intact.
+PASS Original normal/refining gem combining rates are preserved.
+PASS Locked materials cannot be consumed by forge/fusion.
+PASS Forge rejects insufficient gold without mutation.
+PASS Original fairy growth cap and apparel-marker stamina exception are preserved.
+PASS Fairy fruit probability follows the original level/attribute formula.
+PASS Fairy level is the sum of its five original attributes.
+PASS Fairy progression is deep-copied for atomic durability/rollback.
+PASS Stall reservations are isolated from unconfirmed purchases.
+PASS Player stalls expose authoritative purchase and close commands.
+PASS Skill learning enforces class limits and promoted-class inheritance.
+PASS Original all-class Set Stall/life skill limits are imported.
+PASS Generic skill damage imports original sklv arithmetic, not an invented multiplier.
+PASS Original heal and SP restoration formulas are imported generically.
+PASS Fusion recognizes original client apparel 25000 templates before /50 scaling; server's unfused 23000 marker is also supported.
+PASS Fairy stamina uses original 5000 units rather than display durability 100.
+PASS Original Illusion Slash Lua SP/cooldown functions import 20 SP and five seconds.
+PASS Original level-dependent Sacred Ray cooldown evaluates safely from imported data.
+PASS Every original skillinfo row has a unique generic runtime definition and valid cooldown.
+PASS Original skilleff status catalog remains available; Lua-specific behaviors are documented separately.
 PASS Original normal/unknown maps never allow PK.
 PASS Original type 2 protects guilds, not parties.
 PASS Original teampk type 3 protects parties, not guilds.
 PASS Original type 4 protects party and nonzero guild without treating unguilded players as allies.
 PASS Original side-based map type protects its own side.
 PASS Original safe, land and bridge masks match native CompCommand.h.
-PASS Original teampk stamina loss respects level 10 and direct Death set nighttime exemption at level 75.
+PASS PK requires an enabled native map, safe-zone cells block combat, and guild membership is required only by map types 2/4.
+PASS Original PvE death removes 2% of current-level EXP (capped by current EXP) and clears SP.
+PASS Original protection item consumes one stack unit and suppresses EXP loss, not SP loss.
+PASS Original teampk player kill clears SP but exempts EXP and durability.
+PASS Original player kill on native PK maps applies the capped level-squared EXP loss plus SP loss.
+PASS Original level-80+ player-kill EXP loss is scaled down by 50 after the native cap.
+PASS Original PvP voodoo doll suppresses EXP/equipment loss but does not suppress SP loss, including when bound.
+PASS Original PvE death reduces each eligible equipped repair item by 5%, stopping at durability 49.
+PASS Original PvE teampk death is exempt from EXP and durability penalties but clears SP.
+PASS Original nighttime Death/Pirate set exemptions honor minimum levels and persisted fusion IDs.
+PASS Original secretgarden death loses SP only and skips EXP and equipment wear.
 PASS Packed arena attributes use native row-major indexing and fail closed for malformed/boundary cells.
-PASS Original default Guppy costs exactly 9990 gold with native hull/engine/bow/cannon/component statistics.
+PASS Original default Guppy costs exactly 9990 gold with native hull model, BSREC, fuel, speed and equipment statistics.
 PASS Original Argent offerings and ship level thresholds are preserved.
 PASS Boat names enforce the native 2-16 byte limit and reject control/markup characters.
 PASS Second synthetic player connects over KCP.
 PASS Remote player has a live collider available to actual pointer raycasts.
-PASS Social fixture ready: hp=209/102, ready=True/True, distance=1.
+PASS Social fixture ready: hp=220/102, ready=True/True, distance=1.
 PASS Server validates fixture players as available for duel.
 PASS Player attack is rejected without an accepted duel.
 PASS Duel invitation arrives over real KCP; no attack permission before acceptance.
@@ -117,6 +158,29 @@ PASS Out-of-range and non-finite area casts are rejected before costs and player
 PASS Lethal PK damage subtracts physical defense exactly once.
 PASS Arena death reaches zero HP once, blocks duplicate damage and terminates attack permission.
 PASS Original teampk death does not lose EXP/gold or invent red-name/crime points.
+PASS Original NPC 53 (server record 52) Arena Administrator exposes arena registration.
+PASS Real KCP NPC registration rejects a missing Medal of Valor.
+PASS Original medal grant requires level >25, 50000 gold and no duplicate.
+PASS Authoritative permanent NPC medals resist generic removal, charge 50000, bind to the character and initialize all grade-97 attributes to 10.
+PASS Admission rejects stacked/duplicate medals and honor below -300.
+PASS Original honor admission bounds are inclusive -300..30000.
+PASS Registration waits for a consenting opponent instead of teleporting one player.
+PASS NPC registration starts one of exactly 20 authoritative arena copies.
+PASS Party PVP 1/2 use native (44,21)/(44,66) positions and increment original participation attribute.
+PASS Existing save path persists Argent Bar, never transient instance coordinates.
+PASS Native kill honor preserves the asymmetric -5/+10 thresholds, including the exact -5 gap.
+PASS Two live instances isolate PK and Mirror observers, including same-map opponents.
+PASS Native arena land attributes allow opposite sides in the same instance.
+PASS Active match locks medal/inventory mutation.
+PASS Honor formula preserves native base 2, enemy/team counts and Lua floor for negative level differences.
+PASS Authoritative elimination resolves once, rewards/penalizes medals and disables post-result combat.
+PASS Defeated player does not run generic 5-second respawn before arena closure.
+PASS Arena closes 11s after result, returns both sides alive to original Argent Bar without double rewards.
+PASS Destroyed/unloaded native arena terrain is rebuilt on reuse instead of retaining a stale scene cache.
+PASS Party-mode registration snapshots two actual teams and preserves Party PVP side assignments for every member.
+PASS One eliminated party member cannot end the match while another teammate remains alive.
+PASS Last party elimination awards native team honor exactly once beyond entry bounds: honor=30006/-305, results=1/1/-1/-1, levels=26/26/26.
+PASS All party members return safely after the native 11-second result window.
 PASS Disconnect removes the opponent and stops combat without stale duel permission.
 PASS Original-disabled Jackpot stays inactive and unspawned after Mirror activates scene identities.
 PASS World contains interactable original NPCs: 55
@@ -240,6 +304,13 @@ PASS Naval ownership, original stats, gold and prior revision share one immutabl
 PASS Definitively rejected boat save leaves gold and ownership unchanged and releases reservation.
 PASS Transient naval save retries identical boat ID/body and confirms one charge, not duplicate ships.
 PASS Actual server enforces native maximum of three boats before any fourth purchase or HTTP save.
+PASS Original PackBag mappings convert 10 wood/ore resources into their matching freight pile.
+PASS KCP freight fixture uses an existing original NPC model with the native freight table ID and authoritative range check.
+PASS KCP cargo rejects wrong resource mappings and partial PackBag quantities without saving.
+PASS Cargo packing reserves ten wood and does not reveal a pile before the durable API acknowledgement.
+PASS Ten wood atomically becomes one durable 4547 cargo pile within original boat capacity.
+PASS Freight delivery holds the original pile and reward until the API confirms the atomic save.
+PASS Freight delivery removes the cargo and credits the original pile value only after durable confirmation.
 PASS Native ship level-1 HP=1919, repair=floor(missingHP*.05)+level*20, refuel=missingFuel+level*20; level <=10 is free.
 PASS Naval snapshots and fleet synchronization deep-copy mutable boat records before preparing a save.
 PASS Unupdated service API and Sinbad construction dialogue cannot authorize harbor maintenance.
@@ -254,4 +325,51 @@ PASS Fully repaired/refueled ships cannot charge repeated maintenance fees.
 PASS Sunken ships cannot be repaired or refueled before salvage.
 PASS Original 1000-gold salvage clears sunk status without inventing free HP or fuel.
 PASS Original level <=10 repair exemption restores HP with zero charge.
+PASS Shirley launches the owned Guppy from berth 1 to the native launch coordinates only after durable acknowledgement.
+PASS Harbor launch opens onto the verified water-only navigation surface.
+PASS KCP water course moves the synchronized vessel; distance=5,48, speed=4,50, moving=True
+PASS Boat navigation speed is derived from the original engine attribute, not the on-foot speed.
+PASS Only a boat inside the harbor berth can dock; its owned berth and land spawn persist atomically.
+PASS Every native five-second fuel tick consumes BSREC and, at zero SP, removes 2.5% max hull HP durably.
+PASS Fuel-starved hulls sink at zero HP and durably return their owner to the last known Argent berth for salvage.
+PASS Runtime loads the packaged OriginalQuests resource and registers every imported definition in QuestTable.
+PASS Declarative importer preserves broad original coverage and reports every unsupported definition fail-closed.
+PASS Native definition namespace preserves existing inferred quest IDs and their saved progress.
+PASS Native kill triggers resolve exact original monster IDs, never legacy substring matches.
+PASS Original monster variants with identical names resolve by native level or explicit numeric ID, never by ambiguous names alone.
+PASS Native records are independent, idempotent and exact.
+PASS Accept actions create a native mission and its independent flags.
+PASS SetFlag is idempotent and does not confuse a flag with a record.
+PASS Original state snapshots deeply isolate records, missions and flags.
+PASS ClearMission discards its flags while completion records survive.
+PASS Native strict level comparison rejects the inclusive boundary.
+PASS Unknown native prerequisites fail closed instead of unlocking a quest.
+PASS Level, class, previous-record and item prerequisites combine conjunctively.
+PASS Wrong original class cannot bypass prerequisites.
+PASS Insufficient original item quantity blocks acceptance.
+PASS Original profession and race tables enforce valid Champion/Crusader conversion paths.
+PASS Unrelated kills cannot advance native triggers.
+PASS Native kill counters set consecutive mission flags and clamp at the original trigger count.
+PASS Old APIs without native quest capability cannot grant memory-only records or rewards.
+PASS Original Welcome episode gates the first Senna letter chain.
+PASS Actual KCP Welcome completion durably records mission 1, awards six XP once and unlocks the next episode.
+PASS Native NPC bindings distinguish Senna's acceptance from Goldie's completion-only delivery.
+PASS Original acceptance atomically persists mission flags and the letter item using the character save receipt path.
+PASS Native mission, letter and capability share one immutable atomic save snapshot.
+PASS Remote-NPC delivery is rejected before any HTTP transaction or item consumption.
+PASS Rejected native delivery preserves its item and flags and releases the inventory reservation.
+PASS Completion-only Goldie episode retries the same receipt, consumes the letter once and sets a flag without closing the parent mission.
+PASS Returning to Senna completes the parent, clears transient flags, awards nine XP and unlocks the next record-dependent letter.
+PASS Native chain records survive serialization without retaining cleared mission flags.
+PASS Existing Peter NPC accepts the original twelve-Piglet episode only after its previous mission record.
+PASS Authoritative numeric kills coalesce to durable original flag counters and stop exactly at twelve.
+PASS Actual owner-targeted KCP payload reconstructs independent original records and flag counters on a remote client.
+PASS Original kill episode awards 300 XP, records its completion and unlocks the next story letter.
+PASS Peter's next story episode durably gives the original Letter to General William.
+PASS Existing General William consumes the story letter, gives 100 XP and unlocks the item-collection episode.
+PASS Original item-acquisition trigger persists all three consecutive flags together with the collected items.
+PASS Original collection delivery consumes exactly three items and awards its original 300 XP.
+PASS The completed collection episode unlocks William's original Courage Certificate delivery.
+PASS Actual original Swordsman class-change episode atomically consumes its certificate, changes profession and grants XP plus multiple items.
+PASS Rejected operations and retry receipts cannot advance the native chain save revision twice.
 No account authentication or database writes were performed.

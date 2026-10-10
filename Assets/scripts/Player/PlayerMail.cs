@@ -37,14 +37,9 @@ namespace TOP.Player
         public void CmdRefreshMail() => RefreshMailInternal();
 
         [Command]
-        public async void CmdSendMail(string targetName, string subject, string body, long gold, int itemId, int itemQuantity, int itemRefine)
+        public void CmdSendMail(string targetName, string subject, string body, long gold, int itemId, int itemQuantity, int itemRefine)
         {
-            if (InventoryRequestPending)
-            { _pc?.RpcShowMessage("Aguarde a operacao de correio em andamento.", PlayerMessageType.Warning); return; }
-            if (_inventory != null && _inventory.RejectQuestMutation()) return;
-            InventoryRequestPending = true;
-            try { await SendMailInternal(targetName, subject, body, gold, itemId, itemQuantity, itemRefine); }
-            finally { InventoryRequestPending = false; }
+            if (_pc != null) _pc.RpcShowMessage("Original: apenas correio do GM/Item Mall. Correio com anexos entre jogadores desativado.", PlayerMessageType.Warning);
         }
 
         public bool InventoryRequestPending { get; private set; }
@@ -77,14 +72,9 @@ namespace TOP.Player
         }
 
         [Command]
-        public async void CmdClaimMail(long mailId)
+        public void CmdClaimMail(long mailId)
         {
-            if (InventoryRequestPending)
-            { _pc?.RpcShowMessage("Aguarde a operacao de correio em andamento.", PlayerMessageType.Warning); return; }
-            if (_inventory != null && _inventory.RejectQuestMutation()) return;
-            InventoryRequestPending = true;
-            try { await ClaimMailInternal(mailId); }
-            finally { InventoryRequestPending = false; }
+            if (_pc != null) _pc.RpcShowMessage("Resgate de correio legado desativado: requer entrega atomica do GM/Item Mall.", PlayerMessageType.Warning);
         }
 
         async System.Threading.Tasks.Task ClaimMailInternal(long mailId)

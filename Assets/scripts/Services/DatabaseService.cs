@@ -28,7 +28,7 @@ namespace TOP.Services
         }
 
         // ---- DTOs (JsonUtility) ----
-        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; public long revision; public int boatOwnershipVersion; public int boatServicesVersion; }
+        [Serializable] class Ok { public bool success; public string error; public long charId; public bool admin; public long revision; public int boatOwnershipVersion; public int boatServicesVersion; public int bankStorageVersion; public int questStateVersion; public int gameplayStateVersion; }
 
         [Serializable] class PreviewDto
         {
@@ -40,15 +40,15 @@ namespace TOP.Services
         [Serializable] class ItemDto
         {
             public long Id; public string UniqueItemId; public ushort SlotIndex; public int ItemId, Quantity; public ushort Durability;
-            public bool IsEquipped, IsLocked; public long OwnerCharacterId = -1; public int RefineLevel; public int Gem1 = -1, Gem2 = -1, Gem3 = -1;
+            public bool IsEquipped, IsLocked; public int FusionItemId, MedalHonor, MedalWins, MedalEntries, MedalKills, MedalDeaths; public long OwnerCharacterId = -1; public int RefineLevel; public int Gem1 = -1, Gem2 = -1, Gem3 = -1;
         }
         [Serializable] class SkillDto { public long Id; public int SkillId; public byte Level; public ulong Exp; }
         [Serializable] class LoadDto
         {
             public bool success; public string error; public CharacterData Character;
-            public List<ItemDto> Inventory = new List<ItemDto>(); public List<SkillDto> Skills = new List<SkillDto>();
+            public List<ItemDto> Inventory = new List<ItemDto>(); public List<ItemDto> BankItems = new List<ItemDto>(); public List<SkillDto> Skills = new List<SkillDto>();
         }
-        [Serializable] class SaveDto { public string OperationId; public int QuestId; public CharacterData Character; public List<ItemDto> Inventory; public List<SkillDto> Skills; }
+        [Serializable] class SaveDto { public string OperationId; public int QuestId; public CharacterData Character; public List<ItemDto> Inventory; public List<ItemDto> BankItems; public List<SkillDto> Skills; }
         readonly Dictionary<long, SemaphoreSlim> characterSaveGates = new Dictionary<long, SemaphoreSlim>();
         readonly HashSet<long> uncertainCharacterSaves = new HashSet<long>();
         public bool RequiresCharacterReload(long characterId) => uncertainCharacterSaves.Contains(characterId);
@@ -201,10 +201,19 @@ namespace TOP.Services
                     c.Inventory.Add(new InventoryItemData
                     {
                         Id = i.Id, UniqueItemId = i.UniqueItemId, SlotIndex = i.SlotIndex, ItemId = i.ItemId, Quantity = i.Quantity,
-                        Durability = i.Durability, IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
+                        Durability = i.Durability, FusionItemId = i.FusionItemId, MedalHonor = i.MedalHonor, MedalWins = i.MedalWins, MedalEntries = i.MedalEntries, MedalKills = i.MedalKills, MedalDeaths = i.MedalDeaths, IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
                         OwnerCharacterId = i.OwnerCharacterId >= 0 ? i.OwnerCharacterId : (long?)null, RefineLevel = i.RefineLevel,
                         GemSlot1 = i.Gem1 >= 0 ? i.Gem1 : (int?)null, GemSlot2 = i.Gem2 >= 0 ? i.Gem2 : (int?)null, GemSlot3 = i.Gem3 >= 0 ? i.Gem3 : (int?)null,
                     });
+                c.BankItems = new List<InventoryItemData>();
+                foreach (var i in dto.BankItems) c.BankItems.Add(new InventoryItemData
+                {
+                    Id = i.Id, UniqueItemId = i.UniqueItemId, SlotIndex = i.SlotIndex, ItemId = i.ItemId, Quantity = i.Quantity,
+                    Durability = i.Durability, FusionItemId = i.FusionItemId, MedalHonor = i.MedalHonor, MedalWins = i.MedalWins, MedalEntries = i.MedalEntries, MedalKills = i.MedalKills, MedalDeaths = i.MedalDeaths,
+                    IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
+                    OwnerCharacterId = i.OwnerCharacterId >= 0 ? i.OwnerCharacterId : (long?)null, RefineLevel = i.RefineLevel,
+                    GemSlot1 = i.Gem1 >= 0 ? i.Gem1 : (int?)null, GemSlot2 = i.Gem2 >= 0 ? i.Gem2 : (int?)null, GemSlot3 = i.Gem3 >= 0 ? i.Gem3 : (int?)null,
+                });
                 c.Skills = new List<CharacterSkillData>();
                 foreach (var s in dto.Skills) c.Skills.Add(new CharacterSkillData { Id = s.Id, SkillId = s.SkillId, Level = s.Level, Exp = s.Exp });
                 uncertainCharacterSaves.Remove(charId);
@@ -212,6 +221,86 @@ namespace TOP.Services
             }
             catch (Exception e) { Debug.LogError("[API] LoadCharacter: " + e.Message); return null; }
             finally { gate.Release(); }
+        }
+
+        [Serializable] class StallPurchaseDto
+        {
+            public string operationId, itemKey;
+            public long sellerId, buyerRevision, sellerRevision;
+            public int quantity, buyerSlot;
+        }
+        [Serializable] class StallPurchaseResult
+        {
+            public bool success; public string error, itemUniqueId;
+            public int gameplayStateVersion;
+            public long buyerRevision, sellerRevision;
+            public ulong buyerGold, sellerGold;
+        }
+        public async Task<(bool success, string error)> PurchaseStallAsync(long buyerId, long sellerId,
+            Func<CharacterData> buyerSnapshot, Func<CharacterData> sellerSnapshot, string token, string itemKey,
+            int quantity, int slot, Action<CharacterData, CharacterData> commit)
+        {
+            var first = CharacterSaveGate(Math.Min(buyerId, sellerId));
+            var second = CharacterSaveGate(Math.Max(buyerId, sellerId));
+            await first.WaitAsync();
+            await second.WaitAsync();
+            try
+            {
+                if (uncertainCharacterSaves.Contains(buyerId) || uncertainCharacterSaves.Contains(sellerId)) return (false, "RELOAD_REQUIRED");
+                var buyer = buyerSnapshot().CopySnapshot();
+                var seller = sellerSnapshot().CopySnapshot();
+                var item = seller.Inventory.Find(i => i.UniqueItemId == itemKey);
+                var offer = seller.Gameplay.Offers.Find(o => o.ItemKey == itemKey);
+                if (item == null || offer == null || quantity <= 0 || item.Quantity < quantity || offer.Quantity < quantity || buyer.Inventory.Exists(i => i.SlotIndex == slot)) return (false, "INVALID_OFFER");
+                ulong total = checked((ulong)offer.Price * (ulong)quantity);
+                if (buyer.Gold < total || offer.Price <= 0) return (false, "INSUFFICIENT_GOLD");
+                string operation = Guid.NewGuid().ToString();
+                string json = JsonUtility.ToJson(new StallPurchaseDto { operationId = operation, itemKey = itemKey,
+                    sellerId = sellerId, buyerRevision = buyer.SaveRevision, sellerRevision = seller.SaveRevision,
+                    quantity = quantity, buyerSlot = slot });
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    try
+                    {
+                        var result = JsonUtility.FromJson<StallPurchaseResult>(await SendAsync("POST", "/stalls/" + buyerId + "/buy", json, token, default));
+                        if (result == null || result.error == "DB_ERROR") throw new InvalidOperationException("Stall confirmation unavailable.");
+                        if (!result.success) return (false, result.error);
+                        if (result.gameplayStateVersion != 1 || result.buyerRevision != buyer.SaveRevision + 1 || result.sellerRevision != seller.SaveRevision + 1 || result.buyerGold != buyer.Gold - total || result.sellerGold != checked(seller.Gold + total) || result.itemUniqueId != operation) throw new InvalidOperationException("Stall receipt mismatch.");
+                        var moved = seller.CopySnapshot().Inventory.Find(i => i.UniqueItemId == itemKey);
+                        moved.UniqueItemId = result.itemUniqueId; moved.SlotIndex = (ushort)slot; moved.Quantity = quantity;
+                        buyer.Inventory.Add(moved);
+                        item.Quantity -= quantity;
+                        if (item.Quantity == 0) seller.Inventory.Remove(item);
+                        offer.Quantity -= quantity;
+                        seller.Gameplay.Offers.RemoveAll(o => o.Quantity <= 0);
+                        if (seller.Gameplay.Offers.Count == 0) seller.Gameplay.StallName = "";
+                        buyer.Gold = result.buyerGold; seller.Gold = result.sellerGold;
+                        buyer.SaveRevision = result.buyerRevision; seller.SaveRevision = result.sellerRevision;
+                        commit(buyer, seller);
+                        return (true, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning("[Stall] Confirmation retry: " + ex.Message);
+                        if (attempt < 2) await Task.Delay(150 * (attempt + 1));
+                    }
+                }
+                uncertainCharacterSaves.Add(buyerId); uncertainCharacterSaves.Add(sellerId);
+                return (false, "RELOAD_REQUIRED");
+            }
+            catch (Exception ex) { Debug.LogWarning("[Stall] " + ex.Message); return (false, "INVALID_OFFER"); }
+            finally { second.Release(); first.Release(); }
+        }
+
+        [Serializable] class GameplayCapabilities { public bool success; public int gameplayStateVersion, guildVersion, forgeVersion, fairyVersion, stallsVersion, genericSkillsVersion; }
+        public async Task<bool> SupportsGameplayAsync(string token)
+        {
+            try
+            {
+                var capabilities = JsonUtility.FromJson<GameplayCapabilities>(await SendAsync("GET", "/capabilities", null, token, default));
+                return capabilities != null && capabilities.success && capabilities.gameplayStateVersion == 1 && capabilities.guildVersion == 1 && capabilities.forgeVersion == 1 && capabilities.fairyVersion == 1 && capabilities.stallsVersion == 1 && capabilities.genericSkillsVersion == 1;
+            }
+            catch (Exception) { return false; }
         }
 
         public async Task<bool> SaveCharacterAsync(CharacterData data, string token, CancellationToken ct = default)
@@ -241,7 +330,7 @@ namespace TOP.Services
                     return (false, "INVALID_CHARACTER_VALUES");
                 }
                 var save = new SaveDto { OperationId = Guid.NewGuid().ToString(), QuestId = questId,
-                    Character = data, Inventory = new List<ItemDto>(), Skills = new List<SkillDto>() };
+                    Character = data, Inventory = new List<ItemDto>(), BankItems = new List<ItemDto>(), Skills = new List<SkillDto>() };
                 if (data.Inventory != null)
                     foreach (var i in data.Inventory)
                     {
@@ -249,7 +338,19 @@ namespace TOP.Services
                         save.Inventory.Add(new ItemDto
                         {
                             Id = i.Id, UniqueItemId = i.UniqueItemId, SlotIndex = i.SlotIndex, ItemId = i.ItemId, Quantity = i.Quantity,
-                            Durability = i.Durability, IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
+                            Durability = i.Durability, FusionItemId = i.FusionItemId, MedalHonor = i.MedalHonor, MedalWins = i.MedalWins, MedalEntries = i.MedalEntries, MedalKills = i.MedalKills, MedalDeaths = i.MedalDeaths, IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
+                            OwnerCharacterId = i.OwnerCharacterId ?? -1, RefineLevel = i.RefineLevel,
+                            Gem1 = i.GemSlot1 ?? -1, Gem2 = i.GemSlot2 ?? -1, Gem3 = i.GemSlot3 ?? -1,
+                        });
+                    }
+                if (data.BankStorageVersion == 1 && data.BankItems != null)
+                    foreach (var i in data.BankItems)
+                    {
+                        i.EnsureUniqueId();
+                        save.BankItems.Add(new ItemDto
+                        {
+                            Id = i.Id, UniqueItemId = i.UniqueItemId, SlotIndex = i.SlotIndex, ItemId = i.ItemId, Quantity = i.Quantity,
+                            Durability = i.Durability, FusionItemId = i.FusionItemId, MedalHonor = i.MedalHonor, MedalWins = i.MedalWins, MedalEntries = i.MedalEntries, MedalKills = i.MedalKills, MedalDeaths = i.MedalDeaths, IsEquipped = i.IsEquipped, IsLocked = i.IsLocked,
                             OwnerCharacterId = i.OwnerCharacterId ?? -1, RefineLevel = i.RefineLevel,
                             Gem1 = i.GemSlot1 ?? -1, Gem2 = i.GemSlot2 ?? -1, Gem3 = i.GemSlot3 ?? -1,
                         });
@@ -273,6 +374,9 @@ namespace TOP.Services
                                 throw new InvalidOperationException("Boat ownership acknowledgement is missing.");
                             if (data.BoatServicesVersion == 1 && data.Boats != null && data.Boats.Count > 0 && r.boatServicesVersion != 1)
                                 throw new InvalidOperationException("Naval service acknowledgement is missing.");
+                            if (data.BankStorageVersion == 1 && r.bankStorageVersion != 1) throw new InvalidOperationException("Bank storage acknowledgement is missing.");
+                            if (data.QuestStateVersion == 1 && r.questStateVersion != 1) throw new InvalidOperationException("Original quest state acknowledgement is missing.");
+                            if (data.GameplayStateVersion == 1 && r.gameplayStateVersion != 1) throw new InvalidOperationException("Gameplay persistence acknowledgement is missing.");
                             data.SaveRevision = r.revision;
                             return (true, null);
                         }
@@ -447,6 +551,12 @@ namespace TOP.Services
             catch (Exception e) { Debug.LogError("[API] GuildInvite: " + e.Message); return (false, "DB_ERROR"); }
         }
 
+        [Serializable] class GuildRankDto { public string targetName; public bool officer; }
+        public async Task<bool> GuildSetRankAsync(long charId, string targetName, bool officer, string token)
+        {
+            try { return JsonUtility.FromJson<Ok>(await SendAsync("POST", "/guild/" + charId + "/rank", JsonUtility.ToJson(new GuildRankDto { targetName = targetName, officer = officer }), token, default)).success; }
+            catch (Exception) { return false; }
+        }
         public async Task<bool> GuildLeaveAsync(long charId, string token, CancellationToken ct = default)
         {
             try

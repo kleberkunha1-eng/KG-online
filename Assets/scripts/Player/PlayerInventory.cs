@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Mirror;
 using System;
 using System.Collections.Generic;
@@ -43,6 +43,7 @@ namespace TOP.Player
                         Quantity = item.Quantity,
                         SlotIndex = item.SlotIndex,
                         Durability = (int)item.Durability,
+                        FusionItemId = item.FusionItemId, MedalHonor = item.MedalHonor, MedalWins = item.MedalWins, MedalEntries = item.MedalEntries, MedalKills = item.MedalKills, MedalDeaths = item.MedalDeaths,
                         RefineLevel = item.RefineLevel,
                         IsEquipped = item.IsEquipped,
                         DatabaseId = item.Id,
@@ -76,6 +77,7 @@ namespace TOP.Player
                     ItemId = slot.ItemId,
                     Quantity = slot.Quantity,
                     Durability = (ushort)slot.Durability,
+                    FusionItemId = slot.FusionItemId, MedalHonor = slot.MedalHonor, MedalWins = slot.MedalWins, MedalEntries = slot.MedalEntries, MedalKills = slot.MedalKills, MedalDeaths = slot.MedalDeaths,
                     RefineLevel = slot.RefineLevel,
                     IsEquipped = slot.IsEquipped,
                     Id = slot.DatabaseId,
@@ -177,6 +179,8 @@ namespace TOP.Player
             };
 
             SerializeInventory();
+            var quests = GetComponent<PlayerQuests>();
+            if (quests != null) quests.ServerNotifyOriginalItem(itemId, quantity);
             return true;
         }
 
@@ -184,7 +188,7 @@ namespace TOP.Player
         public void RemoveItem(ushort slotIndex, int quantity)
         {
             if (RejectQuestMutation()) return;
-            if (slotIndex >= _slots.Length || _slots[slotIndex] == null) return;
+            if (slotIndex >= _slots.Length || _slots[slotIndex] == null || _slots[slotIndex].ItemId == 3849) return;
 
             _slots[slotIndex].Quantity -= quantity;
             if (_slots[slotIndex].Quantity <= 0)
@@ -397,7 +401,7 @@ namespace TOP.Player
         public void CmdDeleteItem(ushort slotIndex)
         {
             if (RejectQuestMutation()) return;
-            if (slotIndex >= _slots.Length || _slots[slotIndex] == null || _slots[slotIndex].IsEquipped) return;
+            if (slotIndex >= _slots.Length || _slots[slotIndex] == null || _slots[slotIndex].IsEquipped || _slots[slotIndex].ItemId == 3849) return;
             _slots[slotIndex] = null;
             SerializeInventory();
         }
@@ -496,7 +500,7 @@ namespace TOP.Player
             if (RejectQuestMutation()) return false;
             if (slotIndex >= _slots.Length || quantity <= 0) return false;
             InventoryItem item = _slots[slotIndex];
-            if (item == null || item.IsEquipped || item.Quantity < quantity) return false;
+            if (item == null || item.IsEquipped || item.ItemId == 3849 || item.Quantity < quantity) return false;
             WorldItemManager worldItemManager = GameObject.FindAnyObjectByType<WorldItemManager>();
             if (worldItemManager == null) return false;
 
@@ -597,7 +601,7 @@ namespace TOP.Player
             {
                 if (_slots[i] != null)
                 {
-                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}:{_slots[i].Durability}:{(_slots[i].IsLocked ? 1 : 0)}");
+                    list.Add($"{i}:{_slots[i].ItemId}:{_slots[i].Quantity}:{(_slots[i].IsEquipped ? 1 : 0)}:{_slots[i].RefineLevel}:{_slots[i].Gems[0]}:{_slots[i].Gems[1]}:{_slots[i].Gems[2]}:{_slots[i].Durability}:{(_slots[i].IsLocked ? 1 : 0)}:{_slots[i].FusionItemId}:{_slots[i].MedalHonor}:{_slots[i].MedalWins}:{_slots[i].MedalEntries}:{_slots[i].MedalKills}:{_slots[i].MedalDeaths}");
                 }
             }
             _inventoryData = string.Join(";", list);
@@ -623,7 +627,7 @@ namespace TOP.Player
                 string[] fields = entry.Split(':');
                 // O campo de durabilidade (indice 8) foi adicionado depois; entradas antigas com 8 campos
                 // ainda sao aceitas e assumem durabilidade cheia (tratada como 0 => 100% na UI).
-                if ((fields.Length < 8 || fields.Length > 10) ||
+                if ((fields.Length < 8 || fields.Length > 16) ||
                     !int.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot) ||
                     !int.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int itemId) ||
                     !int.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int quantity) ||
@@ -640,10 +644,17 @@ namespace TOP.Player
                 int durability = 0;
                 if (fields.Length >= 9) int.TryParse(fields[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out durability);
                 int locked = 0;
-                if (fields.Length == 10 && (!int.TryParse(fields[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out locked)
+                if (fields.Length >= 10 && (!int.TryParse(fields[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out locked)
                     || (locked != 0 && locked != 1)))
                 {
                     Debug.LogWarning("[PlayerInventory] Estado de bloqueio invalido: " + entry);
+                    continue;
+                }
+
+                int fusionItemId = 0;
+                if (fields.Length >= 11 && !int.TryParse(fields[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out fusionItemId))
+                {
+                    Debug.LogWarning("[PlayerInventory] Fusion id invalido: " + entry);
                     continue;
                 }
 
@@ -656,7 +667,13 @@ namespace TOP.Player
                     RefineLevel = refine,
                     Gems = new[] { gem1, gem2, gem3 },
                     Durability = durability,
-                    IsLocked = locked != 0
+                    IsLocked = locked != 0,
+                    FusionItemId = fusionItemId,
+                    MedalHonor = fields.Length > 11 && int.TryParse(fields[11], out int medalhonor) ? medalhonor : 0,
+                    MedalWins = fields.Length > 12 && int.TryParse(fields[12], out int medalwins) ? medalwins : 0,
+                    MedalEntries = fields.Length > 13 && int.TryParse(fields[13], out int medalentries) ? medalentries : 0,
+                    MedalKills = fields.Length > 14 && int.TryParse(fields[14], out int medalkills) ? medalkills : 0,
+                    MedalDeaths = fields.Length > 15 && int.TryParse(fields[15], out int medaldeaths) ? medaldeaths : 0
                 };
             }
         }
